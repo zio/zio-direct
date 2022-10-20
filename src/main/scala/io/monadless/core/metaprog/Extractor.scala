@@ -231,19 +231,20 @@ object Extractors {
       val mtpe = MethodType(List("arg1"))(_ => List(symbol.typeRef), _ => body.asTerm.tpe)
       val lam =
         Lambda(symbol.owner, mtpe, {
-          case (methSym, List(arg1: Term)) =>
-            given Quotes = methSym.asQuotes
-            (new TreeMap:
-              override def transformTerm(tree: Term)(owner: Symbol): Term = {
-                tree match
-                  case tree: Ident if (tree.symbol == symbol) =>
-                    println(s"============+ REPLACEING IDENT OF: ${body.show}")
-                    Ident(arg1.symbol.termRef)
-                  case other =>
-                    super.transformTerm(other)(symbol.owner)
-              }
-            ).transformTerm(body.asTerm)(symbol.owner)
-
+            case (methSym, List(arg1: Term)) =>
+              given Quotes = methSym.asQuotes
+              (new TreeMap:
+                override def transformTerm(tree: Term)(owner: Symbol): Term = {
+                  tree match
+                    case tree: Ident if (tree.symbol == symbol) =>
+                      //println(s"============+ REPLACEING IDENT OF: ${body.show}")
+                      Ident(arg1.symbol.termRef)
+                    case other =>
+                      super.transformTerm(other)(symbol.owner)
+                }
+              ).transformTerm(body.asTerm)(symbol.owner)
+            case other =>
+              report.throwError(s"Invalid valdef: ${other}")
           }
         )
       '{ ${lam.asExpr}.asInstanceOf[? => ?] }
@@ -313,14 +314,13 @@ object Extractors {
       Some(t.asTerm)
   }
   object Seal {
-    def apply[T](using Quotes)(e: quotes.reflect.Term) = {
-      implicit val ttpe: quoted.Type[T] = e.tpe.asType.asInstanceOf[quoted.Type[T]] // FIXME: this cast is unsound
-      e.asExprOf[T]
-    }
-
-    def unapply[T](using Quotes)(e: quotes.reflect.Term) = {
-      implicit val ttpe: quoted.Type[T] = e.tpe.asType.asInstanceOf[quoted.Type[T]] // FIXME: this cast is unsound
-      Some(e.asExprOf[T])
+    def unapply(using Quotes)(e: quotes.reflect.Tree) = {
+      import quotes.reflect._
+      e match
+        // Some terms coming from tree-expressions actual cannot be converted to Exprs
+        // use t.isExpr to check that
+        case t: Term if (t.isExpr) => Some(t.asExpr)
+        case _ => None
     }
   }
 

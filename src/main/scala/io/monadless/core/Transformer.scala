@@ -3,23 +3,20 @@ package io.monadless.core
 import scala.quoted._
 import zio.Task
 import io.monadless.core.metaprog.Extractors._
-import io.monadless.core.metaprog.ValDefExtractor._
+import io.monadless.core.metaprog._
 import io.monadless._
-import io.monadless.core.metaprog.Extractors
 
 class Transformer(using Quotes) {
   import quotes.reflect._
 
   object Transform {
     def apply(expr: Expr[_]): Expr[_] =
-      unapply(expr).getOrElse(expr)
+      unapply(expr.asTerm.underlyingArgument.asExpr).getOrElse(expr)
 
     // TODO really use underlyingArgument????
     def unapply(expr: Expr[_]): Option[Expr[_]] = {
-      expr.asTerm.underlyingArgument.asExpr match {
-        //case PureTree(tree) =>
-
-
+      expr match {
+        case Unseal(PureTree(tree)) => None
 
         case Unseal(Block(parts, lastPart)) =>
           println(s"============  Block: ${parts.map(_.show)} ==== ${lastPart.show}")
@@ -40,9 +37,26 @@ class Transformer(using Quotes) {
     }
   }
 
+  private object PureTree:
+    def unapply(tree: Tree) =
+      Trees.exists(tree, Symbol.spliceOwner) {
+        case Seal('{ unlift[t]($v) }) => true
+      } match {
+        case true => None
+        case false => Some(tree)
+      }
+
   private object Nest {
-    def apply(monad: Expr[_], symbol: Symbol, body: Expr[_]): Expr[_] =
-      def spliceBody = Extractors.Lambda1.fromValDef(symbol, body)
+    enum NestType:
+      case ValDef(symbol: Symbol)
+      case Wildcard
+
+    def apply(monad: Expr[_], nestType: NestType, body: Expr[_]): Expr[_] =
+      def spliceBody =
+        nestType match
+          case NestType.ValDef(symbol) => Extractors.Lambda1.fromValDef(symbol, body)
+          case NestType.Wildcard => body
+
       body match {
         // q"${Resolve.flatMap(monad.pos, monad)}(${toVal(name)} => $body)"
         case Transform(body) =>
@@ -61,24 +75,25 @@ class Transformer(using Quotes) {
   private object TransformBlock {
     def apply(parts: List[Statement]) =
       parts match {
-        case ValDefAsLambda(symbol , Seal(Transform(monad))) :: tail =>
+        case ValDefStatement(symbol , Seal(Transform(monad))) :: tail =>
           println(s"============= Block - With body transform: ${monad.show}")
-          Some(Nest(monad, symbol, BlockN(tail).asExpr))
+          Some(Nest(monad, Nest.NestType.ValDef(symbol), BlockN(tail).asExpr))
 
-        case ValDefAsLambda(name, body) :: tail =>
-          report.throwError(s"===== validef match bad body: ${body.show}")
+        // TODO Validate this?
+        //case MatchValDef(name, body) :: tail =>
+        //  report.throwError(s"===== validef match bad body: ${body.show}")
 
         // other statements possible including ClassDef etc... should look into that
 
-        // case MatchTerm(monad) :: tail =>
-        //   tail match {
-        //     case Nil =>
-        //       println(s"============= Block - With zero terms: ${monad.show}")
-        //       Some(monad.asExpr)
-        //     case list =>
-        //       println(s"============= Block - With multiple terms: ${monad}, ${list.map(_.show)}")
-        //       Some(Nest(monad.asExpr, "wildcard", BlockN(tail).asExpr))
-        //   }
+        case MatchTerm(Seal(Transform(monad))) :: tail =>
+          tail match {
+            case Nil =>
+              println(s"============= Block - With zero terms: ${monad.show}")
+              Some(monad)
+            case list =>
+              println(s"============= Block - With multiple terms: ${monad}, ${list.map(_.show)}")
+              Some(Nest(monad, Nest.NestType.Wildcard, BlockN(tail).asExpr))
+          }
 
         // Throw error if it is a non-term?
         case other =>
