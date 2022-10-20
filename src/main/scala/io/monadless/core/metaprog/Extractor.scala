@@ -226,19 +226,27 @@ object Extractors {
 
   object Lambda1 {
 
-    def mapBody(lam: Expr[? => ?], f: Expr[?] => Expr[?])(using Quotes) =
+    def fromValDef(using Quotes)(symbol: quotes.reflect.Symbol, body: Expr[_]) =
       import quotes.reflect._
-        Untype(lam.asTerm) match {
-          case block @ Block(defdefs @ (defdef @ DefDef(a, b @ params :: Nil, c, Some(rhs))) :: Nil, Closure(meth, tpe)) =>
-            println(s"=========== mapBody: ${Format(Printer.TreeStructure.show(block))}")
-            val newBody = f(rhs.asExpr).asTerm
-            val newDefDef = DefDef.copy(defdef)(a, b, c, Some(newBody))
-            newBody.changeOwner(newDefDef.symbol)
-            '{ ${Block(newDefDef :: Nil, Closure(meth, Some(newBody.tpe))).asExpr}.asInstanceOf[? => ?] }
-          case _                                                   =>
-            report.throwError(s"Error mapping lambda: ${Format(Printer.TreeStructure.show(lam.asTerm))}")
-        }
+      val mtpe = MethodType(List("arg1"))(_ => List(symbol.typeRef), _ => body.asTerm.tpe)
+      val lam =
+        Lambda(symbol.owner, mtpe, {
+          case (methSym, List(arg1: Term)) =>
+            given Quotes = methSym.asQuotes
+            (new TreeMap:
+              override def transformTerm(tree: Term)(owner: Symbol): Term = {
+                tree match
+                  case tree: Ident if (tree.symbol == symbol) =>
+                    println(s"============+ REPLACEING IDENT OF: ${body.show}")
+                    Ident(arg1.symbol.termRef)
+                  case other =>
+                    super.transformTerm(other)(symbol.owner)
+              }
+            ).transformTerm(body.asTerm)(symbol.owner)
 
+          }
+        )
+      '{ ${lam.asExpr}.asInstanceOf[? => ?] }
 
     def unapply(using Quotes)(expr: Expr[_]): Option[(String, quotes.reflect.TypeRepr, quoted.Expr[_])] =
       import quotes.reflect._

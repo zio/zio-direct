@@ -41,8 +41,8 @@ class Transformer(using Quotes) {
   }
 
   private object Nest {
-    def apply(monad: Expr[_], originalExpression: Expr[? => ?], body: Expr[_]): Expr[_] =
-      def spliceBody = Extractors.Lambda1.mapBody(originalExpression, _ => body)
+    def apply(monad: Expr[_], symbol: Symbol, body: Expr[_]): Expr[_] =
+      def spliceBody = Extractors.Lambda1.fromValDef(symbol, body)
       body match {
         // q"${Resolve.flatMap(monad.pos, monad)}(${toVal(name)} => $body)"
         case Transform(body) =>
@@ -61,9 +61,9 @@ class Transformer(using Quotes) {
   private object TransformBlock {
     def apply(parts: List[Statement]) =
       parts match {
-        case ValDefAsLambda(lam , Transform(monad)) :: tail =>
+        case ValDefAsLambda(symbol , Seal(Transform(monad))) :: tail =>
           println(s"============= Block - With body transform: ${monad.show}")
-          Some(Nest(monad, lam, BlockN(tail).asExpr))
+          Some(Nest(monad, symbol, BlockN(tail).asExpr))
 
         case ValDefAsLambda(name, body) :: tail =>
           report.throwError(s"===== validef match bad body: ${body.show}")
