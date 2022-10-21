@@ -23,7 +23,7 @@ class Transformer(using Quotes) {
           println(s"============  Tree is Pure!: ${tree.show}")
           None
 
-        case Unseal(Block(parts, lastPart)) =>
+        case Unseal(Block(parts, lastPart)) if (parts.nonEmpty) =>
           println(s"============  Block: ${parts.map(_.show)} ==== ${lastPart.show}")
           TransformBlock(parts :+ lastPart)
 
@@ -40,7 +40,7 @@ class Transformer(using Quotes) {
           None
       }
       println("================== DONE UNAPPLY ==================")
-      ret
+      ret.map(r => '{ $r.asInstanceOf[Task[Any]] })
     }
   }
 
@@ -61,8 +61,11 @@ class Transformer(using Quotes) {
     def apply(monad: Expr[_], nestType: NestType, bodyRaw: Expr[_]): Expr[_] =
       val (spliceBody, isFlatMap) =
         nestType match
-          case NestType.ValDef(symbol) => fromValDef(symbol, bodyRaw.asTerm.tpe.widen, bodyRaw)
+          case NestType.ValDef(symbol) =>
+            fromValDef(symbol, bodyRaw.asTerm.tpe.widen, bodyRaw)
           case NestType.Wildcard =>
+            // val newSym = Symbol.newVal(Symbol.spliceOwner, "x", TypeRepr.of[Unit], Flags.EmptyFlags, Symbol.noSymbol)
+            // fromValDef(newSym, bodyRaw.asTerm.tpe.widen, bodyRaw)
             bodyRaw match
               case Transform(body) => (body, true)
               case body => (body, false)
@@ -71,26 +74,26 @@ class Transformer(using Quotes) {
         // q"${Resolve.flatMap(monad.pos, monad)}(${toVal(name)} => $body)"
         case true =>
           println(s"=================== Flat Mapping: ${Format(Printer.TreeShortCode.show(spliceBody.asTerm))}")
-          '{ ${monad.asExprOf[Task[Any]]}.flatMap(v =>
-            ${ spliceBody }.asInstanceOf[Any => Task[_]].apply(v)
-          ) }
+          '{ ${monad.asExprOf[Task[Any]]}.flatMap[Any, Throwable, Any](v =>
+            ${ spliceBody }.asInstanceOf[Any => Task[Any]].apply(v)
+          ).asInstanceOf[Task[Any]] }
 
         // q"${Resolve.map(monad.pos, monad)}(${toVal(name)} => $body)"
         case false            =>
           println(s"=================== Mapping: ${Format(Printer.TreeShortCode.show(spliceBody.asTerm))}")
-          '{ ${monad.asExprOf[Task[Any]]}.map(v =>
-            ${ spliceBody }.asInstanceOf[Any => _].apply(v)
-          ) }
+          '{ ${monad.asExprOf[Task[Any]]}.map[Any](v =>
+            ${ spliceBody }.asInstanceOf[Any => Any].apply(v)
+          ).asInstanceOf[Task[Any]] }
       }
 
-    def fromValDef(using Quotes)(symbol: quotes.reflect.Symbol, inputType: quotes.reflect.TypeRepr, body: Expr[_]) =
+    def fromValDef(using Quotes)(symbol: quotes.reflect.Symbol, inputType: quotes.reflect.TypeRepr, bodyRaw: Expr[_]) =
       import quotes.reflect._
-      val mtpe = MethodType(List(symbol.name))(_ => List(inputType), _ => body.asTerm.tpe)
+      val mtpe = MethodType(List("arg1"))(_ => List(inputType), _ => TypeRepr.of[Any])
       var isTransformed = false
       val lam =
         Lambda(symbol.owner, mtpe, {
             case (methSym, List(arg1: Term)) =>
-              given Quotes = methSym.asQuotes
+              //given Quotes = methSym.asQuotes
 
 
               val newBody =
@@ -98,7 +101,7 @@ class Transformer(using Quotes) {
                   override def transformTerm(tree: Term)(owner: Symbol): Term = {
                     tree match
                       case id: Ident if (id.symbol == symbol) =>
-                        //println(s"============+ REPLACEING IDENT OF: ${body.show}")
+                        //println(s"============+ REPLACEING IDENT OF: ${bodyRaw.show}")
                         //val newSym = Symbol.newMethod(owner, arg1.symbol.name, arg1.tpe.widen)
                         val newIdent = Ident(arg1.symbol.termRef)
                         println(s">>>>>>>>>> Transforming $id -> $newIdent")
@@ -106,7 +109,7 @@ class Transformer(using Quotes) {
                       case other =>
                         super.transformTerm(other)(symbol.owner)
                   }
-                ).transformTerm(body.asTerm)(symbol.owner)
+                ).transformTerm(bodyRaw.asTerm)(symbol.owner)
 
               println(s"++++++++++ Replaced: ${symbol} with ${arg1.symbol} in\n${Format(newBody.show)}")
 
@@ -115,7 +118,7 @@ class Transformer(using Quotes) {
               newBody.asExpr match {
                 case Transform(body) =>
                   isTransformed = true
-                  println(s"================ TRANSFORM: ${body.show} =================")
+                  println(s"================ (OUTPUT: ${bodyRaw.asTerm.tpe.show}) TRANSFORM: ${body.show} =================")
                   body.asTerm
                 case body =>
                   println(s"================ NO TRANSFORM: ${body.show} =================")
@@ -150,7 +153,7 @@ class Transformer(using Quotes) {
               println(s"============= Block - With zero terms: ${monad.show}")
               Some(monad)
             case list =>
-              println(s"============= Block - With multiple terms: ${monad}, ${list.map(_.show)}")
+              println(s"============= Block - With multiple terms: ${monad.show}, ${list.map(_.show)}")
               Some(Nest(monad, Nest.NestType.Wildcard, BlockN(tail).asExpr))
           }
 
