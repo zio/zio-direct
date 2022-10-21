@@ -40,7 +40,7 @@ class Transformer(using Quotes) {
           None
       }
       println("================== DONE UNAPPLY ==================")
-      ret.map(r => '{ $r.asInstanceOf[Task[Any]] })
+      ret //.map(r => '{ $r.asInstanceOf[Task[Any]] })
     }
   }
 
@@ -68,9 +68,9 @@ class Transformer(using Quotes) {
         // q"${Resolve.flatMap(monad.pos, monad)}(${toVal(name)} => $body)"
         case true =>
           println(s"=================== Flat Mapping: ${Format(Printer.TreeShortCode.show(spliceBody.asTerm))}")
-          '{ ${monad.asExprOf[Task[Any]]}.flatMap[Any, Throwable, Any](v =>
+          '{ ${monad.asExprOf[Task[?]]}.flatMap(v =>
             ${
-              nestType match {
+              (nestType match {
                 case NestType.ValDef(symbol) =>
                   (new TreeMap:
                     override def transformTerm(tree: Term)(owner: Symbol): Term = {
@@ -85,14 +85,14 @@ class Transformer(using Quotes) {
                   ).transformTerm(spliceBody.asTerm)(symbol.owner).asExpr
                 case NestType.Wildcard =>
                   spliceBody
-              }
-            }.asInstanceOf[Task[Any]]
-          ).asInstanceOf[Task[Any]] }
+              }).asExprOf[Task[?]]
+            }
+          ) }
 
         // q"${Resolve.map(monad.pos, monad)}(${toVal(name)} => $body)"
         case false            =>
           println(s"=================== Mapping: ${Format(Printer.TreeShortCode.show(spliceBody.asTerm))}")
-          '{ ${monad.asExprOf[Task[Any]]}.map[Any](v =>
+          '{ ${monad.asExprOf[Task[?]]}.map(v =>
             ${
               nestType match {
                 case NestType.ValDef(symbol) =>
@@ -110,8 +110,8 @@ class Transformer(using Quotes) {
                 case NestType.Wildcard =>
                   spliceBody
               }
-            }.asInstanceOf[Any]
-          ).asInstanceOf[Any] }
+            }
+          ) }
       }
 
     def fromValDef(using Quotes)(symbol: quotes.reflect.Symbol, inputType: quotes.reflect.TypeRepr, bodyRaw: Expr[_]) =
