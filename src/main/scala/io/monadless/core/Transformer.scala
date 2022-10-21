@@ -60,30 +60,58 @@ class Transformer(using Quotes) {
 
     def apply(monad: Expr[_], nestType: NestType, bodyRaw: Expr[_]): Expr[_] =
       val (spliceBody, isFlatMap) =
-        nestType match
-          case NestType.ValDef(symbol) =>
-            fromValDef(symbol, bodyRaw.asTerm.tpe.widen, bodyRaw)
-          case NestType.Wildcard =>
-            // val newSym = Symbol.newVal(Symbol.spliceOwner, "x", TypeRepr.of[Unit], Flags.EmptyFlags, Symbol.noSymbol)
-            // fromValDef(newSym, bodyRaw.asTerm.tpe.widen, bodyRaw)
-            bodyRaw match
-              case Transform(body) => (body, true)
-              case body => (body, false)
+        bodyRaw match
+          case Transform(body) => (body, true)
+          case body => (body, false)
 
       isFlatMap match {
         // q"${Resolve.flatMap(monad.pos, monad)}(${toVal(name)} => $body)"
         case true =>
           println(s"=================== Flat Mapping: ${Format(Printer.TreeShortCode.show(spliceBody.asTerm))}")
           '{ ${monad.asExprOf[Task[Any]]}.flatMap[Any, Throwable, Any](v =>
-            ${ spliceBody }.asInstanceOf[Any => Task[Any]].apply(v)
+            ${
+              nestType match {
+                case NestType.ValDef(symbol) =>
+                  (new TreeMap:
+                    override def transformTerm(tree: Term)(owner: Symbol): Term = {
+                      tree match
+                        case id: Ident if (id.symbol == symbol) =>
+                          val newIdent = Ident(('v).asTerm.symbol.termRef)
+                          println(s">>>>>>>>>> Transforming $id -> $newIdent")
+                          newIdent
+                        case other =>
+                          super.transformTerm(other)(symbol.owner)
+                    }
+                  ).transformTerm(spliceBody.asTerm)(symbol.owner).asExpr
+                case NestType.Wildcard =>
+                  spliceBody
+              }
+            }.asInstanceOf[Task[Any]]
           ).asInstanceOf[Task[Any]] }
 
         // q"${Resolve.map(monad.pos, monad)}(${toVal(name)} => $body)"
         case false            =>
           println(s"=================== Mapping: ${Format(Printer.TreeShortCode.show(spliceBody.asTerm))}")
           '{ ${monad.asExprOf[Task[Any]]}.map[Any](v =>
-            ${ spliceBody }.asInstanceOf[Any => Any].apply(v)
-          ).asInstanceOf[Task[Any]] }
+            ${
+              nestType match {
+                case NestType.ValDef(symbol) =>
+                  (new TreeMap:
+                    override def transformTerm(tree: Term)(owner: Symbol): Term = {
+                      tree match
+                        case id: Ident if (id.symbol == symbol) =>
+                          val newIdent = Ident(('v).asTerm.symbol.termRef)
+                          println(s">>>>>>>>>> Transforming $id -> $newIdent")
+                          newIdent
+                        case other =>
+                          super.transformTerm(other)(symbol.owner)
+                    }
+                  ).transformTerm(spliceBody.asTerm)(symbol.owner).asExpr
+                case NestType.Wildcard =>
+                  spliceBody
+              }
+            }.asInstanceOf[Any]
+          ).asInstanceOf[Any] }
       }
 
     def fromValDef(using Quotes)(symbol: quotes.reflect.Symbol, inputType: quotes.reflect.TypeRepr, bodyRaw: Expr[_]) =
