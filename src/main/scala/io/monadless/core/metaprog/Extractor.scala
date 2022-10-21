@@ -226,29 +226,6 @@ object Extractors {
 
   object Lambda1 {
 
-    def fromValDef(using Quotes)(symbol: quotes.reflect.Symbol, body: Expr[_]) =
-      import quotes.reflect._
-      val mtpe = MethodType(List("arg1"))(_ => List(symbol.typeRef), _ => body.asTerm.tpe)
-      val lam =
-        Lambda(symbol.owner, mtpe, {
-            case (methSym, List(arg1: Term)) =>
-              given Quotes = methSym.asQuotes
-              (new TreeMap:
-                override def transformTerm(tree: Term)(owner: Symbol): Term = {
-                  tree match
-                    case tree: Ident if (tree.symbol == symbol) =>
-                      //println(s"============+ REPLACEING IDENT OF: ${body.show}")
-                      Ident(arg1.symbol.termRef)
-                    case other =>
-                      super.transformTerm(other)(symbol.owner)
-                }
-              ).transformTerm(body.asTerm)(symbol.owner)
-            case other =>
-              report.throwError(s"Invalid valdef: ${other}")
-          }
-        )
-      '{ ${lam.asExpr}.asInstanceOf[? => ?] }
-
     def unapply(using Quotes)(expr: Expr[_]): Option[(String, quotes.reflect.TypeRepr, quoted.Expr[_])] =
       import quotes.reflect._
       Lambda1.Term.unapply(expr.asTerm).map((str, tpe, expr) => (str, tpe, expr.asExpr))

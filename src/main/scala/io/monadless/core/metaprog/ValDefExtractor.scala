@@ -48,4 +48,19 @@ object Trees:
     }
     r
   }
+
+  def replaceIdent(using Quotes)(tree: quotes.reflect.Term)(oldIdentSymbol: quotes.reflect.Symbol, newIdentSymbol: quotes.reflect.Symbol) = {
+    import quotes.reflect._
+    (new TreeMap:
+      override def transformTerm(tree: Term)(owner: Symbol): Term = {
+        tree match
+          case tree: Ident if (tree.symbol == newIdentSymbol) =>
+            //println(s"============+ REPLACEING IDENT OF: ${body.show}")
+            //val newSym = Symbol.newMethod(owner, arg1.symbol.name, arg1.tpe.widen)
+            Ident(newIdentSymbol.termRef)
+          case other =>
+            super.transformTerm(other)(newIdentSymbol.owner)
+      }
+    ).transformTerm(tree)(newIdentSymbol.owner)
+  }
 end Trees
