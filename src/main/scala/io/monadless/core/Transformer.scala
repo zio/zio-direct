@@ -86,51 +86,6 @@ class Transformer(using transformerQuotes: Quotes) {
               ) }
       }
     }
-
-    def fromValDef(using Quotes)(symbol: quotes.reflect.Symbol, inputType: quotes.reflect.TypeRepr, bodyRaw: Expr[_]) =
-      import quotes.reflect._
-      val mtpe = MethodType(List("arg1"))(_ => List(inputType), _ => TypeRepr.of[Any])
-      var isTransformed = false
-      val lam =
-        Lambda(symbol.owner, mtpe, {
-            case (methSym, List(arg1: Term)) =>
-              //given Quotes = methSym.asQuotes
-
-
-              val newBody =
-                (new TreeMap:
-                  override def transformTerm(tree: Term)(owner: Symbol): Term = {
-                    tree match
-                      case id: Ident if (id.symbol == symbol) =>
-                        //println(s"============+ REPLACEING IDENT OF: ${bodyRaw.show}")
-                        //val newSym = Symbol.newMethod(owner, arg1.symbol.name, arg1.tpe.widen)
-                        val newIdent = Ident(arg1.symbol.termRef)
-                        println(s">>>>>>>>>> Transforming $id -> $newIdent")
-                        newIdent
-                      case other =>
-                        super.transformTerm(other)(symbol.owner)
-                  }
-                ).transformTerm(bodyRaw.asTerm)(symbol.owner)
-
-              println(s"++++++++++ Replaced: ${symbol} with ${arg1.symbol} in\n${Format(newBody.show)}")
-
-
-              println(s"================ HERE: ${newBody.show} =================")
-              newBody.asExpr match {
-                case Transform(body) =>
-                  isTransformed = true
-                  println(s"================ (OUTPUT: ${bodyRaw.asTerm.tpe.show}) TRANSFORM: ${body.show} =================")
-                  body.asTerm
-                case body =>
-                  println(s"================ NO TRANSFORM: ${body.show} =================")
-                  body.asTerm
-              }
-
-            case other =>
-              report.throwError(s"Invalid valdef: ${other}")
-          }
-        )
-      ('{ ${lam.asExpr}.asInstanceOf[? => ?] }, isTransformed)
   }
 
   private object TransformBlock {
