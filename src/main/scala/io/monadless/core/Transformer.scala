@@ -23,9 +23,9 @@ class Transformer(using Quotes) {
           println(s"============  Tree is Pure!: ${tree.show}")
           None
 
-        case Unseal(Block(parts, lastPart)) if (parts.nonEmpty) =>
+        case Unseal(block @ Block(parts, lastPart)) if (parts.nonEmpty) =>
           println(s"============  Block: ${parts.map(_.show)} ==== ${lastPart.show}")
-          TransformBlock(parts :+ lastPart)
+          TransformBlock.unapply(block)
 
         case '{ unlift[t]($task) } =>
           println(s"=============== Unlift: ${task.show}")
@@ -165,12 +165,13 @@ class Transformer(using Quotes) {
   }
 
   private object TransformBlock {
-    def apply(parts: List[Statement]) =
+    def unapply(block: Block): Option[Expr[_]] = // todo a zio object?
+      val Block(head, tail) = block
+      val parts = head :+ tail
       parts match {
         case ValDefStatement(symbol , Seal(Transform(monad))) :: tail =>
           println(s"============= Block - Val Def: ${monad.show}")
           val nest = Nest(monad, Nest.NestType.ValDef(symbol), BlockN(tail).asExpr)
-          println("=========== DONE FLATMAPPING ========")
           Some(nest)
 
         // TODO Validate this?
@@ -189,6 +190,14 @@ class Transformer(using Quotes) {
               Some(Nest(monad, Nest.NestType.Wildcard, BlockN(tail).asExpr))
           }
 
+        // This is the recursive case of TransformBlock, it will work across multiple things
+        // between blocks due to the recursion e.g:
+        //   val blah = new Blah(2) // 1st part, will recurse 1st time (here)
+        //   import blah._          // 2nd part, will recurse 2nd time (here)
+        //   val b = unlift(ZIO.succeed(value).asInstanceOf[Task[Int]]) // Then will match valdef case
+        case head :: BlockN(TransformBlock(parts)) =>
+          Some(BlockN(List(head, parts.asTerm)).asExpr)
+
         // Throw error if it is a non-term?
         case other =>
           // TODO fail if there is an unlift here! definitely a problem
@@ -200,13 +209,19 @@ class Transformer(using Quotes) {
   }
 
   private object BlockN {
-    def apply(trees: List[Statement]) =
+    def unapply(trees: List[Statement]) =
       trees match {
-        case Nil => Block(Nil, '{ () }.asTerm)
-        case MatchTerm(head) :: Nil => Block(Nil, head)
+        case Nil => None
+        case MatchTerm(head) :: Nil =>
+          Some(Block(Nil, head))
         case list if (MatchTerm.unapply(list.last).isDefined) =>
-          Block(list.dropRight(1), MatchTerm.unapply(list.last).get)
-        case _ => report.throwError("Invalid trees list")
+          Some(Block(list.dropRight(1), MatchTerm.unapply(list.last).get))
+      }
+
+    def apply(trees: List[Statement]): Block =
+      BlockN.unapply(trees) match {
+        case Some(value) => value
+        case None => report.throwError(s"Invalid trees list: ${trees.map(_.show)}")
       }
   }
 
