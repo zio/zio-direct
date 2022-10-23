@@ -8,7 +8,7 @@ import io.monadless._
 import io.monadless.core.util.Format
 
 
-class Transformer(using Quotes) {
+class Transformer(using transformerQuotes: Quotes) {
   import quotes.reflect._
 
   object Transform {
@@ -74,17 +74,7 @@ class Transformer(using Quotes) {
                 ${
                   (nestType match {
                     case NestType.ValDef(symbol) =>
-                      (new TreeMap:
-                        override def transformTerm(tree: Term)(owner: Symbol): Term = {
-                          tree match
-                            case id: Ident if (id.symbol == symbol) =>
-                              val newIdent = Ident(('v).asTerm.symbol.termRef)
-                              println(s">>>>>>>>>> Transforming $id -> $newIdent")
-                              newIdent
-                            case other =>
-                              super.transformTerm(other)(symbol.owner)
-                        }
-                      ).transformTerm(spliceBody.asTerm)(symbol.owner).asExpr
+                      Trees.replaceIdent(using transformerQuotes)(spliceBody.asTerm)(symbol, ('v).asTerm.symbol).asExpr
                     case NestType.Wildcard =>
                       spliceBody
                   }).asExprOf[Task[?]]
@@ -100,17 +90,7 @@ class Transformer(using Quotes) {
                 ${
                   nestType match {
                     case NestType.ValDef(symbol) =>
-                      (new TreeMap:
-                        override def transformTerm(tree: Term)(owner: Symbol): Term = {
-                          tree match
-                            case id: Ident if (id.symbol == symbol) =>
-                              val newIdent = Ident(('v).asTerm.symbol.termRef)
-                              println(s">>>>>>>>>> Transforming $id -> $newIdent")
-                              newIdent
-                            case other =>
-                              super.transformTerm(other)(symbol.owner)
-                        }
-                      ).transformTerm(spliceBody.asTerm)(symbol.owner).asExpr
+                      Trees.replaceIdent(using transformerQuotes)(spliceBody.asTerm)(symbol, ('v).asTerm.symbol).asExpr
                     case NestType.Wildcard =>
                       spliceBody
                   }
