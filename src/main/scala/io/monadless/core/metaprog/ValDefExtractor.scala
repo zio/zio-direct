@@ -55,7 +55,7 @@ object Trees:
       override def transformTerm(tree: Term)(owner: Symbol): Term = {
         tree match
           case tree: Ident if (tree.symbol == oldIdentSymbol) =>
-            //println(s"============+ REPLACEING IDENT OF: ${body.show}")
+            println(s"============+ REPLACEING IDENT: ${oldIdentSymbol} -> ${newIdentSymbol}")
             //val newSym = Symbol.newMethod(owner, arg1.symbol.name, arg1.tpe.widen)
             Ident(newIdentSymbol.termRef)
           case other =>

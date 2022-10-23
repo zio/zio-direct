@@ -59,10 +59,32 @@ class Transformer(using transformerQuotes: Quotes) {
       case Wildcard
 
     def apply(monad: Expr[_], nestType: NestType, bodyRaw: Expr[_]): Expr[_] = {
-      def replaceSymbolInBody(body: Term)(newSymbol: Symbol) =
+      def replaceSymbolInBody(body: Term)(newSymbolTerm: Term) =
         nestType match
           case NestType.ValDef(oldSymbol) =>
-            Trees.replaceIdent(using transformerQuotes)(body)(oldSymbol, newSymbol)
+            /**
+             * In a case where we have:
+             *  val a = unlift(foobar)
+             *  otherStuff
+             *
+             * We can either lift that into:
+             *  unlift(foobar).flatMap { v => (otherStuff /*with replaced a -> v*/) }
+             *
+             * Or we can just do
+             *  unlift(foobar).flatMap { v => { val a = v; otherStuff /* with the original a variable*/ } }
+             *
+             * I think the 2nd variant more performant but keeping 1st one (Trees.replaceIdent(...)) around for now.
+             */
+            //Trees.replaceIdent(using transformerQuotes)(body)(oldSymbol, newSymbolTerm.symbol)
+
+            val out =
+              BlockN(List(
+                ValDef(oldSymbol, Some(newSymbolTerm)),
+                body
+              ))
+            println(s"============+ Creating $oldSymbol -> ${newSymbolTerm.symbol} replacement let:\n${Format(Printer.TreeShortCode.show(out))}")
+            out
+
           case NestType.Wildcard =>
             body
 
@@ -73,7 +95,7 @@ class Transformer(using transformerQuotes: Quotes) {
           monad.asTerm.tpe.asType match
             case '[Task[t]] =>
               '{ ${monad.asExprOf[Task[t]]}.flatMap(v =>
-                ${replaceSymbolInBody(body.asTerm)(('v).asTerm.symbol).asExprOf[Task[?]]}
+                ${replaceSymbolInBody(body.asTerm)(('v).asTerm).asExprOf[Task[?]]}
               ) }
 
         // q"${Resolve.map(monad.pos, monad)}(${toVal(name)} => $body)"
@@ -82,7 +104,7 @@ class Transformer(using transformerQuotes: Quotes) {
           monad.asTerm.tpe.asType match
             case '[Task[t]] =>
               '{ ${monad.asExprOf[Task[t]]}.map(v =>
-                ${replaceSymbolInBody(body.asTerm)(('v).asTerm.symbol).asExpr}
+                ${replaceSymbolInBody(body.asTerm)(('v).asTerm).asExpr}
               ) }
       }
     }
