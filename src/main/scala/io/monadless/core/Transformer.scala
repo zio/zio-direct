@@ -58,45 +58,34 @@ class Transformer(using transformerQuotes: Quotes) {
       case ValDef(symbol: Symbol)
       case Wildcard
 
-    def apply(monad: Expr[_], nestType: NestType, bodyRaw: Expr[_]): Expr[_] =
-      val (spliceBody, isFlatMap) =
-        bodyRaw match
-          case Transform(body) => (body, true)
-          case body => (body, false)
+    def apply(monad: Expr[_], nestType: NestType, bodyRaw: Expr[_]): Expr[_] = {
+      def replaceSymbolInBody(body: Term)(newSymbol: Symbol) =
+        nestType match
+          case NestType.ValDef(oldSymbol) =>
+            Trees.replaceIdent(using transformerQuotes)(body)(oldSymbol, newSymbol)
+          case NestType.Wildcard =>
+            body
 
-      isFlatMap match {
+      bodyRaw match {
         // q"${Resolve.flatMap(monad.pos, monad)}(${toVal(name)} => $body)"
-        case true =>
-          println(s"=================== Flat Mapping: ${Format(Printer.TreeShortCode.show(spliceBody.asTerm))}")
+        case Transform(body) =>
+          println(s"=================== Flat Mapping: ${Format(Printer.TreeShortCode.show(body.asTerm))}")
           monad.asTerm.tpe.asType match
             case '[Task[t]] =>
               '{ ${monad.asExprOf[Task[t]]}.flatMap(v =>
-                ${
-                  (nestType match {
-                    case NestType.ValDef(symbol) =>
-                      Trees.replaceIdent(using transformerQuotes)(spliceBody.asTerm)(symbol, ('v).asTerm.symbol).asExpr
-                    case NestType.Wildcard =>
-                      spliceBody
-                  }).asExprOf[Task[?]]
-                }
+                ${replaceSymbolInBody(body.asTerm)(('v).asTerm.symbol).asExprOf[Task[?]]}
               ) }
 
         // q"${Resolve.map(monad.pos, monad)}(${toVal(name)} => $body)"
-        case false            =>
-          println(s"=================== Mapping: ${Format(Printer.TreeShortCode.show(spliceBody.asTerm))}")
+        case body            =>
+          println(s"=================== Mapping: ${Format(Printer.TreeShortCode.show(body.asTerm))}")
           monad.asTerm.tpe.asType match
             case '[Task[t]] =>
               '{ ${monad.asExprOf[Task[t]]}.map(v =>
-                ${
-                  nestType match {
-                    case NestType.ValDef(symbol) =>
-                      Trees.replaceIdent(using transformerQuotes)(spliceBody.asTerm)(symbol, ('v).asTerm.symbol).asExpr
-                    case NestType.Wildcard =>
-                      spliceBody
-                  }
-                }
+                ${replaceSymbolInBody(body.asTerm)(('v).asTerm.symbol).asExpr}
               ) }
       }
+    }
 
     def fromValDef(using Quotes)(symbol: quotes.reflect.Symbol, inputType: quotes.reflect.TypeRepr, bodyRaw: Expr[_]) =
       import quotes.reflect._
