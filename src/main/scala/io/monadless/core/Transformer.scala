@@ -6,17 +6,19 @@ import io.monadless.core.metaprog.Extractors._
 import io.monadless.core.metaprog._
 import io.monadless._
 import io.monadless.core.util.Format
+import zio.ZIO
 
 
 class Transformer(using transformerQuotes: Quotes) {
   import quotes.reflect._
 
   object Transform {
-    def apply(expr: Expr[_]): Expr[_] =
-      unapply(expr.asTerm.underlyingArgument.asExpr).getOrElse(expr)
+    def apply(expr: Expr[?]): Expr[ZIO[Any, Throwable, ?]] =
+      unapply(expr.asTerm.underlyingArgument.asExpr)
+        .getOrElse('{ ZIO.succeed($expr) })
 
     // TODO really use underlyingArgument????
-    def unapply(expr: Expr[_]): Option[Expr[_]] = {
+    def unapply(expr: Expr[?]): Option[Expr[ZIO[Any, Throwable, ?]]] = {
       println("================== UNAPPLY ==================")
       val ret = expr match {
         case Unseal(PureTree(tree)) =>
@@ -40,7 +42,7 @@ class Transformer(using transformerQuotes: Quotes) {
           None
       }
       println("================== DONE UNAPPLY ==================")
-      ret //.map(r => '{ $r.asInstanceOf[Task[Any]] })
+      ret
     }
   }
 
@@ -58,7 +60,12 @@ class Transformer(using transformerQuotes: Quotes) {
       case ValDef(symbol: Symbol)
       case Wildcard
 
-    def apply(monad: Expr[_], nestType: NestType, bodyRaw: Expr[_]): Expr[_] = {
+    /**
+      * This will actually take some block of code (that is either in a ZIO or just 'pure' code)
+      * and will nest it into the previously-sequenced ZIO. If it is ZIO code, it will
+      * flatMap from the previously-sequenced ZIO, otherwise it map.
+      */
+    def apply(monad: Expr[ZIO[Any, Throwable, ?]], nestType: NestType, bodyRaw: Expr[_]): Expr[ZIO[Any, Throwable, ?]] = {
       def replaceSymbolInBody(body: Term)(newSymbolTerm: Term) =
         nestType match
           case NestType.ValDef(oldSymbol) =>
@@ -93,32 +100,47 @@ class Transformer(using transformerQuotes: Quotes) {
         case Transform(body) =>
           println(s"=================== Flat Mapping: ${Format(Printer.TreeShortCode.show(body.asTerm))}")
           monad.asTerm.tpe.asType match
-            case '[Task[t]] =>
-              '{ ${monad.asExprOf[Task[t]]}.flatMap(v =>
-                ${replaceSymbolInBody(body.asTerm)(('v).asTerm).asExprOf[Task[?]]}
+            case '[ZIO[Any, Throwable, t]] =>
+              '{ ${monad.asExprOf[ZIO[Any, Throwable, t]]}.flatMap(v =>
+                ${replaceSymbolInBody(body.asTerm)(('v).asTerm).asExprOf[ZIO[Any, Throwable, ?]]}
               ) }
 
         // q"${Resolve.map(monad.pos, monad)}(${toVal(name)} => $body)"
         case body            =>
           println(s"=================== Mapping: ${Format(Printer.TreeShortCode.show(body.asTerm))}")
           monad.asTerm.tpe.asType match
-            case '[Task[t]] =>
-              '{ ${monad.asExprOf[Task[t]]}.map(v =>
+            case '[ZIO[Any, Throwable, t]] =>
+              '{ ${monad.asExprOf[ZIO[Any, Throwable, t]]}.map(v =>
                 ${replaceSymbolInBody(body.asTerm)(('v).asTerm).asExpr}
               ) }
       }
     }
   }
 
+  /**
+    * Transform a sequence of steps
+    * a; b = unlift(zio); c
+    * Into a.flatMap()
+    */
   private object TransformBlock {
-    def unapply(block: Block): Option[Expr[_]] = // todo a zio object?
+    def unapply(block: Block): Option[Expr[ZIO[Any, Throwable, ?]]] =
       val Block(head, tail) = block
       val parts = head :+ tail
       parts match {
+        // This is the most important use-case of the monadless system.
+        // Change this:
+        //   val x = unlift(stuff)
+        //   stuff-that-uses-x
+        // Into this:
+        //   stuff.flatMap(x => ...)
+        //   stuff-that-uses-x
+        //
+        // This basically does that with some additional details
+        // (e.g. it can actually be stuff.flatMap(v => val x = v; stuff-that-uses-x))
         case ValDefStatement(symbol , Seal(Transform(monad))) :: tail =>
           println(s"============= Block - Val Def: ${monad.show}")
           val nest = Nest(monad, Nest.NestType.ValDef(symbol), BlockN(tail).asExpr)
-          Some(nest)
+          Some(nest.asExprOf[ZIO[Any, Throwable, ?]])
 
         // TODO Validate this?
         //case MatchValDef(name, body) :: tail =>
@@ -128,12 +150,25 @@ class Transformer(using transformerQuotes: Quotes) {
 
         case MatchTerm(Seal(Transform(monad))) :: tail =>
           tail match {
+            // In this case where is one statement in the block which my definition
+            // needs to have the same type as the output: e.g.
+            //   val v: T = { unlift(doSomething:ZIO[_, _, T]) }
+            // since we've pulled out the `doSomething` inside the signature
+            // will be ZIO[_, _, T] instead of T.
             case Nil =>
               println(s"============= Block - With zero terms: ${monad.show}")
-              Some(monad)
+              Some(monad.asExprOf[ZIO[Any, Throwable, ?]])
             case list =>
+              // In this case there are multiple instructions inside the seauence e.g:
+              //   val v: T = { unlift(x), y /*pure*/, unlift(z:ZIO[_, _, T]) }
+              // We recurse by flatMapping x, y, and unlift... but eventually the type
+              // also has to be ZIO[_, _, T] since we are essentially doing:
+              // x.flatMap(.. -> {y; z: ZIO[_, _, T]}). Of course the value will be ZIO[_, _, T]
+              // since the last value of a nested flatMap chain is just the last instruction
+              // in the nested sequence.
               println(s"============= Block - With multiple terms: ${monad.show}, ${list.map(_.show)}")
-              Some(Nest(monad, Nest.NestType.Wildcard, BlockN(tail).asExpr))
+              val nest = Nest(monad, Nest.NestType.Wildcard, BlockN(tail).asExpr)
+              Some(nest.asExprOf[ZIO[Any, Throwable, ?]])
           }
 
         // This is the recursive case of TransformBlock, it will work across multiple things
@@ -142,7 +177,7 @@ class Transformer(using transformerQuotes: Quotes) {
         //   import blah._          // 2nd part, will recurse 2nd time (here)
         //   val b = unlift(ZIO.succeed(value).asInstanceOf[Task[Int]]) // Then will match valdef case
         case head :: BlockN(TransformBlock(parts)) =>
-          Some(BlockN(List(head, parts.asTerm)).asExpr)
+          Some(BlockN(List(head, parts.asTerm)).asExprOf[ZIO[Any, Throwable, ?]])
 
         // Throw error if it is a non-term?
         case other =>
@@ -162,12 +197,14 @@ class Transformer(using transformerQuotes: Quotes) {
           Some(Block(Nil, head))
         case list if (MatchTerm.unapply(list.last).isDefined) =>
           Some(Block(list.dropRight(1), MatchTerm.unapply(list.last).get))
+        case _ =>
+          report.errorAndAbort(s"Last element in the instruction group is not a block. ${trees.map(_.show)}")
       }
 
     def apply(trees: List[Statement]): Block =
       BlockN.unapply(trees) match {
         case Some(value) => value
-        case None => report.throwError(s"Invalid trees list: ${trees.map(_.show)}")
+        case None => report.errorAndAbort(s"Invalid trees list: ${trees.map(_.show)}")
       }
   }
 
@@ -183,7 +220,7 @@ class Transformer(using transformerQuotes: Quotes) {
     }
   }
 
-  def apply[T: Type](value: Expr[T])(using Quotes): Expr[Task[T]] = {
-    '{ ${Transform(value)}.asInstanceOf[Task[T]] }
+  def apply[T: Type](value: Expr[T])(using Quotes): Expr[ZIO[Any, Throwable, T]] = {
+    '{ ${Transform(value)}.asInstanceOf[ZIO[Any, Throwable, T]] }
   }
 }
