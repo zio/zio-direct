@@ -1,7 +1,7 @@
-package io.monadless.core.metaprog
+package zio.asyncawait.core.metaprog
 
 import scala.quoted._
-import io.monadless.core.metaprog.Extractors.Lambda1
+import zio.asyncawait.core.metaprog.Extractors.Lambda1
 
 object ValDefStatement:
   def unapply(using Quotes)(stmt: quotes.reflect.Statement): Option[(quotes.reflect.Symbol, quotes.reflect.Term)] =

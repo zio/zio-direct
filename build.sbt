@@ -6,7 +6,7 @@ import sbtrelease.ReleasePlugin
 import scala.sys.process.Process
 import java.io.{File => JFile}
 
-lazy val `mozo` =
+lazy val `zio-asyncawait` =
   (project in file("."))
     .settings(releaseSettings: _*)
     .settings(basicSettings: _*)

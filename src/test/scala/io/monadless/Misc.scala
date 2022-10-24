@@ -1,4 +1,4 @@
-package io.monadless
+package zio.asyncawait
 
 import zio._
 

@@ -1,8 +1,8 @@
-package io.monadless
+package zio.asyncawait
 
 import zio.Task
 import scala.quoted._
-import io.monadless.core.Transformer
+import zio.asyncawait.core.Transformer
 import zio.ZIO
 
 def await[T](value: ZIO[Any, Throwable, T]): T = ???

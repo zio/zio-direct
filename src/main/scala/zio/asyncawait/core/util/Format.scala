@@ -1,4 +1,4 @@
-package io.monadless.core.util
+package zio.asyncawait.core.util
 
 import scala.util.{Try, Success, Failure}
 import scala.quoted._

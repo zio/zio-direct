@@ -1,8 +1,8 @@
-package io.monadless.core.metaprog
+package zio.asyncawait.core.metaprog
 
 import scala.quoted._
 import scala.quoted.Varargs
-import io.monadless.core.util.Format
+import zio.asyncawait.core.util.Format
 
 class Is[T: Type]:
   def unapply(expr: Expr[Any])(using Quotes) =

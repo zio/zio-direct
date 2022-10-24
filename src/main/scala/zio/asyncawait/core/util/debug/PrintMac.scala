@@ -1,7 +1,7 @@
-package io.monadless.core.util.debug
+package zio.asyncawait.core.util.debug
 
-import io.monadless.core.metaprog.Extractors._
-import io.monadless.core.util.Format
+import zio.asyncawait.core.metaprog.Extractors._
+import zio.asyncawait.core.util.Format
 
 import scala.quoted._
 

@@ -1,11 +1,11 @@
-package io.monadless.core
+package zio.asyncawait.core
 
 import scala.quoted._
 import zio.Task
-import io.monadless.core.metaprog.Extractors._
-import io.monadless.core.metaprog._
-import io.monadless._
-import io.monadless.core.util.Format
+import zio.asyncawait.core.metaprog.Extractors._
+import zio.asyncawait.core.metaprog._
+import zio.asyncawait._
+import zio.asyncawait.core.util.Format
 import zio.ZIO
 
 
