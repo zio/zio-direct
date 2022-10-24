@@ -22,15 +22,18 @@ class Transformer(using transformerQuotes: Quotes) {
   def useNewSymbolIn(using Quotes)(tpe: quotes.reflect.TypeRepr)(useSymbol: quotes.reflect.Term => quotes.reflect.Term) = {
     import quotes.reflect._
     // TODO Try to write this using ValDef.let(...). Might be more efficient
-    tpe.asType match
-      case '[t] =>
-        // TODO get rid of underlyingArgument. Should only need one top-level Uninline
-        '{ val m: t = ???; ${useSymbol(('m).asTerm).asExprOf[t]} }.asTerm.underlyingArgument match
-          case Block(
-            (valdef @ ValDef(_, _, _)) :: Nil,
-            body
-          ) =>
-            (valdef.symbol, body)
+    val (symbol, body) =
+      tpe.asType match
+        case '[t] =>
+          // TODO get rid of underlyingArgument. Should only need one top-level Uninline
+          '{ val m: t = ???; ${useSymbol(('m).asTerm).asExprOf[t]} }.asTerm.underlyingArgument match
+            case Block(
+              (valdef @ ValDef(_, _, _)) :: Nil,
+              body
+            ) =>
+              (valdef.symbol, body)
+    println(s"============  Making New Symbol For: ${symbol} -> ${Printer.TreeShortCode.show(body)}")
+    (symbol, body)
   }
 
   object Transform {
@@ -120,7 +123,7 @@ class Transformer(using transformerQuotes: Quotes) {
             case List((monad, name, tpe)) =>
               tpe.asType match
                 case '[t] =>
-                  Some('{ ${monad.asExprOf[ZIO[Any, Throwable, t]]}.map(_ => ${newTree.asExpr}) })
+                  Some('{ ${monad.asExprOf[ZIO[Any, Throwable, t]]}.map(sm => ${replaceSymbolIn(newTree)(name, ('sm).asTerm).asExpr}) })
             case unlifts =>
               val (terms, names, types) = unlifts.unzip3
               val termsExpr = Expr.ofList(terms.map(_.asExprOf[ZIO[Any, Throwable, ?]]))
