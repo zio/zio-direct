@@ -35,6 +35,20 @@ class Transformer(using transformerQuotes: Quotes) {
           println(s"====== Monad Tpe:\n" + monad.asTerm.tpe.show)
           println(s"====== Match Tpe:\n" + m.tpe.show)
 
+          // Since in Scala 3 we cannot just create a arbitrary symbol and pass it around.
+          // (See https://github.com/lampepfl/dotty/blob/33818506801c80c8c73649fdaab3782c052580c6/library/src/scala/quoted/Quotes.scala#L3675)
+          // In order to be able to have a valdef-symbol to manipulate, we need to create the actual valdef
+          // Therefore we need to create
+          // a synthetic val-def for the symbol with which to substitute this expression.
+          // For example if we want to substitute something like this:
+          //   unlift(ZIO.attempt(stuff)) match { case ...can-use-m.... }
+          // We need to do something like this:
+          //   ZIO.attempt(stuff).map(m => match { case ...can-use-m.... })
+          // However, in order to be able to get the `m => ...`
+          // We first need to create a fake val-def + right-hand-side that looks like:
+          //   '{ val m:StuffType = ???; ...can-use-m.... }
+          // So the Nest-call can actually change it to:
+          //   ZIO.attempt(stuff).map(m => match { case ...can-use-m.... })
           val (oldSymbol, body) =
             m.tpe.asType match
               case '[t] =>
@@ -45,18 +59,17 @@ class Transformer(using transformerQuotes: Quotes) {
                   ) =>
                     (valdef.symbol, body)
 
+          val s = oldSymbol
+          println(s"========= SYMBOL INFO ${s.owner}/${Symbol.spliceOwner}, ${s.name}, ${s.flags.show}, ${s.privateWithin}")
+
           val out = Nest(monad, Nest.NestType.ValDef(oldSymbol), body.asExpr)
           Some(out)
 
-          // Not sure why this (below) doesn't work but the above method works. Basically it is doing the same thing
-          // val name = "zzz"
-          // val sym = Symbol.newVal(m.symbol.owner, name, m.tpe, Flags.EmptyFlags, Symbol.noSymbol)
+          // val sym = Symbol.newVal(Symbol.spliceOwner, "m", m.tpe, Flags.EmptyFlags, Symbol.noSymbol)
           // val body = Match(Ident(sym.termRef), caseDefs)
           // val out = Nest(monad, Nest.NestType.ValDef(sym), body.asExpr)
           // println(s"============  Body Has Monad RETURN =======\n${Printer.TreeShortCode.show(out.asTerm)}")
           // Some(out)
-
-
 
         case Unseal(m @ Match(value, TransformCases(cases))) =>
           println(s"=============== Transform Inner Cases")
