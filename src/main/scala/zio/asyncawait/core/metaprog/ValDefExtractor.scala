@@ -23,14 +23,13 @@ end ValDefStatement
 
 object Trees:
   object Transform:
-    object Term:
-      def apply(using Quotes)(term: quotes.reflect.Term, owner: quotes.reflect.Symbol)(pf: PartialFunction[quotes.reflect.Term, quotes.reflect.Term]) =
-        import quotes.reflect._
-        (new TreeMap:
-          override def transformTerm(tree: Term)(owner: Symbol): Term = {
-            pf.lift(tree).getOrElse(super.transformTerm(tree)(owner))
-          }
-        ).transformTerm(term)(owner)
+    def apply(using Quotes)(term: quotes.reflect.Term, owner: quotes.reflect.Symbol)(pf: PartialFunction[quotes.reflect.Term, quotes.reflect.Term]) =
+      import quotes.reflect._
+      (new TreeMap:
+        override def transformTerm(tree: Term)(owner: Symbol): Term = {
+          pf.lift(tree).getOrElse(super.transformTerm(tree)(owner))
+        }
+      ).transformTerm(term)(owner)
 
   def traverse(using Quotes)(tree: quotes.reflect.Tree, owner: quotes.reflect.Symbol)(pf: PartialFunction[quotes.reflect.Tree, Unit]) =
     import quotes.reflect._

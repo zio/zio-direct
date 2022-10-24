@@ -7,10 +7,31 @@ import zio.asyncawait.core.metaprog._
 import zio.asyncawait._
 import zio.asyncawait.core.util.Format
 import zio.ZIO
-
+import scala.collection.mutable
+import zio.Chunk
 
 class Transformer(using transformerQuotes: Quotes) {
   import quotes.reflect._
+
+  private def replaceSymbolIn(in: Term)(oldSymbol: Symbol, newSymbolTerm: Term) =
+    BlockN(List(
+      ValDef(oldSymbol, Some(newSymbolTerm)),
+      in
+    ))
+
+  def useNewSymbolIn(using Quotes)(tpe: quotes.reflect.TypeRepr)(useSymbol: quotes.reflect.Term => quotes.reflect.Term) = {
+    import quotes.reflect._
+    // TODO Try to write this using ValDef.let(...). Might be more efficient
+    tpe.asType match
+      case '[t] =>
+        // TODO get rid of underlyingArgument. Should only need one top-level Uninline
+        '{ val m: t = ???; ${useSymbol(('m).asTerm).asExprOf[t]} }.asTerm.underlyingArgument match
+          case Block(
+            (valdef @ ValDef(_, _, _)) :: Nil,
+            body
+          ) =>
+            (valdef.symbol, body)
+  }
 
   object Transform {
     def apply(expr: Expr[?]): Expr[ZIO[Any, Throwable, ?]] =
@@ -50,14 +71,7 @@ class Transformer(using transformerQuotes: Quotes) {
           // So the Nest-call can actually change it to:
           //   ZIO.attempt(stuff).map(m => match { case ...can-use-m.... })
           val (oldSymbol, body) =
-            m.tpe.asType match
-              case '[t] =>
-                '{ val m: t = ???; ${Match(('m).asTerm, caseDefs).asExprOf[t]} }.asTerm.underlyingArgument match
-                  case Block(
-                    (valdef @ ValDef(_, _, _)) :: Nil,
-                    body
-                  ) =>
-                    (valdef.symbol, body)
+            useNewSymbolIn(m.tpe)(sym => Match(sym, caseDefs))
 
           val s = oldSymbol
           println(s"========= SYMBOL INFO ${s.owner}/${Symbol.spliceOwner}, ${s.name}, ${s.flags.show}, ${s.privateWithin}")
@@ -83,9 +97,50 @@ class Transformer(using transformerQuotes: Quotes) {
           println(s"=============== Untype: ${tree.show}")
           unapply(tree.asExpr)
 
-        case other =>
-          println(s"=============== Other: ${other.show}")
-          None
+        case tree =>
+          println(s"=============== Other: ${Format(Printer.TreeShortCode.show(tree.asTerm))}")
+          val unlifts = mutable.ArrayBuffer.empty[(Term, Symbol, TypeRepr)]
+          val newTree: Term =
+            Trees.Transform(tree.asTerm, Symbol.spliceOwner) {
+              case Seal('{ await[t]($task) }) =>
+                val tpe = TypeRepr.of[t]
+                // (unlift(A), unlift(B))
+                // Would yield
+                // (newSymA:Symbol, Ident(newSymA)), (newSymA:Symbol, Ident(newSymB))
+                // The idents would be swapped back into the expressions and A, B
+                // would be stored in the unlifts array
+                val (sym, symId) =
+                  useNewSymbolIn(tpe)(symId => symId)
+                unlifts += ((task.asTerm, sym, tpe))
+                symId
+            }
+
+          unlifts.toList match {
+            case List() => None
+            case List((monad, name, tpe)) =>
+              tpe.asType match
+                case '[t] =>
+                  Some('{ ${monad.asExprOf[ZIO[Any, Throwable, t]]}.map(_ => ${newTree.asExpr}) })
+            case unlifts =>
+              val (terms, names, types) = unlifts.unzip3
+              val termsExpr = Expr.ofList(terms.map(_.asExprOf[ZIO[Any, Throwable, ?]]))
+              val collect = '{ ZIO.collectAll(Chunk.from($termsExpr)) }
+              def allVals(iterator: Expr[Iterator[?]]) =
+                unlifts.map((monad, symbol, tpe) =>
+                    tpe.asType match {
+                      case '[t] =>
+                        ValDef(symbol, Some('{ $iterator.next().asInstanceOf[t] }.asTerm))
+                    }
+                )
+              Some('{
+                $collect.map(terms => {
+                  val iter = terms.iterator
+                  ${ Block(allVals('iter), newTree).asExpr }
+                })
+              })
+            }
+
+
       }
       println("================== DONE UNAPPLY ==================")
       ret
@@ -148,11 +203,7 @@ class Transformer(using transformerQuotes: Quotes) {
              */
             //Trees.replaceIdent(using transformerQuotes)(body)(oldSymbol, newSymbolTerm.symbol)
 
-            val out =
-              BlockN(List(
-                ValDef(oldSymbol, Some(newSymbolTerm)),
-                body
-              ))
+            val out = replaceSymbolIn(body)(oldSymbol, newSymbolTerm)
             println(s"============+ Creating $oldSymbol:${Printer.TypeReprShortCode.show(oldSymbol.termRef.widen)} -> ${newSymbolTerm.show}:${Printer.TypeReprShortCode.show(newSymbolTerm.tpe.widen)} replacement let:\n${Format(Printer.TreeShortCode.show(out))}")
             out
 
