@@ -9,15 +9,15 @@ object PatMatchSpec extends AsyncAwaitSpec {
   val spec = suite("PatMatchSpec")(
     suite("unlifted scrutinee") (
       suite("without guards") {
-        // test("pure cases") {
-        //   runLiftTest(3) {
-        //     await(async("b")) match {
-        //       case "a" => 2
-        //       case "b" => 3
-        //     }
-        //   }
-        // }
-        // +
+        test("pure cases") {
+          runLiftTest(3) {
+            await(async("b")) match {
+              case "a" => 2
+              case "b" => 3
+            }
+          }
+        }
+        +
         test("pure cases with val") {
           runLiftTest(3) {
             val v = await(async("b"))

@@ -26,7 +26,7 @@ class Transformer(using transformerQuotes: Quotes) {
       tpe.asType match
         case '[t] =>
           // TODO get rid of underlyingArgument. Should only need one top-level Uninline
-          '{ val m: t = ???; ${useSymbol(('m).asTerm).asExprOf[t]} }.asTerm.underlyingArgument match
+          '{ val m: t = ???; ${useSymbol(('m).asTerm).asExpr} }.asTerm.underlyingArgument match
             case Block(
               (valdef @ ValDef(_, _, _)) :: Nil,
               body
