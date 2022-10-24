@@ -29,7 +29,10 @@ class Transformer(using transformerQuotes: Quotes) {
           println(s"============  Block: ${parts.map(_.show)} ==== ${lastPart.show}")
           TransformBlock.unapply(block)
 
-        case '{ unlift[t]($task) } =>
+        //case Unseal(Match(expr, caseDefs)) =>
+
+
+        case '{ await[t]($task) } =>
           println(s"=============== Unlift: ${task.show}")
           Some(task)
 
@@ -49,7 +52,7 @@ class Transformer(using transformerQuotes: Quotes) {
   private object PureTree:
     def unapply(tree: Tree) =
       Trees.exists(tree, Symbol.spliceOwner) {
-        case Seal('{ unlift[t]($v) }) => true
+        case Seal('{ await[t]($v) }) => true
       } match {
         case true => None
         case false => Some(tree)
@@ -189,6 +192,29 @@ class Transformer(using transformerQuotes: Quotes) {
 
   }
 
+  private object TransformCases {
+    private sealed trait AppliedTree { def tree: CaseDef }
+    private case object AppliedTree {
+      case class HasTransform(tree: CaseDef) extends AppliedTree
+      case class NoTransform(tree: CaseDef) extends AppliedTree
+    }
+
+    private def apply(cases: List[CaseDef]) =
+      cases.map {
+        case CaseDef(pattern, cond, Seal(Transform(body))) => AppliedTree.HasTransform(CaseDef(pattern, cond, body.asTerm))
+        case CaseDef(pattern, cond, body) => AppliedTree.NoTransform(CaseDef(pattern, cond, '{ ZIO.attempt(${body.asExpr}) }.asTerm))
+      }
+
+    def unapply(cases: List[CaseDef]) = {
+        // If at least one of the match-cases need to be transformed, transform all of them
+        val mappedCases = apply(cases)
+        if (mappedCases.exists(_.isInstanceOf[AppliedTree.HasTransform]))
+          Some(mappedCases.map(_.tree))
+        else
+          None
+      }
+  }
+
   private object BlockN {
     def unapply(trees: List[Statement]) =
       trees match {
@@ -206,18 +232,6 @@ class Transformer(using transformerQuotes: Quotes) {
         case Some(value) => value
         case None => report.errorAndAbort(s"Invalid trees list: ${trees.map(_.show)}")
       }
-  }
-
-  private object Lambda1 {
-    def apply(newOwner: Term)(name: String, body: Expr[_])(input: TypeRepr, output: TypeRepr) = {
-      val mtpe = MethodType(List(name))(_ => List(input), _ => output)
-      Lambda(newOwner.symbol, mtpe, {
-        case (methSym, List(name: Term)) =>
-          //given Quotes = methSym.asQuotes
-          body.asTerm.changeOwner(methSym)
-        }
-      ).asExprOf[? => ?]
-    }
   }
 
   def apply[T: Type](value: Expr[T])(using Quotes): Expr[ZIO[Any, Throwable, T]] = {
