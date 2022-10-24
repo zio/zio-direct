@@ -21,10 +21,8 @@ object PrintMac {
     println("================= Tree =================")
     println(Format(Printer.TreeShortCode.show(deser.asTerm)))
 
-    if (showDetail) {
-      println("================= Detail =================")
-      println(Format(Printer.TreeStructure.show(Untype(deser.asTerm))))
-    }
+    // println("================= Detail =================")
+    // println(Format(Printer.TreeStructure.show(Untype(deser.asTerm))))
 
     // println("================= Pretty Tree =================")
     // println(pprint.apply(Untype(any.asTerm)))

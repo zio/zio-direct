@@ -29,8 +29,38 @@ class Transformer(using transformerQuotes: Quotes) {
           println(s"============  Block: ${parts.map(_.show)} ==== ${lastPart.show}")
           TransformBlock.unapply(block)
 
-        //case Unseal(Match(expr, caseDefs)) =>
+        case Unseal(Match(m @ Seal(Transform(monad)), caseDefs)) =>
+          println(s"============  Body Has Monad =======\n${Printer.TreeShortCode.show(m)}")
+          println(s"====== Transformed:\n" + monad.show)
+          println(s"====== Monad Tpe:\n" + monad.asTerm.tpe.show)
+          println(s"====== Match Tpe:\n" + m.tpe.show)
 
+          val (oldSymbol, body) =
+            m.tpe.asType match
+              case '[t] =>
+                '{ val m: t = ???; ${Match(('m).asTerm, caseDefs).asExprOf[t]} }.asTerm.underlyingArgument match
+                  case Block(
+                    (valdef @ ValDef(_, _, _)) :: Nil,
+                    body
+                  ) =>
+                    (valdef.symbol, body)
+
+          val out = Nest(monad, Nest.NestType.ValDef(oldSymbol), body.asExpr)
+          Some(out)
+
+          // Not sure why this (below) doesn't work but the above method works. Basically it is doing the same thing
+          // val name = "zzz"
+          // val sym = Symbol.newVal(m.symbol.owner, name, m.tpe, Flags.EmptyFlags, Symbol.noSymbol)
+          // val body = Match(Ident(sym.termRef), caseDefs)
+          // val out = Nest(monad, Nest.NestType.ValDef(sym), body.asExpr)
+          // println(s"============  Body Has Monad RETURN =======\n${Printer.TreeShortCode.show(out.asTerm)}")
+          // Some(out)
+
+
+
+        case Unseal(m @ Match(value, TransformCases(cases))) =>
+          println(s"=============== Transform Inner Cases")
+          Some(Match(value, cases).asExprOf[ZIO[Any, Throwable, ?]])
 
         case '{ await[t]($task) } =>
           println(s"=============== Unlift: ${task.show}")
@@ -69,6 +99,24 @@ class Transformer(using transformerQuotes: Quotes) {
       * flatMap from the previously-sequenced ZIO, otherwise it map.
       */
     def apply(monad: Expr[ZIO[Any, Throwable, ?]], nestType: NestType, bodyRaw: Expr[_]): Expr[ZIO[Any, Throwable, ?]] = {
+      def symbolType =
+        nestType match
+          case NestType.ValDef(oldSymbol) =>
+            oldSymbol.termRef.widenTermRefByName.asType
+          case _ =>
+            monad.asTerm.tpe.asType match
+              case '[ZIO[Any, Throwable, t]] => Type.of[t]
+
+      // def decideMonadType[MonadType: Type] =
+      //   val monadType = Type.of[MonadType]
+      //   monadType match
+      //     case '[Any] =>
+      //       oldSymbolType match
+      //         case Some(value) => (value.asType, true)
+      //         case None => (monadType, false)
+      //     case _ =>
+      //       (monadType, false)
+
       def replaceSymbolInBody(body: Term)(newSymbolTerm: Term) =
         nestType match
           case NestType.ValDef(oldSymbol) =>
@@ -92,7 +140,7 @@ class Transformer(using transformerQuotes: Quotes) {
                 ValDef(oldSymbol, Some(newSymbolTerm)),
                 body
               ))
-            println(s"============+ Creating $oldSymbol -> ${newSymbolTerm.symbol} replacement let:\n${Format(Printer.TreeShortCode.show(out))}")
+            println(s"============+ Creating $oldSymbol:${Printer.TypeReprShortCode.show(oldSymbol.termRef.widen)} -> ${newSymbolTerm.show}:${Printer.TypeReprShortCode.show(newSymbolTerm.tpe.widen)} replacement let:\n${Format(Printer.TreeShortCode.show(out))}")
             out
 
           case NestType.Wildcard =>
@@ -102,18 +150,19 @@ class Transformer(using transformerQuotes: Quotes) {
         // q"${Resolve.flatMap(monad.pos, monad)}(${toVal(name)} => $body)"
         case Transform(body) =>
           println(s"=================== Flat Mapping: ${Format(Printer.TreeShortCode.show(body.asTerm))}")
-          monad.asTerm.tpe.asType match
-            case '[ZIO[Any, Throwable, t]] =>
-              '{ ${monad.asExprOf[ZIO[Any, Throwable, t]]}.flatMap(v =>
+          println(s"Monad Type: ${monad.asTerm.tpe.show}")
+          symbolType match
+            case '[t] =>
+              '{ $monad.asInstanceOf[ZIO[Any, Throwable, t]].flatMap((v: t) =>
                 ${replaceSymbolInBody(body.asTerm)(('v).asTerm).asExprOf[ZIO[Any, Throwable, ?]]}
               ) }
 
         // q"${Resolve.map(monad.pos, monad)}(${toVal(name)} => $body)"
         case body            =>
           println(s"=================== Mapping: ${Format(Printer.TreeShortCode.show(body.asTerm))}")
-          monad.asTerm.tpe.asType match
-            case '[ZIO[Any, Throwable, t]] =>
-              '{ ${monad.asExprOf[ZIO[Any, Throwable, t]]}.map(v =>
+          symbolType match
+            case '[t] =>
+              '{ $monad.asInstanceOf[ZIO[Any, Throwable, t]].map((v: t) =>
                 ${replaceSymbolInBody(body.asTerm)(('v).asTerm).asExpr}
               ) }
       }
@@ -141,7 +190,7 @@ class Transformer(using transformerQuotes: Quotes) {
         // This basically does that with some additional details
         // (e.g. it can actually be stuff.flatMap(v => val x = v; stuff-that-uses-x))
         case ValDefStatement(symbol , Seal(Transform(monad))) :: tail =>
-          println(s"============= Block - Val Def: ${monad.show}")
+          println(s"============= Block - Val Def: ${Printer.TreeShortCode.show(monad.asTerm)}")
           val nest = Nest(monad, Nest.NestType.ValDef(symbol), BlockN(tail).asExpr)
           Some(nest.asExprOf[ZIO[Any, Throwable, ?]])
 
@@ -199,7 +248,10 @@ class Transformer(using transformerQuotes: Quotes) {
       case class NoTransform(tree: CaseDef) extends AppliedTree
     }
 
-    private def apply(cases: List[CaseDef]) =
+    def apply(cases: List[CaseDef]): List[CaseDef] =
+      applyMark(cases).map(_.tree)
+
+    private def applyMark(cases: List[CaseDef]) =
       cases.map {
         case CaseDef(pattern, cond, Seal(Transform(body))) => AppliedTree.HasTransform(CaseDef(pattern, cond, body.asTerm))
         case CaseDef(pattern, cond, body) => AppliedTree.NoTransform(CaseDef(pattern, cond, '{ ZIO.attempt(${body.asExpr}) }.asTerm))
@@ -207,7 +259,7 @@ class Transformer(using transformerQuotes: Quotes) {
 
     def unapply(cases: List[CaseDef]) = {
         // If at least one of the match-cases need to be transformed, transform all of them
-        val mappedCases = apply(cases)
+        val mappedCases = applyMark(cases)
         if (mappedCases.exists(_.isInstanceOf[AppliedTree.HasTransform]))
           Some(mappedCases.map(_.tree))
         else
