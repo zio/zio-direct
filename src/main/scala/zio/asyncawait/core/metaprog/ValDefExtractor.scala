@@ -22,6 +22,15 @@ object ValDefStatement:
 end ValDefStatement
 
 object Trees:
+  object TransformTree:
+    def apply(using Quotes)(tree: quotes.reflect.Tree, owner: quotes.reflect.Symbol)(pf: PartialFunction[quotes.reflect.Tree, quotes.reflect.Tree]) =
+      import quotes.reflect._
+      (new TreeMap:
+        override def transformTree(tree: Tree)(owner: Symbol): Tree = {
+          pf.lift(tree).getOrElse(super.transformTree(tree)(owner))
+        }
+      ).transformTree(tree)(owner)
+
   object Transform:
     def apply(using Quotes)(term: quotes.reflect.Term, owner: quotes.reflect.Symbol)(pf: PartialFunction[quotes.reflect.Term, quotes.reflect.Term]) =
       import quotes.reflect._

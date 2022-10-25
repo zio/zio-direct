@@ -32,6 +32,7 @@ class Transformer(using transformerQuotes: Quotes) {
               body
             ) =>
               (valdef.symbol, body)
+
     println(s"============  Making New Symbol For: ${symbol} -> ${Printer.TreeShortCode.show(body)}")
     (symbol, body)
   }
@@ -123,12 +124,16 @@ class Transformer(using transformerQuotes: Quotes) {
             case List((monad, name, tpe)) =>
               tpe.asType match
                 case '[t] =>
-                  Some('{ ${monad.asExprOf[ZIO[Any, Throwable, t]]}.map(sm => ${replaceSymbolIn(newTree)(name, ('sm).asTerm).asExpr}) })
+                  Some('{
+                    ${monad.asExprOf[ZIO[Any, Throwable, t]]}.map(sm =>
+                      ${replaceSymbolIn(newTree)(name, ('sm).asTerm).asExpr})
+                    }
+                  )
             case unlifts =>
               val (terms, names, types) = unlifts.unzip3
               val termsExpr = Expr.ofList(terms.map(_.asExprOf[ZIO[Any, Throwable, ?]]))
               val collect = '{ ZIO.collectAll(Chunk.from($termsExpr)) }
-              def allVals(iterator: Expr[Iterator[?]]) =
+              def makeVariables(iterator: Expr[Iterator[?]]) =
                 unlifts.map((monad, symbol, tpe) =>
                     tpe.asType match {
                       case '[t] =>
@@ -138,7 +143,7 @@ class Transformer(using transformerQuotes: Quotes) {
               Some('{
                 $collect.map(terms => {
                   val iter = terms.iterator
-                  ${ Block(allVals('iter), newTree).asExpr }
+                  ${ Block(makeVariables('iter), newTree).asExpr }
                 })
               })
             }
@@ -304,9 +309,55 @@ class Transformer(using transformerQuotes: Quotes) {
           println(s"============= NO BLOCK MATCHED: ${other.map(_.show)}")
           None
       }
-
-
   }
+
+  private object TransformDefs {
+    def apply(tree: Tree): Tree = {
+      var unlifted = mutable.Set[Symbol]()
+
+      object UnliftDefs {
+        def apply(term: Tree): Tree =
+          Trees.TransformTree(tree, Symbol.spliceOwner) {
+            case defdef @ DefDef(name, paramss, tpt, Some(rhs)) =>
+              rhs match {
+                case PureTree(body) => rhs
+                case body =>
+                  unlifted += defdef.symbol
+                  DefDef.copy(defdef)(name, paramss, tpt, Some(Transform(UnliftDefs(body).asExpr).asTerm))
+              }
+
+            case tree @ Seal('{ await[t]($task) }) => tree
+
+            case term @ Apply(Select(_, methodName), _) if (unlifted.map(_.name).contains(methodName)) =>
+              term match {
+                case Transform(_) =>
+                  report.errorAndAbort("Can't unlift parameters of a method with unlifted body.")
+                case term =>
+                  term.tpe.asType match
+                    case '[t] =>
+                      '{ await[t](${tree.asExprOf[ZIO[Any, Throwable, t]]}) }.asTerm.underlyingArgument
+              }
+
+            // TODO check to see that this is not NoSymbol?
+            case tree: Term if tree.isExpr && unlifted.contains(tree.symbol) =>
+              tree.tpe.asType match
+                case '[t] =>
+                  '{ await[t](${tree.asExprOf[ZIO[Any, Throwable, t]]}) }.asTerm.underlyingArgument
+
+
+            // TODO Invalid, make this an errro case, needs have an right-hand-sde
+            //case DefDef(sym, paramss, tpt, None) =>
+          }
+        end apply
+      }
+
+      UnliftDefs(tree) match {
+        case `tree` => tree
+        case tree   => UnliftDefs(tree)
+      }
+    }
+  }
+
 
   private object TransformCases {
     private sealed trait AppliedTree { def tree: CaseDef }
@@ -354,6 +405,13 @@ class Transformer(using transformerQuotes: Quotes) {
   }
 
   def apply[T: Type](value: Expr[T])(using Quotes): Expr[ZIO[Any, Throwable, T]] = {
+    val transformed =
+      TransformDefs(value.asTerm) match {
+        case PureTree(tree) if (tree.isExpr) => '{ ZIO.succeed(${tree.asExpr}) }
+        case tree if (tree.isExpr) => Transform(tree.asExpr)
+        case other =>
+          report.errorAndAbort(s"Could not translate the following tree because it was not an expression:\n${Printer.TreeShortCode.show(other)}")
+      }
     '{ ${Transform(value)}.asInstanceOf[ZIO[Any, Throwable, T]] }
   }
 }

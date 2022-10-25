@@ -90,31 +90,52 @@ object Example {
   //   println("====== RESULT: " + outRun)
   // }
 
-  def funD(): Unit = {
-    val i = async(1)
-    val j = async(2)
+  // def funD(): Unit = {
+  //   val i = async(1)
+  //   val j = async(2)
 
+  //   PrintMac(async {
+  //       val v = await(i)
+  //       v + await(j)
+  //     })
+
+  //   val out =
+  //     async {
+  //       val v = await(i)
+  //       v + await(j)
+  //     }
+
+
+
+  //   val outRun =
+  //     zio.Unsafe.unsafe { implicit unsafe =>
+  //       zio.Runtime.default.unsafe.run(out).getOrThrow()
+  //     }
+  //   println("====== RESULT: " + outRun)
+  // }
+
+  // def funE(): Unit = {
+  //   val out =
+  //     async {
+  //       def a(i: Int, s: String) = i + s.toInt
+  //       await(async(a(1, "2"))) + a(0, "1")
+  //     }
+
+  //   val outRun =
+  //     zio.Unsafe.unsafe { implicit unsafe =>
+  //       zio.Runtime.default.unsafe.run(out).getOrThrow()
+  //     }
+  //   println("====== RESULT: " + outRun)
+  // }
+
+  def funF(): Unit = {
     PrintMac(async {
-        val v = await(i)
-        v + await(j)
-      })
-
-    val out =
-      async {
-        val v = await(i)
-        v + await(j)
-      }
-
-
-
-    val outRun =
-      zio.Unsafe.unsafe { implicit unsafe =>
-        zio.Runtime.default.unsafe.run(out).getOrThrow()
-      }
-    println("====== RESULT: " + outRun)
+      def a = await(async(2))
+      await(async(1)) + a
+    }) //
   }
 
   def main(args: Array[String]): Unit = {
-    funD()
+    funF() // //
   }
 }
