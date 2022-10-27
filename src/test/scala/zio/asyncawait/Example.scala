@@ -133,6 +133,12 @@ object Example {
       def a = await(async(2))
       await(async(1)) + a
     }) //
+
+    // val outRun =
+    //   zio.Unsafe.unsafe { implicit unsafe =>
+    //     zio.Runtime.default.unsafe.run(out).getOrThrow()
+    //   }
+    // println("====== RESULT: " + outRun)
   }
 
   def main(args: Array[String]): Unit = {

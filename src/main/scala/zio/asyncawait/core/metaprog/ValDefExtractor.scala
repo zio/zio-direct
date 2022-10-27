@@ -2,6 +2,7 @@ package zio.asyncawait.core.metaprog
 
 import scala.quoted._
 import zio.asyncawait.core.metaprog.Extractors.Lambda1
+import zio.asyncawait.core.util.Format
 
 object ValDefStatement:
   def unapply(using Quotes)(stmt: quotes.reflect.Statement): Option[(quotes.reflect.Symbol, quotes.reflect.Term)] =
@@ -22,14 +23,21 @@ object ValDefStatement:
 end ValDefStatement
 
 object Trees:
-  object TransformTree:
-    def apply(using Quotes)(tree: quotes.reflect.Tree, owner: quotes.reflect.Symbol)(pf: PartialFunction[quotes.reflect.Tree, quotes.reflect.Tree]) =
+  object TransformStatement:
+    def apply(using Quotes)(rawTree: quotes.reflect.Statement, owner: quotes.reflect.Symbol)(pf: PartialFunction[quotes.reflect.Statement, quotes.reflect.Statement]) =
       import quotes.reflect._
+      println(s"<<<<<<<<<<< Beginning Transform over: ${Format.Tree(rawTree)}")
+      var counter = 0
       (new TreeMap:
-        override def transformTree(tree: Tree)(owner: Symbol): Tree = {
-          pf.lift(tree).getOrElse(super.transformTree(tree)(owner))
+        override def transformStatement(stmt: Statement)(owner: Symbol): Statement = {
+          pf.lift(stmt).getOrElse {
+            println(s"<<<<<< Transforming: ${Format.Tree(stmt)}")
+            counter = counter + 1
+            if (counter > 10) report.errorAndAbort("============ ((((( OVERFLOW )))))===========")
+            super.transformStatement(stmt)(owner)
+          }
         }
-      ).transformTree(tree)(owner)
+      ).transformStatement(rawTree)(owner).asInstanceOf[Statement]
 
   object Transform:
     def apply(using Quotes)(term: quotes.reflect.Term, owner: quotes.reflect.Symbol)(pf: PartialFunction[quotes.reflect.Term, quotes.reflect.Term]) =

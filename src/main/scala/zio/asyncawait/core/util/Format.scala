@@ -28,15 +28,15 @@ object Format {
       import qctx.reflect._
       Printer.TreeShortCode.show(term.asInstanceOf[qctx.reflect.Term])
 
+  object Tree:
+    def apply(term: Quotes#reflectModule#Tree)(using qctx: Quotes) =
+      import qctx.reflect._
+      Printer.TreeShortCode.show(term.asInstanceOf[qctx.reflect.Tree])
+
   object TermRaw:
     def apply(term: Quotes#reflectModule#Term)(using qctx: Quotes) =
       import qctx.reflect._
       Printer.TreeStructure.show(term.asInstanceOf[qctx.reflect.Term])
-
-  object Tree:
-    def apply(tree: Quotes#reflectModule#Tree)(using qctx: Quotes) =
-      import qctx.reflect._
-      Printer.TreeShortCode.show(tree.asInstanceOf[qctx.reflect.Tree])
 
   /** Same as TypeRepr but also widens the type since frequently types are singleton i.e. 'person.name' has the type 'name' as opposed to String */
   object TypeReprW {
