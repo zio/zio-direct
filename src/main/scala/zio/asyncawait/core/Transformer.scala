@@ -335,21 +335,23 @@ class Transformer(using transformerQuotes: Quotes) {
             println(s"----------- Nope")
             None
 
-    def apply(stmtRaw: Statement): Statement = {
-      var unlifted = mutable.Set[Symbol]()
+    def apply(stmtRaw: Tree): Tree = {
+      var unlifted = mutable.Map[Symbol, Symbol]()
 
       object UnliftDefs {
-        def apply(term: Statement): Statement =
-          Trees.TransformStatement(term, Symbol.spliceOwner) {
+        def apply(term: Tree): Tree =
+          Trees.TransformTree(term, Symbol.spliceOwner) {
             case defdef @ DefDef(name, paramss, tpt, Some(rhs)) =>
               val out = rhs match {
                 case PureTree(body) => defdef
                 case rhsBody =>
                   println(s"<<<<<< RHS Body: ${Format.Tree(rhsBody)}")
-                  unlifted += defdef.symbol
-                  tpt.tpe.asType match
-                    case '[t] =>
-                      DefDef.copy(defdef)(name, paramss, TypeTree.of[ZIO[Any, Throwable, t]], Some(Transform(UnliftDefs(rhsBody).asExpr).asTerm))
+                  val newDefDef =
+                    tpt.tpe.asType match
+                      case '[t] =>
+                        DefDef.copy(defdef)(name, paramss, TypeTree.of[ZIO[Any, Throwable, t]], Some(Transform(UnliftDefs(rhsBody).asExpr).asTerm))
+                  unlifted += ((defdef.symbol, newDefDef.symbol))
+                  newDefDef
               }
               println(s"========= UNLIFT DEF - DefDef TreeTransform =======\n${Format.Tree(defdef)}\n=========INTO:\n${Format.Tree(out)}")
               out
@@ -362,15 +364,22 @@ class Transformer(using transformerQuotes: Quotes) {
             // (several other forms of function-call can happen, need to match in a more general way)
             // TODO Make sure to check that class definition methods (e.g. Apply(Select(Ident, method), ...) method
             // invocations are not allowed)
-            case FunctionCall(symbol, functionCall) if (unlifted.contains(symbol)) =>
+            case FunctionCall(symbol, functionCall) if ({
+              println(s"========= CONTAINMENT Unlifted (${unlifted}) contains: ${symbol}: ${unlifted.contains(symbol)}")
+              unlifted.contains(symbol)
+            }) =>
               println(s"========== Detected function call: ${Printer.TreeShortCode.show(functionCall)}")
               val out = term match {
                 case Transform(_) =>
                   report.errorAndAbort("Can't unlift parameters of a method with unlifted body.")
                 case term =>
+                  // Replace the symbol in the function call
+                  val newFunctionCall =
+                    Trees.replaceIdent(functionCall)(symbol, unlifted(symbol))
                   functionCall.tpe.asType match
                     case '[t] =>
-                      '{ await[t](${functionCall.asExprOf[ZIO[Any, Throwable, t]]}) }.asTerm.underlyingArgument
+                      // .asExprOf[ZIO[Any, Throwable, t]]
+                      '{ await[t](${newFunctionCall.asExpr}.asInstanceOf[ZIO[Any, Throwable, t]]) }.asTerm.underlyingArgument
               }
               println(s"========= UNLIFT DEF - Apply(Select) =======\n${Format.Tree(term)}\n=========INTO:\n${Format.Tree(out)}")
               out

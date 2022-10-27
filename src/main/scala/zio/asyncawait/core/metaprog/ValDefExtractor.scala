@@ -23,21 +23,31 @@ object ValDefStatement:
 end ValDefStatement
 
 object Trees:
-  object TransformStatement:
-    def apply(using Quotes)(rawTree: quotes.reflect.Statement, owner: quotes.reflect.Symbol)(pf: PartialFunction[quotes.reflect.Statement, quotes.reflect.Statement]) =
+  object TransformTree:
+    def apply(using Quotes)(rawTree: quotes.reflect.Tree, owner: quotes.reflect.Symbol)(pf: PartialFunction[quotes.reflect.Tree, quotes.reflect.Tree]) =
       import quotes.reflect._
       println(s"<<<<<<<<<<< Beginning Transform over: ${Format.Tree(rawTree)}")
       var counter = 0
       (new TreeMap:
         override def transformStatement(stmt: Statement)(owner: Symbol): Statement = {
-          pf.lift(stmt).getOrElse {
-            println(s"<<<<<< Transforming: ${Format.Tree(stmt)}")
-            counter = counter + 1
-            if (counter > 10) report.errorAndAbort("============ ((((( OVERFLOW )))))===========")
-            super.transformStatement(stmt)(owner)
-          }
+          val lifted =
+            pf.lift(stmt) match {
+              case Some(term: Statement) => Some(term)
+              case Some(other) => report.errorAndAbort(s"Transformed the term ${Format.Tree(other)} into something that is not a Statement: ${Format.Tree(other)}")
+              case None => None
+            }
+          lifted.getOrElse(super.transformStatement(stmt)(owner))
         }
-      ).transformStatement(rawTree)(owner).asInstanceOf[Statement]
+        override def transformTerm(stmt: Term)(owner: Symbol): Term = {
+          val lifted =
+            pf.lift(stmt) match {
+              case Some(term: Term) => Some(term)
+              case Some(other) => report.errorAndAbort(s"Transformed the term ${Format.Tree(other)} into something that is not a Term: ${Format.Tree(other)}")
+              case None => None
+            }
+          lifted.getOrElse(super.transformTerm(stmt)(owner))
+        }
+      ).transformTree(rawTree)(owner).asInstanceOf[Tree]
 
   object Transform:
     def apply(using Quotes)(term: quotes.reflect.Term, owner: quotes.reflect.Symbol)(pf: PartialFunction[quotes.reflect.Term, quotes.reflect.Term]) =
