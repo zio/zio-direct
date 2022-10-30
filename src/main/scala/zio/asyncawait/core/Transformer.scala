@@ -347,10 +347,18 @@ class Transformer(using transformerQuotes: Quotes) {
                 case rhsBody =>
                   println(s"<<<<<< RHS Body: ${Format.Tree(rhsBody)}")
                   val newDefDef =
-                    tpt.tpe.asType match
+                    // Make sure to widen the type of the def parameter or it will just be a.type
+                    tpt.tpe.widen.asType match
                       case '[t] =>
-                        DefDef.copy(defdef)(name, paramss, TypeTree.of[ZIO[Any, Throwable, t]], Some(Transform(UnliftDefs(rhsBody).asExpr).asTerm))
+                        val newBody = Transform(UnliftDefs(rhsBody).asExpr).asTerm
+                        println(s"-------------New Body: ${Format.Term(newBody)}. Type: ${Format.TypeRepr(newBody.tpe)}")
+                        //DefDef.copy(defdef)(name, paramss, TypeTree.of[ZIO[Any, Throwable, t]], Some(newBody))
+                        val newSym = Symbol.newMethod(defdef.symbol.owner, name, MethodType(Nil)(_ => Nil, _ => TypeRepr.of[ZIO[Any, Throwable, t]]))
+                        DefDef.apply(newSym, tree => Some(newBody))
                   unlifted += ((defdef.symbol, newDefDef.symbol))
+                  println(s"------------ Old Type: ${Format.TypeRepr(defdef.symbol.termRef)} -> New Type: ${Format.TypeRepr(newDefDef.symbol.termRef.widen)}")
+                  println(s"------------ Old Symbol: ${(defdef.symbol)} -> New Symbol: ${(newDefDef.symbol)}")
+                  println(s"------------ Old Symbol: ${(defdef.symbol.paramSymss)} -> New Symbol: ${(newDefDef.symbol.paramSymss)}")
                   newDefDef
               }
               println(s"========= UNLIFT DEF - DefDef TreeTransform =======\n${Format.Tree(defdef)}\n=========INTO:\n${Format.Tree(out)}")
@@ -374,9 +382,11 @@ class Transformer(using transformerQuotes: Quotes) {
                   report.errorAndAbort("Can't unlift parameters of a method with unlifted body.")
                 case term =>
                   // Replace the symbol in the function call
+                  val newSymbol = unlifted(symbol)
+                  println(s"----------- Replace: ${Format.TypeRepr(symbol.termRef.widen)} -> ${Format.TypeRepr(newSymbol.termRef.widen)}")
                   val newFunctionCall =
-                    Trees.replaceIdent(functionCall)(symbol, unlifted(symbol))
-                  functionCall.tpe.asType match
+                    Trees.replaceIdent(functionCall)(symbol, newSymbol)
+                  functionCall.tpe.widen.asType match
                     case '[t] =>
                       // .asExprOf[ZIO[Any, Throwable, t]]
                       '{ await[t](${newFunctionCall.asExpr}.asInstanceOf[ZIO[Any, Throwable, t]]) }.asTerm.underlyingArgument
@@ -385,13 +395,13 @@ class Transformer(using transformerQuotes: Quotes) {
               out
 
             // TODO check to see that this is not NoSymbol?
-            case tree: Term if tree.isExpr && unlifted.contains(tree.symbol) =>
-              val out =
-              tree.tpe.asType match
-                case '[t] =>
-                  '{ await[t](${tree.asExprOf[ZIO[Any, Throwable, t]]}) }.asTerm.underlyingArgument
-              println(s"========= UNLIFT DEF - term contains symbol =======\n${Format.Tree(tree)}\n=========INTO:\n${Format.Tree(out)}")
-              out
+            // case tree: Term if tree.isExpr && unlifted.contains(tree.symbol) =>
+            //   val out =
+            //   tree.tpe.asType match
+            //     case '[t] =>
+            //       '{ await[t](${tree.asExprOf[ZIO[Any, Throwable, t]]}) }.asTerm.underlyingArgument
+            //   println(s"========= UNLIFT DEF - term contains symbol =======\n${Format.Tree(tree)}\n=========INTO:\n${Format.Tree(out)}")
+            //   out
 
 
             // TODO Invalid, make this an errro case, needs have an right-hand-sde

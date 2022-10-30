@@ -129,9 +129,14 @@ object Example {
   // }
 
   def funF(): Unit = {
+    // PrintMac(async {
+    //   def a(x: String)(y: String) = await(async(x + " " + y))
+    //   await(async("bar")) + a("one")("two")
+    // }) //
+
     PrintMac(async {
-      def a = await(async(2))
-      await(async(1)) + a
+      def a = await(async("foo"))
+      await(async("bar")) + a
     }) //
 
     // val outRun =
