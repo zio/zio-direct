@@ -320,23 +320,19 @@ class Transformer(using transformerQuotes: Quotes) {
   private object TransformDefs {
     object FunctionCall:
       def unapply(tree: Tree): Option[(Symbol, Term)] =
-        println(s"----------- Is this a invocation? ${Format.Tree(tree)}")
         tree match
           // TODO Do not allow Apply(Select(Ident, methodName), args) patterns since class-based functions are not allowed
           // are we applying an object method on some parameters?
           case invokeTerm @ Apply(method: Ident, _) if method.symbol.flags.is(Flags.Method) =>
-            println(s"----------- Is a invocation  of method applied: ${invokeTerm.symbol}")
             Some((method.symbol, invokeTerm))
           // are we applying a local method on something
           case invokeTerm @ Ident(_) if invokeTerm.symbol.flags.is(Flags.Method) =>
-            println(s"----------- Is a invocation of single-ident method: ${invokeTerm.symbol}")
             Some((invokeTerm.symbol, invokeTerm))
           case _ =>
-            println(s"----------- Nope")
             None
 
     def apply(stmtRaw: Tree): Tree = {
-      var unlifted = mutable.Map[Symbol, Symbol]()
+      var unlifted = mutable.Map[Symbol, Ref]()
 
       object UnliftDefs {
         def apply(term: Tree): Tree =
@@ -345,20 +341,25 @@ class Transformer(using transformerQuotes: Quotes) {
               val out = rhs match {
                 case PureTree(body) => defdef
                 case rhsBody =>
-                  println(s"<<<<<< RHS Body: ${Format.Tree(rhsBody)}")
-                  val newDefDef =
+                  val (newDefDef, newSym) =
                     // Make sure to widen the type of the def parameter or it will just be a.type
                     tpt.tpe.widen.asType match
                       case '[t] =>
                         val newBody = Transform(UnliftDefs(rhsBody).asExpr).asTerm
-                        println(s"-------------New Body: ${Format.Term(newBody)}. Type: ${Format.TypeRepr(newBody.tpe)}")
-                        //DefDef.copy(defdef)(name, paramss, TypeTree.of[ZIO[Any, Throwable, t]], Some(newBody))
-                        val newSym = Symbol.newMethod(defdef.symbol.owner, name, MethodType(Nil)(_ => Nil, _ => TypeRepr.of[ZIO[Any, Throwable, t]]))
-                        DefDef.apply(newSym, tree => Some(newBody))
-                  unlifted += ((defdef.symbol, newDefDef.symbol))
-                  println(s"------------ Old Type: ${Format.TypeRepr(defdef.symbol.termRef)} -> New Type: ${Format.TypeRepr(newDefDef.symbol.termRef.widen)}")
-                  println(s"------------ Old Symbol: ${(defdef.symbol)} -> New Symbol: ${(newDefDef.symbol)}")
-                  println(s"------------ Old Symbol: ${(defdef.symbol.paramSymss)} -> New Symbol: ${(newDefDef.symbol.paramSymss)}")
+                        val newSym = Symbol.newMethod(defdef.symbol.owner, name, ByNameType(TypeRepr.of[ZIO[Any, Throwable, t]]))
+                        (
+                          DefDef.apply(newSym, tree => Some(newBody)),
+                          newSym
+                        )
+                  unlifted += ((defdef.symbol, Ref(newSym)))
+
+                  tpt.tpe match {
+                    case ByNameType(a) => println(s"----------- Is Method Type ByName: ${a}")
+                    case other => println(s"----------- Is Method Type NOT ByName: ${other}")
+
+                  }
+                  println(s"----------- Is Method Type: ${tpt}")
+
                   newDefDef
               }
               println(s"========= UNLIFT DEF - DefDef TreeTransform =======\n${Format.Tree(defdef)}\n=========INTO:\n${Format.Tree(out)}")
@@ -382,12 +383,14 @@ class Transformer(using transformerQuotes: Quotes) {
                   report.errorAndAbort("Can't unlift parameters of a method with unlifted body.")
                 case term =>
                   // Replace the symbol in the function call
-                  val newSymbol = unlifted(symbol)
-                  println(s"----------- Replace: ${Format.TypeRepr(symbol.termRef.widen)} -> ${Format.TypeRepr(newSymbol.termRef.widen)}")
+                  val newTermRef = unlifted(symbol)
+                  println(s"----------- Replace: ${symbol.termRef} -> ${newTermRef}")
+                  //println(s"----------- Replace: ${symbol.termRef.widen} -> ${newTermRef.widen}")
                   val newFunctionCall =
-                    Trees.replaceIdent(functionCall)(symbol, newSymbol)
+                    Trees.replaceIdent(functionCall)(symbol, newTermRef)
                   functionCall.tpe.widen.asType match
                     case '[t] =>
+                      println(s"==========********** Awaiting Now ON: ${newFunctionCall}")
                       // .asExprOf[ZIO[Any, Throwable, t]]
                       '{ await[t](${newFunctionCall.asExpr}.asInstanceOf[ZIO[Any, Throwable, t]]) }.asTerm.underlyingArgument
               }

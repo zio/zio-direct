@@ -128,25 +128,33 @@ object Example {
   //   println("====== RESULT: " + outRun)
   // }
 
-  def funF(): Unit = {
-    // PrintMac(async {
-    //   def a(x: String)(y: String) = await(async(x + " " + y))
-    //   await(async("bar")) + a("one")("two")
-    // }) //
+  // def funF(): Unit = {
+  //   val out = (async {
+  //     def a = async("foo")
+  //     await(a) + "bar"
+  //   })
 
-    PrintMac(async {
+  //   val outRun =
+  //     zio.Unsafe.unsafe { implicit unsafe =>
+  //       zio.Runtime.default.unsafe.run(out).getOrThrow()
+  //     }
+  //   println("====== RESULT: " + outRun)
+  // }
+
+  def funG(): Unit = {
+    val out = (async {
       def a = await(async("foo"))
-      await(async("bar")) + a
-    }) //
+      a + "bar"
+    })
 
-    // val outRun =
-    //   zio.Unsafe.unsafe { implicit unsafe =>
-    //     zio.Runtime.default.unsafe.run(out).getOrThrow()
-    //   }
-    // println("====== RESULT: " + outRun)
+    val outRun =
+      zio.Unsafe.unsafe { implicit unsafe =>
+        zio.Runtime.default.unsafe.run(out).getOrThrow()
+      }
+    println("====== RESULT: " + outRun)
   }
 
   def main(args: Array[String]): Unit = {
-    funF() // //
+    funG() // //
   }
 }
