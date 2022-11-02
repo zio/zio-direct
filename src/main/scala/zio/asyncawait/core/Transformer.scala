@@ -374,6 +374,7 @@ class Transformer(using transformerQuotes: Quotes) {
                         // Not technically needed but useful to have if we want thte body to return a quote
                         given Quotes = newSymbol.asQuotes
                         // Unless you change the owner there will be an error that the original DefDef symbol is not found
+                        // it will look something like: `key not found: method <original-method-name>`
                         newBodyInner.changeOwner(newSymbol)
                       })
 

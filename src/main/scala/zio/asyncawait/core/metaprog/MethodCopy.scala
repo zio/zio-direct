@@ -11,7 +11,9 @@ object DefDefCopy {
   private def methodTypeMaker(using Quotes)(clause: quotes.reflect.TermParamClause): quotes.reflect.TypeRepr => quotes.reflect.MethodType =
     import quotes.reflect._
     (outputType: TypeRepr) =>
-      MethodType(clause.params.map(_.name + "New"))(_ => clause.params.map(_.tpt.tpe), _ => outputType)
+      // Can possibly add a suffix here to indicate the method was renamed e.g. _.name + "New"
+      // since we need to replace all Idents of the original parameter we can rename them as well for clarity
+      MethodType(clause.params.map(_.name))(_ => clause.params.map(_.tpt.tpe), _ => outputType)
 
   private def polyTypeMaker(using Quotes)(clause: quotes.reflect.TypeParamClause): quotes.reflect.TypeRepr => quotes.reflect.MethodType =
     import quotes.reflect._
@@ -43,9 +45,10 @@ object DefDefCopy {
 
     println(s"-------------- New Method Type: ${methodType.show}")
 
-    // Note, for nested methods it would not be the Symbol.spliceOwner. Throw error if they are nested methods?
-    //Symbol.newMethod(defdef.symbol.owner, defdef.name + "New", methodType)
-    Symbol.newMethod(defdef.symbol.owner, defdef.name + "New", MethodType(List("bNew"))(_ => List(TypeRepr.of[String]), _ => TypeRepr.of[ZIO[Any, Throwable, String]]))
+    // Can possibly add a suffix here to indicate the method was renamed e.g. defdef.name
+    // since we are replacing all the idents of defdef everywhere anyway (needed by Scala 3 macro hygene)
+    // we can also rename them if it is helpful.
+    Symbol.newMethod(defdef.symbol.owner, defdef.name, methodType)
   }
 
 
