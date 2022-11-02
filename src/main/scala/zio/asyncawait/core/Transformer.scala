@@ -129,6 +129,16 @@ class Transformer(using transformerQuotes: Quotes) {
             case List() =>
               println("=========== No Unlifts ==========")
               None
+
+            /*
+            For a expression (in a single block-line) that has one await in the middle of things e.g.
+            { await(foo) + bar }
+            Needs to turn into something like:
+            { await(foo).map(fooVal => fooVal + bar) }
+            When thinking about types, it looks something like:
+            { (await(foo:Task[t]):t + bar):r }
+            { await(foo:t):Task[t].map[r](fooVal:t => (fooVal + bar):r) }
+            */
             case List((monad, name, tpe)) =>
               val out =
               tpe.asType match
