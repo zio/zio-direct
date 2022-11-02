@@ -379,8 +379,10 @@ class Transformer(using transformerQuotes: Quotes) {
                         //   '{ ZIO.attempt(${terms(0)(0).asInstanceOf[Term].asExprOf[String]}) }.asTerm
                         // )
                         given Quotes = newSymbol.asQuotes
-                        '{ ZIO.attempt(${terms(0)(0).asInstanceOf[Term].asExprOf[String]}) }.asTerm
+                        //'{ ZIO.attempt(${terms(0)(0).asInstanceOf[Term].asExprOf[String]}) }.asTerm
                         //'{ val v = ${terms(0)(0).asInstanceOf[Term].asExprOf[String]}; ???.asInstanceOf[ZIO[Any, Throwable, String]] }.asTerm
+                        // Unless you change the owner there will be an error that the original DefDef symbol is not found
+                        newBodyInner.changeOwner(newSymbol)
                       })
 
               }
