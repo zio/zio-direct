@@ -101,6 +101,10 @@ class Transformer(using transformerQuotes: Quotes) {
           println(s"=============== Untype: ${tree.show}")
           unapply(tree.asExpr)
 
+        // TODO MAJOR Only support parallel awaits for strict-set of known constructs
+        //      Examine set of cases where this occurs. Then as a final case
+        //      Check that there are awaits in any other kind of construct
+        //      and throw an unsupproted-construct exception.
         case tree =>
           println(s"=============== Other: ${Format(Printer.TreeShortCode.show(tree.asTerm))}")
           val unlifts = mutable.ArrayBuffer.empty[(Term, Symbol, TypeRepr)]
@@ -319,6 +323,18 @@ class Transformer(using transformerQuotes: Quotes) {
 
   private object TransformDefs {
     object FunctionCall:
+      def splice(tree: Term, newFunctionTerm: Term): Term =
+        tree match
+          // TODO Do not allow Apply(Select(Ident, methodName), args) patterns since class-based functions are not allowed
+          // are we applying an object method on some parameters?
+          case invokeTerm @ Apply(method: Ident, args) =>
+            Apply(newFunctionTerm, args)
+          // are we applying a local method on something
+          case invokeTerm @ Ident(_) =>
+            newFunctionTerm
+          case _ =>
+            report.throwError("Stuff")
+
       def unapply(tree: Tree): Option[(Symbol, Term)] =
         tree match
           // TODO Do not allow Apply(Select(Ident, methodName), args) patterns since class-based functions are not allowed
@@ -334,33 +350,33 @@ class Transformer(using transformerQuotes: Quotes) {
     def apply(stmtRaw: Tree): Tree = {
       var unlifted = mutable.Map[Symbol, Ref]()
 
+      // TODO Test with mutually recursive methods
       object UnliftDefs {
         def apply(term: Tree): Tree =
           Trees.TransformTree(term, Symbol.spliceOwner) {
-            case defdef @ DefDef(name, paramss, tpt, Some(rhs)) =>
+
+            // Note: If we have transformed this function, make sure NOT to touch it
+            // Scala seems to give `key not found: method` errors when a any method is just deleted so we nest the method inside
+            // the function block so at least it will be there.
+            case defdef @ DefDef(name, paramss, tpt, Some(rhs)) if (!unlifted.contains(defdef.symbol)) =>
               val out = rhs match {
                 case PureTree(body) => defdef
-                case rhsBody =>
-                  val (newDefDef, newSym) =
-                    // Make sure to widen the type of the def parameter or it will just be a.type
-                    tpt.tpe.widen.asType match
-                      case '[t] =>
-                        val newBody = Transform(UnliftDefs(rhsBody).asExpr).asTerm
-                        val newSym = Symbol.newMethod(defdef.symbol.owner, name, ByNameType(TypeRepr.of[ZIO[Any, Throwable, t]]))
-                        (
-                          DefDef.apply(newSym, tree => Some(newBody)),
-                          newSym
-                        )
-                  unlifted += ((defdef.symbol, Ref(newSym)))
+                case _ =>
+                  // Make sure to widen the type of the def parameter or it will just be a.type
+                  tpt.tpe.widen.asType match
+                    case '[t] =>
+                      val outputType = TypeRepr.of[ZIO[Any, Throwable, t]]
+                      val newSymbol = DefDefCopy.computeNewSymbol(defdef, outputType)
+                      unlifted += ((defdef.symbol, Ref(newSymbol)))
+                      println(s"========== Copying Function: ${Format.Tree(defdef)}")
+                      DefDefCopy.of(newSymbol, defdef, outputType)(body => {
+                        val newBodyInner = Transform(UnliftDefs(body).asExpr).asTerm
+                        // Need to nest the original function inside otherwise scala throws an error that it cannot find the symbol
+                        // since UnliftDefs recurses on it, the function should not be transformed again due to the `if (!unlifted.contains(defdef.symbol))`
+                        // check above.
+                        Block(List(DefDef.copy(defdef)(defdef.name, defdef.paramss, tpt, Some('{ ??? }.asTerm))), newBodyInner)
+                      })
 
-                  tpt.tpe match {
-                    case ByNameType(a) => println(s"----------- Is Method Type ByName: ${a}")
-                    case other => println(s"----------- Is Method Type NOT ByName: ${other}")
-
-                  }
-                  println(s"----------- Is Method Type: ${tpt}")
-
-                  newDefDef
               }
               println(s"========= UNLIFT DEF - DefDef TreeTransform =======\n${Format.Tree(defdef)}\n=========INTO:\n${Format.Tree(out)}")
               out
@@ -387,7 +403,8 @@ class Transformer(using transformerQuotes: Quotes) {
                   println(s"----------- Replace: ${symbol.termRef} -> ${newTermRef}")
                   //println(s"----------- Replace: ${symbol.termRef.widen} -> ${newTermRef.widen}")
                   val newFunctionCall =
-                    Trees.replaceIdent(functionCall)(symbol, newTermRef)
+                    //Trees.replaceIdent(functionCall)(symbol, newTermRef)
+                    FunctionCall.splice(functionCall, newTermRef)
                   functionCall.tpe.widen.asType match
                     case '[t] =>
                       println(s"==========********** Awaiting Now ON: ${newFunctionCall}")

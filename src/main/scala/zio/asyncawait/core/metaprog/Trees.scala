@@ -62,10 +62,26 @@ object Trees:
       override def transformTerm(tree: Term)(owner: Symbol): Term = {
         tree match
           case tree: Ident if (tree.symbol == oldIdentSymbol) =>
+            println(s"----------- Replace ${tree} -> ${newTerm}")
             newTerm
           case other =>
             super.transformTerm(other)(oldIdentSymbol.owner)
       }
     ).transformTerm(tree)(oldIdentSymbol.owner)
+  }
+
+  def replaceIdents(using Quotes)(of: quotes.reflect.Term, treeOwner: quotes.reflect.Symbol)(replacements: (quotes.reflect.Symbol, quotes.reflect.Term)*): quotes.reflect.Term = {
+    val mappings = replacements.toMap
+    import quotes.reflect._
+    (new TreeMap:
+      override def transformTerm(term: Term)(owner: Symbol): Term = {
+        term match
+          case id: Ident if (mappings.contains(id.symbol)) =>
+            println(s"----------- Replacing: ${id} with ${mappings(id.symbol)}")
+            mappings(id.symbol)
+          case other =>
+            super.transformTerm(other)(owner)
+      }
+    ).transformTerm(of)(treeOwner)
   }
 end Trees
