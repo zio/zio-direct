@@ -142,21 +142,21 @@ object Example {
   // }
 
   def funG(): Unit = {
-    PrintMac(async {
-      def blah(b: String) = await(async(b))
-      blah("foo") + "bar"
-    })
-
-    // val out = (async {
+    // PrintMac(async {
     //   def blah(b: String) = await(async(b))
     //   blah("foo") + "bar"
     // })
 
-    // val outRun =
-    //   zio.Unsafe.unsafe { implicit unsafe =>
-    //     zio.Runtime.default.unsafe.run(out).getOrThrow()
-    //   }
-    // println("====== RESULT: " + outRun)
+    val out = (async {
+      def blah(b: String) = await(async(b))
+      blah("foo") + "bar"
+    })
+
+    val outRun =
+      zio.Unsafe.unsafe { implicit unsafe =>
+        zio.Runtime.default.unsafe.run(out).getOrThrow()
+      }
+    println("====== RESULT: " + outRun)
   }
 
   def main(args: Array[String]): Unit = {

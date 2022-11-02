@@ -62,7 +62,7 @@ object DefDefCopy {
         val argsAsTerms =
           args.flatMap(t => t).map {
             case term: Term => term
-            //case other => report.errorAndAbort(s"The input-argument: `$other` is not a Term.")
+            case other => report.errorAndAbort(s"The input-argument: `$other` is not a Term.")
           }
         if (argsAsTerms.length != allSymbols.length)
           report.errorAndAbort(s"Different number of new-function-arguments (${argsAsTerms}) and old-function-arguments (${allSymbols}) detected.")

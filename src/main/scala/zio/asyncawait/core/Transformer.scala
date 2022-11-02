@@ -371,16 +371,8 @@ class Transformer(using transformerQuotes: Quotes) {
                       println(s"========== Copying Function: ${Format.Tree(defdef)}")
                       DefDefCopy.of(newSymbol, defdef, outputType)((terms, body) => {
                         val newBodyInner = Transform(UnliftDefs(body).asExpr).asTerm
-                        // Need to nest the original function inside otherwise scala throws an error that it cannot find the symbol
-                        // since UnliftDefs recurses on it, the function should not be transformed again due to the `if (!unlifted.contains(defdef.symbol))`
-                        // check above.
-                        // Block(
-                        //   List(DefDef.copy(defdef)(defdef.name, defdef.paramss, tpt, Some('{ ??? }.asTerm))),
-                        //   '{ ZIO.attempt(${terms(0)(0).asInstanceOf[Term].asExprOf[String]}) }.asTerm
-                        // )
+                        // Not technically needed but useful to have if we want thte body to return a quote
                         given Quotes = newSymbol.asQuotes
-                        //'{ ZIO.attempt(${terms(0)(0).asInstanceOf[Term].asExprOf[String]}) }.asTerm
-                        //'{ val v = ${terms(0)(0).asInstanceOf[Term].asExprOf[String]}; ???.asInstanceOf[ZIO[Any, Throwable, String]] }.asTerm
                         // Unless you change the owner there will be an error that the original DefDef symbol is not found
                         newBodyInner.changeOwner(newSymbol)
                       })
@@ -415,11 +407,7 @@ class Transformer(using transformerQuotes: Quotes) {
                     FunctionCall.splice(functionCall, newTermRef)
                   functionCall.tpe.widen.asType match
                     case '[t] =>
-                      println(s"==========********** Awaiting Now ON: ${newFunctionCall}")
-                      // .asExprOf[ZIO[Any, Throwable, t]]
-                      //given Quotes = unlifted(symbol).symbol.asQuotes
                       '{ await[t](${newFunctionCall.asExpr}.asInstanceOf[ZIO[Any, Throwable, t]]) }.asTerm.underlyingArgument
-                      //'{ ${Apply(newTermRef, List(Expr("blah").asTerm)).asExpr}.asInstanceOf[ZIO[Any, Throwable, t]] }.asTerm.underlyingArgument
               }
               println(s"========= UNLIFT DEF - Apply(Select) =======\n${Format.Tree(term)}\n=========INTO:\n${Format.Tree(out)}")
               out
