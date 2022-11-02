@@ -4,6 +4,7 @@ import scala.quoted._
 import zio.asyncawait.core.metaprog.Extractors.Lambda1
 import zio.asyncawait.core.util.Format
 import scala.meta.Type.ByName.apply
+import zio.ZIO
 
 object DefDefCopy {
 
@@ -43,13 +44,14 @@ object DefDefCopy {
     println(s"-------------- New Method Type: ${methodType.show}")
 
     // Note, for nested methods it would not be the Symbol.spliceOwner. Throw error if they are nested methods?
-    Symbol.newMethod(defdef.symbol.owner, defdef.name + "New", methodType)
+    //Symbol.newMethod(defdef.symbol.owner, defdef.name + "New", methodType)
+    Symbol.newMethod(defdef.symbol.owner, defdef.name + "New", MethodType(List("bNew"))(_ => List(TypeRepr.of[String]), _ => TypeRepr.of[ZIO[Any, Throwable, String]]))
   }
 
 
   // TODO check for a given-params clause and error that given-params clauses with awaits are not supported
   // TODO Also, how to do you create methods with parameters with default values?
-  def of(using q: Quotes)(methodSymbol: quotes.reflect.Symbol, defdef: quotes.reflect.DefDef, functionOutputType: quotes.reflect.TypeRepr)(prepareBody: quotes.reflect.Term => quotes.reflect.Term): quotes.reflect.DefDef = {
+  def of(using q: Quotes)(methodSymbol: quotes.reflect.Symbol, defdef: quotes.reflect.DefDef, functionOutputType: quotes.reflect.TypeRepr)(prepareBody: (List[List[quotes.reflect.Tree]], quotes.reflect.Term) => quotes.reflect.Term): quotes.reflect.DefDef = {
     import quotes.reflect._
 
     val allSymbols = defdef.paramss.flatMap(symbolsOfTerms(_))
@@ -59,9 +61,7 @@ object DefDefCopy {
       args => {
         val argsAsTerms =
           args.flatMap(t => t).map {
-            case term: Term =>
-              val e = term.asExpr
-              '{ $e.asInstanceOf[String] }.asTerm
+            case term: Term => term
             //case other => report.errorAndAbort(s"The input-argument: `$other` is not a Term.")
           }
         if (argsAsTerms.length != allSymbols.length)
@@ -74,7 +74,7 @@ object DefDefCopy {
         val originalBody = defdef.rhs.get
         val originalArgsReplaced = Trees.replaceIdents(originalBody, defdef.symbol.owner)(mappings:_*)
         // Once we have corrected all the identifiers on the new body, pass it to downstream processing
-        Some(prepareBody(originalArgsReplaced))
+        Some(prepareBody(args, originalArgsReplaced))
       }
     )
 
