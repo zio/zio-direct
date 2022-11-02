@@ -111,7 +111,9 @@ class Transformer(using transformerQuotes: Quotes) {
           val newTree: Term =
             Trees.Transform(tree.asTerm, Symbol.spliceOwner) {
               case Seal('{ await[t]($task) }) =>
-                val tpe = TypeRepr.of[t]
+                val tpe =
+                  task.asTerm.tpe.asType match
+                    case '[ZIO[x, y, t]] => TypeRepr.of[t]
                 // (unlift(A), unlift(B))
                 // Would yield
                 // (newSymA:Symbol, Ident(newSymA)), (newSymA:Symbol, Ident(newSymB))
@@ -131,11 +133,14 @@ class Transformer(using transformerQuotes: Quotes) {
               val out =
               tpe.asType match
                 case '[t] =>
-                  Some('{
-                    ${monad.asExprOf[ZIO[Any, Throwable, t]]}.map(sm =>
-                      ${replaceSymbolIn(newTree)(name, ('sm).asTerm).asExpr})
-                    }
-                  )
+                  newTree.tpe.asType match
+                    case '[r] =>
+                      Some('{
+                        ${monad.asExprOf[ZIO[Any, Throwable, t]]}.map[r](sm =>
+                            ${replaceSymbolIn(newTree)(name, ('sm).asTerm).asExpr}.asInstanceOf[r]
+                          ).asInstanceOf[ZIO[Any, Throwable, r]]
+                        }
+                      )
               println("=========== Single unlift: ==========\n" + Format.Expr(out.get))
               out
             case unlifts =>
@@ -149,13 +154,30 @@ class Transformer(using transformerQuotes: Quotes) {
                         ValDef(symbol, Some('{ $iterator.next().asInstanceOf[t] }.asTerm))
                     }
                 )
-              val out=
-              Some('{
-                $collect.map(terms => {
-                  val iter = terms.iterator
-                  ${ Block(makeVariables('iter), newTree).asExpr }
-                })
-              })
+
+              val totalType =
+                terms.drop(1).foldLeft(terms.head.tpe)((tpe, additionalTerm) =>
+                  tpe.asType match
+                    case '[ZIO[x, y, a]] =>
+                      additionalTerm.tpe.asType match
+                        case '[ZIO[x1, y1, b]] =>
+                          TypeRepr.of[a with b]
+                )
+
+              println(s"============ Computed Total Type: ${Format.TypeRepr(totalType)}")
+
+              val output =
+                totalType.asType match
+                  case '[t] =>
+                    '{
+                      $collect.map(terms => {
+                        val iter = terms.iterator
+                        ${ Block(makeVariables('iter), newTree).asExpr }
+                      }).asInstanceOf[ZIO[Any, Throwable, t]]
+                    }
+
+              val out = Some(output)
+              println(s"============ Computed Output: ${Format.TypeRepr(output.asTerm.tpe)}")
               println("=========== Multiple unlift: ==========\n" + Format.Expr(out.get))
               out
           }
