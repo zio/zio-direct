@@ -40,7 +40,7 @@ object DefDefCopy {
 
     val allSymbols = defdef.paramss.flatMap(symbolsOfTerms(_))
 
-    println(s"-------------- New Method Type: ${methodType}")
+    println(s"-------------- New Method Type: ${methodType.show}")
 
     // Note, for nested methods it would not be the Symbol.spliceOwner. Throw error if they are nested methods?
     Symbol.newMethod(defdef.symbol.owner, defdef.name + "New", methodType)
@@ -49,7 +49,7 @@ object DefDefCopy {
 
   // TODO check for a given-params clause and error that given-params clauses with awaits are not supported
   // TODO Also, how to do you create methods with parameters with default values?
-  def of(using Quotes)(methodSymbol: quotes.reflect.Symbol, defdef: quotes.reflect.DefDef, functionOutputType: quotes.reflect.TypeRepr)(prepareBody: quotes.reflect.Term => quotes.reflect.Term): quotes.reflect.DefDef = {
+  def of(using q: Quotes)(methodSymbol: quotes.reflect.Symbol, defdef: quotes.reflect.DefDef, functionOutputType: quotes.reflect.TypeRepr)(prepareBody: quotes.reflect.Term => quotes.reflect.Term): quotes.reflect.DefDef = {
     import quotes.reflect._
 
     val allSymbols = defdef.paramss.flatMap(symbolsOfTerms(_))
@@ -59,12 +59,17 @@ object DefDefCopy {
       args => {
         val argsAsTerms =
           args.flatMap(t => t).map {
-            case term: Term => term
-            case other => report.errorAndAbort(s"The input-argument: `$other` is not a Term.")
+            case term: Term =>
+              val e = term.asExpr
+              '{ $e.asInstanceOf[String] }.asTerm
+            //case other => report.errorAndAbort(s"The input-argument: `$other` is not a Term.")
           }
         if (argsAsTerms.length != allSymbols.length)
           report.errorAndAbort(s"Different number of new-function-arguments (${argsAsTerms}) and old-function-arguments (${allSymbols}) detected.")
+
         val mappings = allSymbols.zip(argsAsTerms)
+        //val mappings = allSymbols.zip(List('{ ??? }.asTerm))
+
         // Note: assuming at this point that the right-hand-side exists hence rhs.get. Need to replace the Idents to the old function with idents pointing to the new one.
         val originalBody = defdef.rhs.get
         val originalArgsReplaced = Trees.replaceIdents(originalBody, defdef.symbol.owner)(mappings:_*)
