@@ -147,8 +147,11 @@ class Transformer(using transformerQuotes: Quotes) {
                     case '[r] =>
                       Some('{
                         ${monad.asExprOf[ZIO[Any, Throwable, t]]}.map[r](sm =>
-                            ${replaceSymbolIn(newTree)(name, ('sm).asTerm).asExpr}.asInstanceOf[r]
-                          ).asInstanceOf[ZIO[Any, Throwable, r]]
+                            ${
+                              given Quotes = ('sm).asTerm.symbol.asQuotes
+                              replaceSymbolIn(newTree)(name, ('sm).asTerm).asExprOf[r]
+                            }
+                          )
                         }
                       )
               println("=========== Single unlift: ==========\n" + Format.Expr(out.get))
