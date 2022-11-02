@@ -322,30 +322,6 @@ class Transformer(using transformerQuotes: Quotes) {
   }
 
   private object TransformDefs {
-    object FunctionCall:
-      def splice(tree: Term, newFunctionTerm: Term): Term =
-        tree match
-          // TODO Do not allow Apply(Select(Ident, methodName), args) patterns since class-based functions are not allowed
-          // are we applying an object method on some parameters?
-          case invokeTerm @ Apply(method: Ident, args) =>
-            Apply(newFunctionTerm, args)
-          // are we applying a local method on something
-          case invokeTerm @ Ident(_) =>
-            newFunctionTerm
-          case _ =>
-            report.throwError("Stuff")
-
-      def unapply(tree: Tree): Option[(Symbol, Term)] =
-        tree match
-          // TODO Do not allow Apply(Select(Ident, methodName), args) patterns since class-based functions are not allowed
-          // are we applying an object method on some parameters?
-          case invokeTerm @ Apply(method: Ident, _) if method.symbol.flags.is(Flags.Method) =>
-            Some((method.symbol, invokeTerm))
-          // are we applying a local method on something
-          case invokeTerm @ Ident(_) if invokeTerm.symbol.flags.is(Flags.Method) =>
-            Some((invokeTerm.symbol, invokeTerm))
-          case _ =>
-            None
 
     def apply(stmtRaw: Tree): Tree = {
       var unlifted = mutable.Map[Symbol, Ref]()
@@ -383,47 +359,25 @@ class Transformer(using transformerQuotes: Quotes) {
               out
 
             case tree @ Seal('{ await[t]($task) }) =>
-              println(s"========= UNLIFT DEF - await (plain) =======\n${Format.Tree(tree)}")
               tree
 
             // Is it a function call i.e. x.y
             // (several other forms of function-call can happen, need to match in a more general way)
             // TODO Make sure to check that class definition methods (e.g. Apply(Select(Ident, method), ...) method
             // invocations are not allowed)
-            case FunctionCall(symbol, functionCall) if ({
-              println(s"========= CONTAINMENT Unlifted (${unlifted}) contains: ${symbol}: ${unlifted.contains(symbol)}")
-              unlifted.contains(symbol)
-            }) =>
-              println(s"========== Detected function call: ${Printer.TreeShortCode.show(functionCall)}")
-              val out = term match {
+            case FunctionApplyMatroshka(functionCall, functionIdent) if (unlifted.contains(functionIdent.symbol)) =>
+              term match
                 case Transform(_) =>
                   report.errorAndAbort("Can't unlift parameters of a method with unlifted body.")
                 case term =>
                   // Replace the symbol in the function call
-                  val newTermRef = unlifted(symbol)
-                  println(s"----------- Replace: ${symbol.termRef} -> ${newTermRef}")
-                  //println(s"----------- Replace: ${symbol.termRef.widen} -> ${newTermRef.widen}")
-                  val newFunctionCall =
-                    //Trees.replaceIdent(functionCall)(symbol, newTermRef)
-                    FunctionCall.splice(functionCall, newTermRef)
+                  val newTermRef = unlifted(functionIdent.symbol)
+                  val newFunctionCall = Trees.replaceIdent(functionCall)(functionIdent.symbol, newTermRef)
                   functionCall.tpe.widen.asType match
                     case '[t] =>
                       '{ await[t](${newFunctionCall.asExpr}.asInstanceOf[ZIO[Any, Throwable, t]]) }.asTerm.underlyingArgument
-              }
-              println(s"========= UNLIFT DEF - Apply(Select) =======\n${Format.Tree(term)}\n=========INTO:\n${Format.Tree(out)}")
-              out
 
-            // TODO check to see that this is not NoSymbol?
-            // case tree: Term if tree.isExpr && unlifted.contains(tree.symbol) =>
-            //   val out =
-            //   tree.tpe.asType match
-            //     case '[t] =>
-            //       '{ await[t](${tree.asExprOf[ZIO[Any, Throwable, t]]}) }.asTerm.underlyingArgument
-            //   println(s"========= UNLIFT DEF - term contains symbol =======\n${Format.Tree(tree)}\n=========INTO:\n${Format.Tree(out)}")
-            //   out
-
-
-            // TODO Invalid, make this an errro case, needs have an right-hand-sde
+            // TODO Invalid, make this an error case, needs have an right-hand-sde
             //case DefDef(sym, paramss, tpt, None) =>
           }
         end apply
@@ -431,15 +385,9 @@ class Transformer(using transformerQuotes: Quotes) {
 
       UnliftDefs(stmtRaw) match {
         // Is the statement the same thing as the old one? If so leave it
-        case `stmtRaw` =>
-          println(s"========= IGNORE DEF =======\n${Format.Tree(stmtRaw)}")
-          stmtRaw
+        case `stmtRaw` => stmtRaw
         // Otherwise (i.e. if the statement is actually different) then return it
-        case newStmt   =>
-          println("============ UNLIFTING DEFS =============")
-          val out = UnliftDefs(newStmt)
-          println(s"========= UNLIFT DEF =======\n${Format.Tree(newStmt)}\n=========INTO:\n${Format.Tree(out)}")
-          out
+        case newStmt => UnliftDefs(newStmt)
       }
     }
   }

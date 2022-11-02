@@ -148,8 +148,8 @@ object Example {
     // })
 
     val out = (async {
-      def blah(b: String) = await(async(b))
-      blah("foo") + "bar"
+      def blah(b: String)(c: String) = await(async(b + c))
+      blah("foo")("bar") + "baz"
     })
 
     val outRun =

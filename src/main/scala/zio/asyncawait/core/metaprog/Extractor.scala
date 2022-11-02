@@ -155,6 +155,24 @@ object Extractors {
       }
   }
 
+  object FunctionApplyMatroshka {
+    private object IdentInside:
+      def unapply(using Quotes)(innerTerm: quotes.reflect.Term): Option[quotes.reflect.Ident] =
+        import quotes.reflect._
+        innerTerm match
+          case invokeTerm @ Ident(_) if invokeTerm.symbol.flags.is(Flags.Method) => Some(invokeTerm)
+          case Apply(innerTree, _) => IdentInside.unapply(innerTree)
+          case _               => None
+
+    def unapply(using Quotes)(term: quotes.reflect.Term): Option[(quotes.reflect.Term, quotes.reflect.Ident)] =
+      import quotes.reflect._
+      term match
+        // If it's a by-name then there will only be an identifier and nothing else.
+        case invokeTerm @ Ident(_) if invokeTerm.symbol.flags.is(Flags.Method) => Some((term, invokeTerm))
+        case Apply(IdentInside(invokeTerm), _) => Some((term, invokeTerm))
+        case other => None
+  }
+
   object TypedMatroshkaTerm {
     def recurse(using Quotes)(innerTerm: quotes.reflect.Term): quotes.reflect.Term =
       import quotes.reflect._
