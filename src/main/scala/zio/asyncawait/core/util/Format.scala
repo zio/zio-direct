@@ -3,6 +3,8 @@ package zio.asyncawait.core.util
 import scala.util.{Try, Success, Failure}
 import scala.quoted._
 import io.getquill.util.ScalafmtFormat
+import zio.asyncawait.core.metaprog.Trees
+import zio.asyncawait.core.metaprog.Extractors.Seal
 
 object Format {
   // import org.scalafmt.interfaces.Scalafmt
@@ -26,12 +28,12 @@ object Format {
   object Term:
     def apply(term: Quotes#reflectModule#Term)(using qctx: Quotes) =
       import qctx.reflect._
-      Printer.TreeShortCode.show(term.asInstanceOf[qctx.reflect.Term])
+      printShortCode(term.asInstanceOf[qctx.reflect.Term])
 
   object Tree:
     def apply(term: Quotes#reflectModule#Tree)(using qctx: Quotes) =
       import qctx.reflect._
-      Printer.TreeShortCode.show(term.asInstanceOf[qctx.reflect.Tree])
+      printShortCode(term.asInstanceOf[qctx.reflect.Tree])
 
   object TermRaw:
     def apply(term: Quotes#reflectModule#Term)(using qctx: Quotes) =
@@ -56,7 +58,7 @@ object Format {
   object Expr {
     def apply(expr: Expr[_], showErrorTrace: Boolean = false)(using Quotes) =
       import quotes.reflect._
-      Format(Printer.TreeShortCode.show(expr.asTerm), showErrorTrace)
+      Format(printShortCode(expr.asTerm), showErrorTrace)
 
     def Detail(expr: Expr[_])(using Quotes) =
       import quotes.reflect._
@@ -73,6 +75,14 @@ object Format {
       // }
       Format(Printer.TreeShortCode.show(term))
   }
+
+  private def printShortCode(using Quotes)(code: quotes.reflect.Tree): String =
+    import quotes.reflect._
+    Printer.TreeShortCode.show(code)
+
+  private def printShortCode(using Quotes)(expr: Expr[_]): String =
+    import quotes.reflect._
+    printShortCode(expr.asTerm)
 
   def apply(code: String, showErrorTrace: Boolean = false) = {
     val encosedCode =
@@ -111,7 +121,9 @@ object Format {
           encosedCode
             .replace("_*", "_")
             .replace("_==", "==")
-            .replace("_!=", "!="),
+            .replace("_!=", "!=")
+            //.replaceAll("\\(evidence\\$([0-9]+): (zio\\.)?Unsafe\\) \\?=> ", "")
+            ,
           showErrorTrace
         )
       }.getOrElse {

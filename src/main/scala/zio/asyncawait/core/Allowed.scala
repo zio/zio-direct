@@ -24,6 +24,10 @@ object Allowed {
       // latter condition is verified in TransformDefs
       case Apply(term, args) =>
         validateBlocksTree(term)
+
+      // TODO Should we diallow assignment anywhere inside an async block?
+      //      if so, that conditional should be added here.
+
       case TypeApply(term, args) =>
         validateBlocksTree(term)
         args.foreach(validateBlocksTree(_))
@@ -40,13 +44,26 @@ object Allowed {
       // Otherwise, anywhere we see a block, validate the contents of the block and throw an error if needed
       case Match(input, caseDefs) =>
         validateBlocksTree(input)
-        caseDefs.foreach(validateBlocksTree(_))
+        caseDefs.foreach {
+          case CaseDef(pattern, cond, output) =>
+            cond match {
+              case None =>
+              case Some(PureTree(_)) =>
+              case Some(nonpure) =>
+                UnsupportedError.throwIt(nonpure, "Match conditionals are not allow to contain `await`. Move the `await` call out of the match-statement.")
+            }
+            validateBlocksTree(output)
+        }
       case Block(stmts, ret) =>
         (stmts :+ ret).foreach(validateBlocksTree(_))
       // otherwise it has an await clause and with an unsupported construct
       case Seal('{ await[t]($content) }) =>
       case otherTree =>
         UnsupportedError.throwIt(otherTree)
+
+      // TODO custom warning if any mutable structures are being used inside async blocks
+      // TODO custom warning for assignment
+      // TODO custom warning for awaits in defs (and tip for how to fix)
     }
 
   object ParallelExpression {
