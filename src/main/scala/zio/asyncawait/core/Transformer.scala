@@ -52,7 +52,7 @@ class Transformer(using transformerQuotes: Quotes) {
           None
 
         case Unseal(block @ Block(parts, lastPart)) if (parts.nonEmpty) =>
-          println(s"============  Block: ${parts.map(part => Format.Tree(part)).mkString("List(\n", ",\n", ")\n")} ==== ${Format.Tree(lastPart)}")
+          println(s"============  Transform a Block: ${parts.map(part => Format.Tree(part)).mkString("List(\n", ",\n", ")\n")} ==== ${Format.Tree(lastPart)}")
           TransformBlock.unapply(block)
 
         case Unseal(Match(m @ Seal(Transform(monad)), caseDefs)) =>
@@ -151,37 +151,22 @@ class Transformer(using transformerQuotes: Quotes) {
             */
             case List((monad, name, tpe)) =>
               val out =
-              tpe.asType match
-                case '[t] =>
-                  newTree.tpe.asType match
-                    case '[r] =>
-                      val mtpe = MethodType(List("sm"))(_ => List(TypeRepr.of[t]), _ => TypeRepr.of[r])
-                      val lam =
-                        Lambda(Symbol.spliceOwner, mtpe, {
-                            case (methSym, List(sm: Term)) =>
-                              replaceSymbolIn(newTree.changeOwner(methSym))(name, sm).changeOwner(methSym)
-                            case _ =>
-                              report.errorAndAbort(s"Invalid lambda created for: ${Format.Tree(monad)}.flatMap of ${Format.Tree(newTree)}. This should not be possible.")
-                          }
-                        )
+              (tpe.asType, newTree.tpe.asType) match
+                case ('[t], '[r]) =>
+                  val mtpe = MethodType(List("sm"))(_ => List(TypeRepr.of[t]), _ => TypeRepr.of[r])
+                  val lam =
+                    Lambda(Symbol.spliceOwner, mtpe, {
+                        case (methSym, List(sm: Term)) =>
+                          replaceSymbolIn(newTree)(name, sm).changeOwner(methSym)
+                        case _ =>
+                          report.errorAndAbort(s"Invalid lambda created for: ${Format.Tree(monad)}.flatMap of ${Format.Tree(newTree)}. This should not be possible.")
+                      }
+                    )
+                  Some('{ ${monad.asExprOf[ZIO[Any, Throwable, t]]}.map[r](${lam.asExprOf[t => r]}) })
 
-                      Some(
-                        // lam.etaExpand(Symbol.spliceOwner)
-                        '{ ${monad.asExprOf[ZIO[Any, Throwable, t]]}.map[r](${lam.asExprOf[t => r]}) }
-                      )
-
-                      // Some('{
-                      //   ${monad.asExprOf[ZIO[Any, Throwable, t]]}.map[r](sm =>
-                      //       ${
-                      //         //given Quotes = ('sm).asTerm.symbol.asQuotes
-                      //         replaceSymbolIn(newTree)(name, ('sm).asTerm).asExprOf[r]
-                      //         //newTree.asExprOf[r]
-                      //       }
-                      //     )
-                      //   }
-                      // )
               println("=========== Single unlift: ==========\n" + Format.Expr(out.get))
               out
+
             case unlifts =>
               val (terms, names, types) = unlifts.unzip3
               val termsExpr = Expr.ofList(terms.map(_.asExprOf[ZIO[Any, Throwable, ?]]))
@@ -194,16 +179,8 @@ class Transformer(using transformerQuotes: Quotes) {
                     }
                 )
 
-              val totalType =
-                terms.drop(1).foldLeft(terms.head.tpe)((tpe, additionalTerm) =>
-                  tpe.asType match
-                    case '[ZIO[x, y, a]] =>
-                      additionalTerm.tpe.asType match
-                        case '[ZIO[x1, y1, b]] =>
-                          TypeRepr.of[a with b]
-                )
+              val totalType = ComputeTotalType.of(terms)
 
-              println(s"============ Computed Total Type: ${Format.TypeRepr(totalType)}")
 
               val output =
                 totalType.asType match
@@ -224,6 +201,19 @@ class Transformer(using transformerQuotes: Quotes) {
       println("================== DONE UNAPPLY ==================")
       ret
     }
+  }
+
+  private object ComputeTotalType {
+    // Assuming it is a non-empty list
+    def of(terms: List[Term]) =
+      terms.drop(1).foldLeft(terms.head.tpe)((tpe, additionalTerm) =>
+        tpe.asType match
+          case '[ZIO[x, y, a]] =>
+            additionalTerm.tpe.asType match
+              case '[ZIO[x1, y1, b]] =>
+                TypeRepr.of[a with b]
+      )
+
   }
 
   private object Nest {
@@ -309,19 +299,7 @@ class Transformer(using transformerQuotes: Quotes) {
     * Into a.flatMap()
     */
   private object TransformBlock {
-    def unapply(block: Block): Option[Expr[ZIO[Any, Throwable, ?]]] = {
-      println(s"============== Checking for purity: ${Format.Tree(block)}")
-      block match
-        case PureTree(_) =>
-          println("==========Pure!")
-          None
-        case _ =>
-          println("==========NOT Pure!")
-          unapplyFull(block)
-    }
-
-    private def unapplyFull(block: Block): Option[Expr[ZIO[Any, Throwable, ?]]] =
-      println(s"========== Unapply full: ${Format.Tree(block)}")
+    def unapply(block: Block): Option[Expr[ZIO[Any, Throwable, ?]]] =
       val Block(head, tail) = block
       val parts = head :+ tail
       parts match {
@@ -347,6 +325,7 @@ class Transformer(using transformerQuotes: Quotes) {
         // other statements possible including ClassDef etc... should look into that
 
         case IsTerm(Seal(Transform(monad))) :: tail =>
+          println(s"============= Block - Head Transform: ${Printer.TreeShortCode.show(monad.asTerm)} ===== ${tail.map(Format.Tree(_))}")
           tail match {
             // In this case where is one statement in the block which my definition
             // needs to have the same type as the output: e.g.
@@ -379,6 +358,7 @@ class Transformer(using transformerQuotes: Quotes) {
           Some(BlockN(List(head, parts.asTerm)).asExprOf[ZIO[Any, Throwable, ?]])
 
         case other =>
+          println(s"============= Block - None: ${other.map(Format.Tree(_))}")
           None
       }
   }
