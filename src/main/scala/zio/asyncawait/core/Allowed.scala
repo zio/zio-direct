@@ -29,10 +29,14 @@ object Allowed {
         args.foreach(validateBlocksTree(_))
       // Ignore things that do not have await clauses inside
       case PureTree(_) =>
-      // Don't need to go inside await blocks since things inside there are regular code
-      // (i.e. not macro transformed)
-      case DefDef(_, _, _, Some(rhs)) => validateBlocksTree(rhs)
-      case Seal('{ await[t]($content) }) =>
+
+      // TODO Allow awaits in the body of ifs, whiles, fors, and do-whiles but not in their conditions
+      case ValDef(_, _, rhsOpt) =>
+        rhsOpt match
+          case None =>
+          case Some(rhs) => validateBlocksTree(rhs)
+      // DefDef with Await in right-hand-side not allowed anymore
+      //case DefDef(_, _, _, Some(rhs)) => validateBlocksTree(rhs)
       // Otherwise, anywhere we see a block, validate the contents of the block and throw an error if needed
       case Match(input, caseDefs) =>
         validateBlocksTree(input)
@@ -40,6 +44,7 @@ object Allowed {
       case Block(stmts, ret) =>
         (stmts :+ ret).foreach(validateBlocksTree(_))
       // otherwise it has an await clause and with an unsupported construct
+      case Seal('{ await[t]($content) }) =>
       case otherTree =>
         UnsupportedError.throwIt(otherTree)
     }

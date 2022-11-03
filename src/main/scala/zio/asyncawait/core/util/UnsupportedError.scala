@@ -8,7 +8,7 @@ object UnsupportedError {
     import quotes.reflect._
     report.errorAndAbort(
       s"""Detected an `await` call inside of an unsupported structure:
-          |${tree.toString.indent(1)}
+          |${Format.Tree(tree).indent(1)}
           |Move the `await` call outside of this structure in order to use it.
           |For example, change this:
           |  val v = somethingUnsupported(await(x))
