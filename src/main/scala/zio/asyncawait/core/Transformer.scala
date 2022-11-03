@@ -378,23 +378,25 @@ class Transformer(using transformerQuotes: Quotes) {
             // the function block so at least it will be there.
             case defdef @ DefDef(name, paramss, tpt, Some(rhs)) if (!unlifted.contains(defdef.symbol)) =>
               val out = rhs match {
-                case PureTree(body) =>
-                  // It's possible that we call the some other function in the body of another e.g:
-                  //   def awaitInt(stuff: Stuff): Int = await(stuff)
-                  //   def usingAwaitInt(stuff: Stuff): Int = awaitInt(i)
-                  // Need to re-write the 2nd function to contain an await-call for the 1st function:
-                  //   def awaitInt(stuff: Stuff): Task[Int] = await(stuff)
-                  //   def usingAwaitInt(stuff: Stuff): Int = await(awaitInt(stuff))
-                  val newBody =
-                    Trees.TransformTree(body, Symbol.spliceOwner) {
-                      case RewriteFunctionApply(rewrittenApply) => rewrittenApply
-                    } match {
-                      case t: Term => t
-                      case other => report.errorAndAbort(s"Illegal state reached. Function body was not a Term: ${Format.Tree(other)}.")
-                    }
-                  // do not re-write the pure-method again
-                  unlifted += ((defdef.symbol, Ident(defdef.symbol.termRef)))
-                  DefDef.copy(defdef)(name, paramss, tpt, Some(newBody))
+                case PureTree(_) =>
+                  // val newBody =
+                  //   Trees.TransformTree(rhs, defdef.symbol.owner) {
+                  //     case RewriteFunctionApply(rewrittenApply) => rewrittenApply
+                  //   } match {
+                  //     case t: Term => t
+                  //     case other => report.errorAndAbort(s"Illegal state reached. Function body was not a Term: ${Format.Tree(other)}.")
+                  //   }
+                  // // do not re-write the pure-method again
+                  // //unlifted += ((defdef.symbol, Ident(defdef.symbol.termRef)))
+                  // DefDef.copy(defdef)(name, paramss, tpt, Some(newBody))
+
+                  // Trees.traverse(body, Symbol.spliceOwner) {
+                  //   case id: Ident if unlifted.contains(id.symbol) =>
+                  //     report.errorAndAbort("Cannot call an await-function from inside a non-async function.", body.asExpr)
+                  // }
+                  // defdef
+                  Trees.replaceIdents(rhs, defdef.symbol.owner)(unlifted.toSeq: _*)
+
                 case _ =>
                   // Make sure to widen the type of the def parameter or it will just be a.type
                   tpt.tpe.widen.asType match

@@ -17,6 +17,16 @@ object Allowed {
   private def validateBlocksTree(using Quotes)(expr: quotes.reflect.Tree): Unit =
     import quotes.reflect._
     Trees.traverse(expr, Symbol.spliceOwner) {
+      case Select(term, _) =>
+        validateBlocksTree(term)
+      // Generally speaking, async/awaits can be used both inside of functions and function paramters
+      // with the exception that a function that does await cannot also have await paremters. This
+      // latter condition is verified in TransformDefs
+      case Apply(term, args) =>
+        validateBlocksTree(term)
+      case TypeApply(term, args) =>
+        validateBlocksTree(term)
+        args.foreach(validateBlocksTree(_))
       // Ignore things that do not have await clauses inside
       case PureTree(_) =>
       // Don't need to go inside await blocks since things inside there are regular code

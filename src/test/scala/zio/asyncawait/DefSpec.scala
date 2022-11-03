@@ -113,12 +113,22 @@ object DefSpec extends AsyncAwaitSpec {
         //   (new A).a(1) + 1
         // })
 
+        // PrintMac(async {
+        //   def awaitInt(i: Int) = await(async(i + 1))
+        //   class A {
+        //     def a(i: Int) = awaitInt(i)
+        //   }
+        //   (new A).a(1) + 1
+        // })
+        //
+
+        //
         PrintMac(async {
           def awaitInt(i: Int) = await(async(i + 1))
           class A {
-            def a(i: Int) = awaitInt(i)
+            def a(i: Int) = async(awaitInt(i))
           }
-          (new A).a(1) + 1
+          await((new A).a(1)) + 1
         })
 
         assertTrue(true == true)
