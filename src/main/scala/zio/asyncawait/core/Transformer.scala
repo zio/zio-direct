@@ -9,6 +9,7 @@ import zio.asyncawait.core.util.Format
 import zio.ZIO
 import scala.collection.mutable
 import zio.Chunk
+import zio.asyncawait.core.util.PureTree
 
 class Transformer(using transformerQuotes: Quotes) {
   import quotes.reflect._
@@ -44,7 +45,7 @@ class Transformer(using transformerQuotes: Quotes) {
 
     // TODO really use underlyingArgument????
     def unapply(expr: Expr[?]): Option[Expr[ZIO[Any, Throwable, ?]]] = {
-      println("================== UNAPPLY ==================")
+      println(s"================== UNAPPLY: ${Format.Expr(expr)} ==================")
       val ret = expr match {
         case Unseal(PureTree(tree)) =>
           println(s"============  Tree is Pure!: ${tree.show}")
@@ -101,15 +102,19 @@ class Transformer(using transformerQuotes: Quotes) {
           println(s"=============== Untype: ${tree.show}")
           unapply(tree.asExpr)
 
+        // Change something that looks like this:
+        // { (unlift(foo), unlift(bar)) }
+        // To something that looks like:
+        // { ZIO.collect(foo, bar).map(iter => val a = iter.next(); val b = iter.next(); (a, b)) }
         // TODO MAJOR Only support parallel awaits for strict-set of known constructs
         //      Examine set of cases where this occurs. Then as a final case
         //      Check that there are awaits in any other kind of construct
         //      and throw an unsupproted-construct exception.
-        case tree =>
-          println(s"=============== Other: ${Format(Printer.TreeShortCode.show(tree.asTerm))}")
+        case expr => // @ Allowed.ParallelExpression()
+          println(s"=============== Other: ${Format(Printer.TreeShortCode.show(expr.asTerm))}")
           val unlifts = mutable.ArrayBuffer.empty[(Term, Symbol, TypeRepr)]
           val newTree: Term =
-            Trees.Transform(tree.asTerm, Symbol.spliceOwner) {
+            Trees.Transform(expr.asTerm, Symbol.spliceOwner) {
               case Seal('{ await[t]($task) }) =>
                 val tpe =
                   task.asTerm.tpe.asType match
@@ -119,10 +124,15 @@ class Transformer(using transformerQuotes: Quotes) {
                 // (newSymA:Symbol, Ident(newSymA)), (newSymA:Symbol, Ident(newSymB))
                 // The idents would be swapped back into the expressions and A, B
                 // would be stored in the unlifts array
-                val (sym, symId) =
-                  useNewSymbolIn(tpe)(symId => symId)
+
+                val sym = Symbol.newVal(Symbol.spliceOwner, "par", tpe, Flags.EmptyFlags, Symbol.noSymbol)
                 unlifts += ((task.asTerm, sym, tpe))
-                symId
+                Ref(sym)
+
+                // val (sym, symId) =
+                //   useNewSymbolIn(tpe)(symId => symId)
+                // unlifts += ((task.asTerm, sym, tpe))
+                // symId
             }
 
           unlifts.toList match {
@@ -145,15 +155,31 @@ class Transformer(using transformerQuotes: Quotes) {
                 case '[t] =>
                   newTree.tpe.asType match
                     case '[r] =>
-                      Some('{
-                        ${monad.asExprOf[ZIO[Any, Throwable, t]]}.map[r](sm =>
-                            ${
-                              given Quotes = ('sm).asTerm.symbol.asQuotes
-                              replaceSymbolIn(newTree)(name, ('sm).asTerm).asExprOf[r]
-                            }
-                          )
-                        }
+                      val mtpe = MethodType(List("sm"))(_ => List(TypeRepr.of[t]), _ => TypeRepr.of[r])
+                      val lam =
+                        Lambda(Symbol.spliceOwner, mtpe, {
+                            case (methSym, List(sm: Term)) =>
+                              replaceSymbolIn(newTree.changeOwner(methSym))(name, sm).changeOwner(methSym)
+                            case _ =>
+                              report.errorAndAbort(s"Invalid lambda created for: ${Format.Tree(monad)}.flatMap of ${Format.Tree(newTree)}. This should not be possible.")
+                          }
+                        )
+
+                      Some(
+                        // lam.etaExpand(Symbol.spliceOwner)
+                        '{ ${monad.asExprOf[ZIO[Any, Throwable, t]]}.map[r](${lam.asExprOf[t => r]}) }
                       )
+
+                      // Some('{
+                      //   ${monad.asExprOf[ZIO[Any, Throwable, t]]}.map[r](sm =>
+                      //       ${
+                      //         //given Quotes = ('sm).asTerm.symbol.asQuotes
+                      //         replaceSymbolIn(newTree)(name, ('sm).asTerm).asExprOf[r]
+                      //         //newTree.asExprOf[r]
+                      //       }
+                      //     )
+                      //   }
+                      // )
               println("=========== Single unlift: ==========\n" + Format.Expr(out.get))
               out
             case unlifts =>
@@ -199,15 +225,6 @@ class Transformer(using transformerQuotes: Quotes) {
       ret
     }
   }
-
-  private object PureTree:
-    def unapply(tree: Tree) =
-      Trees.exists(tree, Symbol.spliceOwner) {
-        case Seal('{ await[t]($v) }) => true
-      } match {
-        case true => None
-        case false => Some(tree)
-      }
 
   private object Nest {
     enum NestType:
@@ -292,7 +309,19 @@ class Transformer(using transformerQuotes: Quotes) {
     * Into a.flatMap()
     */
   private object TransformBlock {
-    def unapply(block: Block): Option[Expr[ZIO[Any, Throwable, ?]]] =
+    def unapply(block: Block): Option[Expr[ZIO[Any, Throwable, ?]]] = {
+      println(s"============== Checking for purity: ${Format.Tree(block)}")
+      block match
+        case PureTree(_) =>
+          println("==========Pure!")
+          None
+        case _ =>
+          println("==========NOT Pure!")
+          unapplyFull(block)
+    }
+
+    private def unapplyFull(block: Block): Option[Expr[ZIO[Any, Throwable, ?]]] =
+      println(s"========== Unapply full: ${Format.Tree(block)}")
       val Block(head, tail) = block
       val parts = head :+ tail
       parts match {
@@ -317,7 +346,7 @@ class Transformer(using transformerQuotes: Quotes) {
 
         // other statements possible including ClassDef etc... should look into that
 
-        case MatchTerm(Seal(Transform(monad))) :: tail =>
+        case IsTerm(Seal(Transform(monad))) :: tail =>
           tail match {
             // In this case where is one statement in the block which my definition
             // needs to have the same type as the output: e.g.
@@ -346,12 +375,10 @@ class Transformer(using transformerQuotes: Quotes) {
         //   import blah._          // 2nd part, will recurse 2nd time (here)
         //   val b = unlift(ZIO.succeed(value).asInstanceOf[Task[Int]]) // Then will match valdef case
         case head :: BlockN(TransformBlock(parts)) =>
+          println(s"============= Block - With end parts: ${Format.Expr(parts)}")
           Some(BlockN(List(head, parts.asTerm)).asExprOf[ZIO[Any, Throwable, ?]])
 
-        // Throw error if it is a non-term?
         case other =>
-          // TODO fail if there is an unlift here! definitely a problem
-          println(s"============= NO BLOCK MATCHED: ${other.map(_.show)}")
           None
       }
   }
@@ -359,7 +386,7 @@ class Transformer(using transformerQuotes: Quotes) {
   private object TransformDefs {
 
     def apply(stmtRaw: Tree): Tree = {
-      var unlifted = mutable.Map[Symbol, Ref]()
+      var unlifted = mutable.Map[Symbol, Term]()
 
       // TODO Test with mutually recursive methods
       object UnliftDefs {
@@ -371,7 +398,23 @@ class Transformer(using transformerQuotes: Quotes) {
             // the function block so at least it will be there.
             case defdef @ DefDef(name, paramss, tpt, Some(rhs)) if (!unlifted.contains(defdef.symbol)) =>
               val out = rhs match {
-                case PureTree(body) => defdef
+                case PureTree(body) =>
+                  // It's possible that we call the some other function in the body of another e.g:
+                  //   def awaitInt(stuff: Stuff): Int = await(stuff)
+                  //   def usingAwaitInt(stuff: Stuff): Int = awaitInt(i)
+                  // Need to re-write the 2nd function to contain an await-call for the 1st function:
+                  //   def awaitInt(stuff: Stuff): Task[Int] = await(stuff)
+                  //   def usingAwaitInt(stuff: Stuff): Int = await(awaitInt(stuff))
+                  val newBody =
+                    Trees.TransformTree(body, Symbol.spliceOwner) {
+                      case RewriteFunctionApply(rewrittenApply) => rewrittenApply
+                    } match {
+                      case t: Term => t
+                      case other => report.errorAndAbort(s"Illegal state reached. Function body was not a Term: ${Format.Tree(other)}.")
+                    }
+                  // do not re-write the pure-method again
+                  unlifted += ((defdef.symbol, Ident(defdef.symbol.termRef)))
+                  DefDef.copy(defdef)(name, paramss, tpt, Some(newBody))
                 case _ =>
                   // Make sure to widen the type of the def parameter or it will just be a.type
                   tpt.tpe.widen.asType match
@@ -400,22 +443,34 @@ class Transformer(using transformerQuotes: Quotes) {
             // (several other forms of function-call can happen, need to match in a more general way)
             // TODO Make sure to check that class definition methods (e.g. Apply(Select(Ident, method), ...) method
             // invocations are not allowed)
-            case FunctionApplyMatroshka(functionCall, functionIdent) if (unlifted.contains(functionIdent.symbol)) =>
-              term match
+            case RewriteFunctionApply(rewrittenApply) => rewrittenApply
+
+            // TODO Invalid, make this an error case, needs have an right-hand-sde
+            //case DefDef(sym, paramss, tpt, None) =>
+          }
+        end apply
+      }
+
+      object RewriteFunctionApply {
+        def unapply(tree: Tree): Option[Tree] =
+          tree match
+            case fun @ FunctionApplyMatroshka(functionCall, functionIdent) if (unlifted.contains(functionIdent.symbol)) =>
+              println(s"========= UNLIFT DEF - Function Transform =======\n${Format.Tree(fun)}")
+              fun match
                 case Transform(_) =>
-                  report.errorAndAbort("Can't unlift parameters of a method with unlifted body.")
+                  report.errorAndAbort(
+                    // TODO example
+                    "Cannot transform await-arguments being passed to an awaiting-function"
+                  )
                 case term =>
                   // Replace the symbol in the function call
                   val newTermRef = unlifted(functionIdent.symbol)
                   val newFunctionCall = Trees.replaceIdent(functionCall)(functionIdent.symbol, newTermRef)
                   functionCall.tpe.widen.asType match
                     case '[t] =>
-                      '{ await[t](${newFunctionCall.asExpr}.asInstanceOf[ZIO[Any, Throwable, t]]) }.asTerm.underlyingArgument
-
-            // TODO Invalid, make this an error case, needs have an right-hand-sde
-            //case DefDef(sym, paramss, tpt, None) =>
-          }
-        end apply
+                      Some('{ await[t](${newFunctionCall.asExpr}.asInstanceOf[ZIO[Any, Throwable, t]]) }.asTerm.underlyingArgument)
+            case _ =>
+              None
       }
 
       UnliftDefs(stmtRaw) match {
@@ -454,28 +509,14 @@ class Transformer(using transformerQuotes: Quotes) {
       }
   }
 
-  private object BlockN {
-    def unapply(trees: List[Statement]) =
-      trees match {
-        case Nil => None
-        case MatchTerm(head) :: Nil =>
-          Some(Block(Nil, head))
-        case list if (MatchTerm.unapply(list.last).isDefined) =>
-          Some(Block(list.dropRight(1), MatchTerm.unapply(list.last).get))
-        case _ =>
-          report.errorAndAbort(s"Last element in the instruction group is not a block. ${trees.map(_.show)}")
-      }
-
-    def apply(trees: List[Statement]): Block =
-      BlockN.unapply(trees) match {
-        case Some(value) => value
-        case None => report.errorAndAbort(s"Invalid trees list: ${trees.map(_.show)}")
-      }
-  }
-
-  def apply[T: Type](value: Expr[T])(using Quotes): Expr[ZIO[Any, Throwable, T]] = {
+  def apply[T: Type](valueRaw: Expr[T]): Expr[ZIO[Any, Throwable, T]] = {
+    import quotes.reflect._
+    val value = valueRaw.asTerm.underlyingArgument
+    // Do a top-level transform to check that there are no invalid constructs
+    Allowed.validateBlocksIn(value.asExpr)
+    // Do the main transformation
     val transformed =
-      TransformDefs(value.asTerm.underlyingArgument) match {
+      TransformDefs(value) match {
         case PureTree(tree) if (tree.isExpr) =>
           println(s"========= Result of Top-Level TransformDefs was a pure expression:\n${Printer.TreeShortCode.show(tree)}")
           '{ ZIO.succeed(${tree.asExpr}) }
@@ -485,6 +526,7 @@ class Transformer(using transformerQuotes: Quotes) {
         case other =>
           report.errorAndAbort(s"Could not translate the following tree because it was not an expression:\n${Printer.TreeShortCode.show(other)}")
       }
+    // TODO verify that there are no await calls left. Otherwise throw an error
     '{ ${transformed}.asInstanceOf[ZIO[Any, Throwable, T]] }
   }
 }

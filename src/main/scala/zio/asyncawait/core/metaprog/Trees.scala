@@ -11,6 +11,7 @@ object Trees:
       var counter = 0
       (new TreeMap:
         override def transformStatement(stmt: Statement)(owner: Symbol): Statement = {
+          if (stmt.show.contains("awaitInt")) println(s"----------------------- Inside: ${Format.Tree(stmt)}")
           val lifted =
             pf.lift(stmt) match {
               case Some(term: Statement) => Some(term)
@@ -20,6 +21,7 @@ object Trees:
           lifted.getOrElse(super.transformStatement(stmt)(owner))
         }
         override def transformTerm(stmt: Term)(owner: Symbol): Term = {
+          if (stmt.show.contains("awaitInt")) println(s"----------------------- Inside: ${Format.Tree(stmt)}")
           val lifted =
             pf.lift(stmt) match {
               case Some(term: Term) => Some(term)

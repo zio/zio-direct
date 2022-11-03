@@ -63,7 +63,7 @@ object Extractors {
         case other => Some(other)
       }
 
-  object MatchTerm:
+  object IsTerm:
     def unapply(using Quotes)(value: quotes.reflect.Tree): Option[quotes.reflect.Term] =
       import quotes.reflect._
       value match {
@@ -199,6 +199,28 @@ object Extractors {
       term match {
         case Unseal(Select(Seal(prefix), memberName)) => Some((prefix, memberName))
         case _                                        => None
+      }
+  }
+
+
+  object BlockN {
+    def unapply(using Quotes)(trees: List[quotes.reflect.Statement]) =
+      import quotes.reflect._
+      trees match {
+        case Nil => None
+        case IsTerm(head) :: Nil =>
+          Some(Block(Nil, head))
+        case list if (IsTerm.unapply(list.last).isDefined) =>
+          Some(Block(list.dropRight(1), IsTerm.unapply(list.last).get))
+        case _ =>
+          report.errorAndAbort(s"Last element in the instruction group is not a block. ${trees.map(_.show)}")
+      }
+
+    def apply(using Quotes)(trees: List[quotes.reflect.Statement]): quotes.reflect.Block =
+      import quotes.reflect._
+      BlockN.unapply(trees) match {
+        case Some(value) => value
+        case None => report.errorAndAbort(s"Invalid trees list: ${trees.map(_.show)}")
       }
   }
 
