@@ -4,6 +4,7 @@ import zio.asyncawait.core.metaprog.Extractors._
 import zio.asyncawait.core.util.Format
 
 import scala.quoted._
+import zio.asyncawait.core.util.ZioFacade
 
 object PrintMac {
 
@@ -16,10 +17,10 @@ object PrintMac {
     val deserializeAst = Expr.unapply(deserializeAstRaw).getOrElse { report.throwError("deserializeAst must be a constant value true/false") }
 
     val any = anyRaw.asTerm.underlyingArgument.asExprOf[T]
-    val deser = any
+    val deser = ZioFacade.makeFacade(any.asTerm)
 
     println("================= Tree =================")
-    println(Format(Printer.TreeShortCode.show(deser.asTerm)))
+    println(Format(Printer.TreeShortCode.show(deser)))
 
     // println("================= Detail =================")
     // println(Format(Printer.TreeStructure.show(Untype(deser.asTerm))))

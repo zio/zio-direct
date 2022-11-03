@@ -51,6 +51,44 @@ class Transformer(using transformerQuotes: Quotes) {
           println(s"============  Tree is Pure!: ${tree.show}")
           None
 
+        case Unseal(If(cond, ifTrue, ifFalse)) =>
+          cond.asExpr match
+            case Transform(monad) =>
+              val sym = Symbol.newVal(Symbol.spliceOwner, "ifVar", TypeRepr.of[Boolean], Flags.EmptyFlags, Symbol.noSymbol)
+              val body = If(Ref(sym), ifTrue, ifFalse)
+              Some(Nest(monad, Nest.NestType.ValDef(sym), body.asExpr))
+            case _ =>
+              (ifTrue.asExpr, ifFalse.asExpr) match {
+                case (Transform(ifTrue), Transform(ifFalse)) =>
+                  Some(If(cond, ifTrue.asTerm, ifFalse.asTerm).asExprOf[ZIO[Any, Throwable, ?]])
+                case (Transform(ifTrue), ifFalse) =>
+                  Some(If(cond, ifTrue.asTerm, '{ ZIO.succeed(${ifFalse}) }.asTerm).asExprOf[ZIO[Any, Throwable, ?]])
+                case (ifTrue, Transform(ifFalse)) =>
+                  Some(If(cond, '{ ZIO.succeed(${ifTrue}) }.asTerm, ifFalse.asTerm).asExprOf[ZIO[Any, Throwable, ?]])
+                case (ifTrue, ifFalse) =>
+                  None
+              }
+
+        case '{ ($a: Boolean) && ($b: Boolean) } =>
+          (a, b) match {
+            case (Transform(a), Transform(b)) =>
+              Some('{ $a.flatMap { case true => $b; case false => ZIO.succeed(false) } })
+            case (Transform(a), b) =>
+              Some('{ $a.map { case true => $b; case false => false } })
+            case (a, Transform(b)) =>
+              Some('{ if ($a) $b else ZIO.succeed(false) })
+          }
+
+        case '{ ($a: Boolean) || ($b: Boolean) } =>
+          (a, b) match {
+            case (Transform(a), Transform(b)) =>
+              Some('{ $a.flatMap { case true => ZIO.succeed(true); case false => $b } })
+            case (Transform(a), b) =>
+              Some('{ $a.map { case true => true; case false => $b } })
+            case (a, Transform(b)) =>
+              Some('{ if ($a) ZIO.succeed(true) else $b })
+          }
+
         case Unseal(block @ Block(parts, lastPart)) if (parts.nonEmpty) =>
           println(s"============  Transform a Block: ${parts.map(part => Format.Tree(part)).mkString("List(\n", ",\n", ")\n")} ==== ${Format.Tree(lastPart)}")
           TransformBlock.unapply(block)

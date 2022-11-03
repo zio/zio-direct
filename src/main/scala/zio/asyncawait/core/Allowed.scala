@@ -42,6 +42,12 @@ object Allowed {
       // DefDef with Await in right-hand-side not allowed anymore
       //case DefDef(_, _, _, Some(rhs)) => validateBlocksTree(rhs)
       // Otherwise, anywhere we see a block, validate the contents of the block and throw an error if needed
+
+      case If(cond, ifTrue, ifFalse) =>
+        validateBlocksTree(cond)
+        validateBlocksTree(ifTrue)
+        validateBlocksTree(ifFalse)
+
       case Match(input, caseDefs) =>
         validateBlocksTree(input)
         caseDefs.foreach {
