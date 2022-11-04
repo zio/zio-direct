@@ -20,21 +20,29 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
   import quotes.reflect._
 
   private object Render {
-    def apply(ir: IR): Expr[ZIO[?, ?, ?]] =
+    private def computeSymbolType(valSymbol: Option[Symbol], alternativeSource: Term) =
+      valSymbol match
+        case Some(oldSymbol) =>
+          oldSymbol.termRef.widenTermRefByName.asType
+        case None =>
+          alternativeSource.tpe.asType match
+            case '[ZIO[r, e, a]] => Type.of[a]
+
+    private def compressBlock(accum: List[Statement] = List(), block: IR.Block): (List[Statement], Term) =
+      block.tail match
+        case nextBlock: IR.Block =>
+          compressBlock(block.head +: accum, nextBlock)
+        case otherMonad =>
+          (accum, apply(otherMonad).asTerm)
+
+    def apply(ir: IR): Expr[ZIO[?, ?, ?]] = {
       ir match
         case IR.Pure(code) => '{ ZIO.succeed(${code.asExpr}) }
 
         case IR.FlatMap(monad, valSymbol, body) => {
           val monadExpr = apply(monad)
           val bodyExpr = apply(body)
-          def symbolType =
-            valSymbol match
-              case Some(oldSymbol) =>
-                oldSymbol.termRef.widenTermRefByName.asType
-              case None =>
-                monadExpr.asTerm.tpe.asType match
-                  case '[ZIO[r, e, a]] => Type.of[a]
-
+          def symbolType = computeSymbolType(valSymbol, monadExpr.asTerm)
           // Symbol type needs to be the same as the A-parameter of the ZIO, if not it's an error
           // should possibly introduce an asserition for that
           // Also:
@@ -47,15 +55,67 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
         }
 
         // Pull out the value from IR.Pure and use it directly in the mapping
-        case IR.Map(monad, valSymbol, IR.Pure(body)) => ???
+        case IR.Map(monad, valSymbol, IR.Pure(body)) =>
+          val monadExpr = apply(monad)
+          def symbolType = computeSymbolType(valSymbol, monadExpr.asTerm)
+          symbolType match
+          // TODO check that 'a' is the same as 't' here?
+          case '[t] =>
+            '{ $monadExpr.asInstanceOf[ZIO[?, ?, t]].map((v: t) =>
+              ${replaceSymbolInBodyMaybe(using transformerQuotes)(body)(valSymbol, ('v).asTerm).asExpr}
+            ).asInstanceOf[ZIO[?, ?, ?]] } // since the body has it's own term not specifying that here
 
-        case IR.Monad(code) => ???
-        case IR.Block(head, tail) => ???
-        case IR.Match(scrutinee, caseDefs) => ???
+        case IR.Monad(code) => code.asExprOf[ZIO[?, ?, ?]]
+
+        case block: IR.Block =>
+          val (stmts, term) = compressBlock(List(), block)
+          Block(stmts, term).asExprOf[ZIO[?, ?, ?]]
+
+        case IR.Match(scrutinee, caseDefs) =>
+          scrutinee match
+            case value: IR.Monadic =>
+              val monadExpr = apply(value)
+              // use the symbol instead of the monad as the scrutinee because the monad needs to be flatmapped first
+              // (Note don't think you need to change ownership of caseDef.rhs to the new symbol but possible.)
+              val matchSymbol = Symbol.newVal(Symbol.spliceOwner, "matchVar", monadExpr.asTerm.tpe, Flags.EmptyFlags, Symbol.noSymbol)
+              val newCaseDefs =
+                caseDefs.map { caseDef =>
+                  val bodyExpr = apply(caseDef.rhs)
+                  CaseDef(caseDef.pattern, caseDef.guard, bodyExpr.asTerm)
+                }
+              // even if the content of the match is pure we lifted it into a monad. If we want to optimize we
+              // change the IR.CaseDef.rhs to be IR.Pure as well as IR.Monadic and handle both cases
+              val newMatch = Match(Ref(matchSymbol), newCaseDefs)
+              // We can synthesize the monadExpr.flatMap call from the monad at this point but I would rather pass it to the FlatMap case to take care of
+              apply(IR.FlatMap(IR.Monad(monadExpr.asTerm), matchSymbol, IR.Monad(newMatch)))
+            case IR.Pure(termValue) =>
+              val newCaseDefs =
+                caseDefs.map { caseDef =>
+                  val bodyExpr = apply(caseDef.rhs)
+                  CaseDef(caseDef.pattern, caseDef.guard, bodyExpr.asTerm)
+                }
+              val newMatch = Match(termValue, newCaseDefs)
+              // recall that the expressions in the case defs need all be ZIO instances (i.e. monadic) we we can
+              // treat the whole thing as a ZIO (i.e. monadic) expression
+              newMatch.asExprOf[ZIO[?, ?, ?]]
+
         case IR.If(cond, ifTrue, ifFalse) => ???
-        case IR.Bool.And(left, right) => ???
+
+        case IR.Bool.And(left, right) =>
+          (left, right) match {
+            case (a: IR.Monadic, b: IR.Monadic) =>
+              '{ ${apply(a)}.flatMap { case true => ${apply(b)}; case false => ZIO.succeed(false) } }
+            case (a: IR.Monadic, IR.Pure(b)) =>
+              '{ ${apply(a)}.map { case true => ${b.asExpr}; case false => false } }
+            case (IR.Pure(a), b: IR.Monadic) =>
+              '{ if (${a.asExprOf[Boolean]}) ${apply(b)} else ZIO.succeed(false) }
+            // case Pure/Pure is taken care by in the transformer on a higher-level via the PureTree case
+          }
+
         case IR.Bool.Or(left, right) => ???
+
         case IR.Bool.Pure(code) => ??? // back here
+    }
   }
 
   private object Transform {

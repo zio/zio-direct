@@ -84,7 +84,7 @@ trait Model {
 
     // TODO scrutinee can be monadic or Match output can be monadic, how about both?
     // scrutinee can be Monadic or Pure. Not using union type so that perhaps can backward-compat with Scala 2
-    case class Match(scrutinee: IR, caseDefs: List[IR.Match.CaseDef]) extends Monadic
+    case class Match(scrutinee: Monadic | Pure, caseDefs: List[IR.Match.CaseDef]) extends Monadic
     object Match {
       case class CaseDef(pattern: Tree, guard: Option[Term], rhs: Monadic)
     }
@@ -99,8 +99,8 @@ trait Model {
       // Note that And/Or expressions ultimately need to have both of their sides lifted,
       // if one either side is not actually a monad we need to lift it. Therefore
       // we can treat And/Or as monadic (i.e. return the from the main Transform)
-      case class And(left: IR, right: IR) extends Bool with Monadic
-      case class Or(left: IR, right: IR) extends Bool with Monadic
+      case class And(left: IR.Bool.Pure | IR.Monadic, right: IR.Bool.Pure | IR.Monadic) extends Bool with Monadic
+      case class Or(left: IR.Bool.Pure | IR.Monadic, right: IR.Bool.Pure | IR.Monadic) extends Bool with Monadic
       case class Pure(code: Term) extends Bool
     }
   }
