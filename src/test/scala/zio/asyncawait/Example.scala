@@ -160,8 +160,15 @@ object Example {
   // }
 
   def funH(): Unit = {
-    PrintMac(async {
-      if (await(ZIO.succeed("1".toInt == 1)) && await(ZIO.succeed("2".toInt == 2)))
+    val v = (async {
+      if (await {
+          for {
+            env <- ZIO.service[String]
+            out <- ZIO.succeed("1".toInt == 1)
+          } yield out
+        }
+        && await(ZIO.succeed("2".toInt == 2))
+      )
         "foo"
       else
         "bar"

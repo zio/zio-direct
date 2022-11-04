@@ -13,7 +13,7 @@ object PureTree:
   def unapply(using Quotes)(tree: quotes.reflect.Tree): Option[quotes.reflect.Tree] =
     import quotes.reflect._
     Trees.exists(tree, Symbol.spliceOwner) {
-      case Seal('{ await[t]($v) }) => true
+      case Seal('{ await[r, e, a]($v) }) => true
     } match {
       case true => None
       case false => Some(tree)

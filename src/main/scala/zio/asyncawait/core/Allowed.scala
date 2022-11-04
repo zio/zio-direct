@@ -63,7 +63,7 @@ object Allowed {
       case Block(stmts, ret) =>
         (stmts :+ ret).foreach(validateBlocksTree(_))
       // otherwise it has an await clause and with an unsupported construct
-      case Seal('{ await[t]($content) }) =>
+      case Seal('{ await[r, e, a]($content) }) =>
       case otherTree =>
         UnsupportedError.throwIt(otherTree)
 

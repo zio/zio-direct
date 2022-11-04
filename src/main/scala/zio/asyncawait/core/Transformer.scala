@@ -10,9 +10,51 @@ import zio.ZIO
 import scala.collection.mutable
 import zio.Chunk
 import zio.asyncawait.core.util.PureTree
+import zio.asyncawait.core.util.ComputeTotalZioType
 
 class Transformer(using transformerQuotes: Quotes) {
   import quotes.reflect._
+
+  private sealed trait IR
+  private object IR {
+    sealed trait Monadic extends IR
+    case class FlatMap(monad: Monadic, valSymbol: Option[Symbol], body: IR) extends Monadic
+    object FlatMap {
+      def apply(monad: IR.Monadic, valSymbol: Symbol, body: IR.Monadic) =
+        new FlatMap(monad, Some(valSymbol), body)
+    }
+    case class Map(monad: Monadic, valSymbol: Option[Symbol], body: IR.Pure) extends Monadic
+    object Map {
+      def apply(monad: Monadic, valSymbol: Symbol, body: IR.Pure) =
+        new Map(monad, Some(valSymbol), body)
+    }
+    case class Monad(code: Term) extends Monadic
+    // TODO Function to collapse inner blocks into one block because you can have Block(term, Block(term, Block(monad)))
+    case class Block(head: Statement, tail: Monadic) extends Monadic
+
+    // TODO scrutinee can be monadic or Match output can be monadic, how about both?
+    // scrutinee can be Monadic or Pure. Not using union type so that perhaps can backward-compat with Scala 2
+    case class Match(scrutinee: IR, caseDefs: List[IR.Match.CaseDef]) extends Monadic
+    object Match {
+      case class CaseDef(pattern: Tree, guard: Option[Term], rhs: Monadic)
+    }
+
+    // Since we ultimately transform If statements into Task[Boolean] segments, they are monadic
+    // TODO during transformation, decided cases based on if ifTrue/ifFalse is monadic or not
+    case class If(cond: IR.Bool, ifTrue: IR, ifFalse: IR) extends Monadic
+    case class Pure(code: Term) extends IR
+
+    sealed trait Bool extends IR
+    object Bool {
+      // Note that And/Or expressions ultimately need to have both of their sides lifted,
+      // if one either side is not actually a monad we need to lift it. Therefore
+      // we can treat And/Or as monadic (i.e. return the from the main Transform)
+      case class And(left: IR, right: IR) extends Bool with Monadic
+      case class Or(left: IR, right: IR) extends Bool with Monadic
+      case class Pure(code: Term) extends Bool
+    }
+  }
+
 
   private def replaceSymbolIn(in: Term)(oldSymbol: Symbol, newSymbolTerm: Term) =
     BlockN(List(
@@ -34,71 +76,63 @@ class Transformer(using transformerQuotes: Quotes) {
             ) =>
               (valdef.symbol, body)
 
-    println(s"============  Making New Symbol For: ${symbol} -> ${Printer.TreeShortCode.show(body)}")
     (symbol, body)
   }
 
-  object Transform {
-    def apply(expr: Expr[?]): Expr[ZIO[Any, Throwable, ?]] =
-      unapply(expr.asTerm.underlyingArgument.asExpr)
-        .getOrElse('{ ZIO.succeed($expr) })
+  private object Transform {
+    def apply(term: Term): IR.Monadic =
+      unapply(term).getOrElse(IR.Monad('{ ZIO.succeed(${term.asExpr}) }.asTerm))
 
     // TODO really use underlyingArgument????
-    def unapply(expr: Expr[?]): Option[Expr[ZIO[Any, Throwable, ?]]] = {
-      println(s"================== UNAPPLY: ${Format.Expr(expr)} ==================")
+    def unapply(expr: Term): Option[IR.Monadic] = {
       val ret = expr match {
-        case Unseal(PureTree(tree)) =>
-          println(s"============  Tree is Pure!: ${tree.show}")
+        case PureTree(tree) =>
           None
 
-        case Unseal(If(cond, ifTrue, ifFalse)) =>
-          cond.asExpr match
+        case If(cond, ifTrue, ifFalse) =>
+          cond match
             case Transform(monad) =>
               val sym = Symbol.newVal(Symbol.spliceOwner, "ifVar", TypeRepr.of[Boolean], Flags.EmptyFlags, Symbol.noSymbol)
               val body = If(Ref(sym), ifTrue, ifFalse)
-              Some(Nest(monad, Nest.NestType.ValDef(sym), body.asExpr))
+              Some(IR.FlatMap(monad, sym, IR.Monad(body)))
             case _ =>
-              (ifTrue.asExpr, ifFalse.asExpr) match {
+              (ifTrue, ifFalse) match {
                 case (Transform(ifTrue), Transform(ifFalse)) =>
-                  Some(If(cond, ifTrue.asTerm, ifFalse.asTerm).asExprOf[ZIO[Any, Throwable, ?]])
+                  Some(IR.If(IR.Bool.Pure(cond), ifTrue, ifFalse))
                 case (Transform(ifTrue), ifFalse) =>
-                  Some(If(cond, ifTrue.asTerm, '{ ZIO.succeed(${ifFalse}) }.asTerm).asExprOf[ZIO[Any, Throwable, ?]])
+                  Some(IR.If(IR.Bool.Pure(cond), ifTrue, IR.Monad('{ ZIO.succeed(${ifFalse.asExpr}) }.asTerm)))
                 case (ifTrue, Transform(ifFalse)) =>
-                  Some(If(cond, '{ ZIO.succeed(${ifTrue}) }.asTerm, ifFalse.asTerm).asExprOf[ZIO[Any, Throwable, ?]])
+                  Some(IR.If(IR.Bool.Pure(cond), IR.Monad('{ ZIO.succeed(${ifTrue.asExpr}) }.asTerm), ifFalse))
                 case (ifTrue, ifFalse) =>
                   None
               }
 
-        case '{ ($a: Boolean) && ($b: Boolean) } =>
-          (a, b) match {
+        case Seal('{ ($a: Boolean) && ($b: Boolean) }) =>
+          (a.asTerm, b.asTerm) match {
             case (Transform(a), Transform(b)) =>
-              Some('{ $a.flatMap { case true => $b; case false => ZIO.succeed(false) } })
+              Some(IR.Bool.And(a, b))
             case (Transform(a), b) =>
-              Some('{ $a.map { case true => $b; case false => false } })
+              Some(IR.Bool.And(a, IR.Bool.Pure(b)))
             case (a, Transform(b)) =>
-              Some('{ if ($a) $b else ZIO.succeed(false) })
+              Some(IR.Bool.And(IR.Bool.Pure(a), b))
+            // case (a, b) is handled by the PureTree case
           }
 
-        case '{ ($a: Boolean) || ($b: Boolean) } =>
-          (a, b) match {
+        case Seal('{ ($a: Boolean) || ($b: Boolean) }) =>
+          (a.asTerm, b.asTerm) match {
             case (Transform(a), Transform(b)) =>
-              Some('{ $a.flatMap { case true => ZIO.succeed(true); case false => $b } })
+              Some(IR.Bool.Or(a, b))
             case (Transform(a), b) =>
-              Some('{ $a.map { case true => true; case false => $b } })
+              Some(IR.Bool.Or(a, IR.Bool.Pure(b)))
             case (a, Transform(b)) =>
-              Some('{ if ($a) ZIO.succeed(true) else $b })
+              Some(IR.Bool.And(IR.Bool.Pure(a), b))
+            // case (a, b) is handled by the PureTree case
           }
 
-        case Unseal(block @ Block(parts, lastPart)) if (parts.nonEmpty) =>
-          println(s"============  Transform a Block: ${parts.map(part => Format.Tree(part)).mkString("List(\n", ",\n", ")\n")} ==== ${Format.Tree(lastPart)}")
+        case block @ Block(parts, lastPart) if (parts.nonEmpty) =>
           TransformBlock.unapply(block)
 
-        case Unseal(Match(m @ Seal(Transform(monad)), caseDefs)) =>
-          println(s"============  Body Has Monad =======\n${Printer.TreeShortCode.show(m)}")
-          println(s"====== Transformed:\n" + Format.Expr(monad))
-          println(s"====== Monad Tpe:\n" + Format.TypeRepr(monad.asTerm.tpe))
-          println(s"====== Match Tpe:\n" + Format.TypeRepr(m.tpe))
-
+        case Match(m @ Transform(monad), caseDefs) =>
           // Since in Scala 3 we cannot just create a arbitrary symbol and pass it around.
           // (See https://github.com/lampepfl/dotty/blob/33818506801c80c8c73649fdaab3782c052580c6/library/src/scala/quoted/Quotes.scala#L3675)
           // In order to be able to have a valdef-symbol to manipulate, we need to create the actual valdef
@@ -116,29 +150,22 @@ class Transformer(using transformerQuotes: Quotes) {
           val (oldSymbol, body) =
             useNewSymbolIn(m.tpe)(sym => Match(sym, caseDefs))
 
-          val s = oldSymbol
-          println(s"========= SYMBOL INFO ${s.owner}/${Symbol.spliceOwner}, ${s.name}, ${s.flags.show}, ${s.privateWithin}")
-
-          val out = Nest(monad, Nest.NestType.ValDef(oldSymbol), body.asExpr)
+          val out =
+            body match
+              case Transform(bodyMonad) =>
+                IR.FlatMap(monad, oldSymbol, bodyMonad)
+              case bodyPure =>
+                IR.Map(monad, oldSymbol, IR.Pure(bodyPure))
           Some(out)
 
-          // val sym = Symbol.newVal(Symbol.spliceOwner, "m", m.tpe, Flags.EmptyFlags, Symbol.noSymbol)
-          // val body = Match(Ident(sym.termRef), caseDefs)
-          // val out = Nest(monad, Nest.NestType.ValDef(sym), body.asExpr)
-          // println(s"============  Body Has Monad RETURN =======\n${Printer.TreeShortCode.show(out.asTerm)}")
-          // Some(out)
+        case m @ Match(value, TransformCases(cases)) =>
+          Some(IR.Match(IR.Pure(value), cases))
 
-        case Unseal(m @ Match(value, TransformCases(cases))) =>
-          println(s"=============== Transform Inner Cases")
-          Some(Match(value, cases).asExprOf[ZIO[Any, Throwable, ?]])
+        case Seal('{ await[r, e, a]($task) }) =>
+          Some(IR.Monad(task.asTerm))
 
-        case '{ await[t]($task) } =>
-          println(s"=============== Unlift: ${task.show}")
-          Some(task)
-
-        case Unseal(Typed(tree, _)) =>
-          println(s"=============== Untype: ${tree.show}")
-          unapply(tree.asExpr)
+        case Typed(tree, _) =>
+          unapply(tree)
 
         // Change something that looks like this:
         // { (unlift(foo), unlift(bar)) }
@@ -148,12 +175,12 @@ class Transformer(using transformerQuotes: Quotes) {
         //      Examine set of cases where this occurs. Then as a final case
         //      Check that there are awaits in any other kind of construct
         //      and throw an unsupproted-construct exception.
-        case expr => // @ Allowed.ParallelExpression()
-          println(s"=============== Other: ${Format(Printer.TreeShortCode.show(expr.asTerm))}")
+        case term => // @ Allowed.ParallelExpression()
+          println(s"=============== Other: ${Format(Printer.TreeShortCode.show(term))}")
           val unlifts = mutable.ArrayBuffer.empty[(Term, Symbol, TypeRepr)]
           val newTree: Term =
-            Trees.Transform(expr.asTerm, Symbol.spliceOwner) {
-              case Seal('{ await[t]($task) }) =>
+            Trees.Transform(term, Symbol.spliceOwner) {
+              case Seal('{ await[r, e, a]($task) }) =>
                 val tpe =
                   task.asTerm.tpe.asType match
                     case '[ZIO[x, y, t]] => TypeRepr.of[t]
@@ -200,14 +227,14 @@ class Transformer(using transformerQuotes: Quotes) {
                           report.errorAndAbort(s"Invalid lambda created for: ${Format.Tree(monad)}.flatMap of ${Format.Tree(newTree)}. This should not be possible.")
                       }
                     )
-                  Some('{ ${monad.asExprOf[ZIO[Any, Throwable, t]]}.map[r](${lam.asExprOf[t => r]}) })
+                  Some(IR.Monad('{ ${monad.asExprOf[ZIO[?, ?, t]]}.map[r](${lam.asExprOf[t => r]}) }.asTerm))
 
-              println("=========== Single unlift: ==========\n" + Format.Expr(out.get))
+              println("=========== Single unlift: ==========\n" + Format.Term(out.get.code))
               out
 
             case unlifts =>
               val (terms, names, types) = unlifts.unzip3
-              val termsExpr = Expr.ofList(terms.map(_.asExprOf[ZIO[Any, Throwable, ?]]))
+              val termsExpr = Expr.ofList(terms.map(_.asExprOf[ZIO[?, ?, ?]]))
               val collect = '{ ZIO.collectAll(Chunk.from($termsExpr)) }
               def makeVariables(iterator: Expr[Iterator[?]]) =
                 unlifts.map((monad, symbol, tpe) =>
@@ -217,9 +244,7 @@ class Transformer(using transformerQuotes: Quotes) {
                     }
                 )
 
-              val totalType = ComputeTotalType.of(terms)
-
-
+              val totalType = ComputeTotalZioType.valueOf(terms: _*)
               val output =
                 totalType.asType match
                   case '[t] =>
@@ -227,12 +252,12 @@ class Transformer(using transformerQuotes: Quotes) {
                       $collect.map(terms => {
                         val iter = terms.iterator
                         ${ Block(makeVariables('iter), newTree).asExpr }
-                      }).asInstanceOf[ZIO[Any, Throwable, t]]
+                      }).asInstanceOf[ZIO[?, ?, t]]
                     }
 
-              val out = Some(output)
+              val out = Some(IR.Monad(output.asTerm))
               println(s"============ Computed Output: ${Format.TypeRepr(output.asTerm.tpe)}")
-              println("=========== Multiple unlift: ==========\n" + Format.Expr(out.get))
+              println("=========== Multiple unlift: ==========\n" + Format.Expr(output))
               out
           }
       }
@@ -241,95 +266,80 @@ class Transformer(using transformerQuotes: Quotes) {
     }
   }
 
-  private object ComputeTotalType {
-    // Assuming it is a non-empty list
-    def of(terms: List[Term]) =
-      terms.drop(1).foldLeft(terms.head.tpe)((tpe, additionalTerm) =>
-        tpe.asType match
-          case '[ZIO[x, y, a]] =>
-            additionalTerm.tpe.asType match
-              case '[ZIO[x1, y1, b]] =>
-                TypeRepr.of[a with b]
-      )
+  // private object Nest {
+  //   enum NestType:
+  //     case ValDef(symbol: Symbol)
+  //     case Wildcard
 
-  }
+  //   /**
+  //     * This will actually take some block of code (that is either in a ZIO or just 'pure' code)
+  //     * and will nest it into the previously-sequenced ZIO. If it is ZIO code, it will
+  //     * flatMap from the previously-sequenced ZIO, otherwise it map.
+  //     */
+  //   def apply(monad: Expr[ZIO[?, ?, ?]], nestType: NestType, bodyRaw: Expr[_]): Expr[ZIO[?, ?, ?]] = {
+  //     def symbolType =
+  //       nestType match
+  //         case NestType.ValDef(oldSymbol) =>
+  //           oldSymbol.termRef.widenTermRefByName.asType
+  //         case _ =>
+  //           monad.asTerm.tpe.asType match
+  //             case '[ZIO[r, e, a]] => Type.of[a]
 
-  private object Nest {
-    enum NestType:
-      case ValDef(symbol: Symbol)
-      case Wildcard
+  //     // def decideMonadType[MonadType: Type] =
+  //     //   val monadType = Type.of[MonadType]
+  //     //   monadType match
+  //     //     case '[Any] =>
+  //     //       oldSymbolType match
+  //     //         case Some(value) => (value.asType, true)
+  //     //         case None => (monadType, false)
+  //     //     case _ =>
+  //     //       (monadType, false)
 
-    /**
-      * This will actually take some block of code (that is either in a ZIO or just 'pure' code)
-      * and will nest it into the previously-sequenced ZIO. If it is ZIO code, it will
-      * flatMap from the previously-sequenced ZIO, otherwise it map.
-      */
-    def apply(monad: Expr[ZIO[Any, Throwable, ?]], nestType: NestType, bodyRaw: Expr[_]): Expr[ZIO[Any, Throwable, ?]] = {
-      def symbolType =
-        nestType match
-          case NestType.ValDef(oldSymbol) =>
-            oldSymbol.termRef.widenTermRefByName.asType
-          case _ =>
-            monad.asTerm.tpe.asType match
-              case '[ZIO[Any, Throwable, t]] => Type.of[t]
+  //     def replaceSymbolInBody(body: Term)(newSymbolTerm: Term) =
+  //       nestType match
+  //         case NestType.ValDef(oldSymbol) =>
+  //           /**
+  //            * In a case where we have:
+  //            *  val a = unlift(foobar)
+  //            *  otherStuff
+  //            *
+  //            * We can either lift that into:
+  //            *  unlift(foobar).flatMap { v => (otherStuff /*with replaced a -> v*/) }
+  //            *
+  //            * Or we can just do
+  //            *  unlift(foobar).flatMap { v => { val a = v; otherStuff /* with the original a variable*/ } }
+  //            *
+  //            * I think the 2nd variant more performant but keeping 1st one (Trees.replaceIdent(...)) around for now.
+  //            */
+  //           //Trees.replaceIdent(using transformerQuotes)(body)(oldSymbol, newSymbolTerm.symbol)
 
-      // def decideMonadType[MonadType: Type] =
-      //   val monadType = Type.of[MonadType]
-      //   monadType match
-      //     case '[Any] =>
-      //       oldSymbolType match
-      //         case Some(value) => (value.asType, true)
-      //         case None => (monadType, false)
-      //     case _ =>
-      //       (monadType, false)
+  //           val out = replaceSymbolIn(body)(oldSymbol, newSymbolTerm)
+  //           println(s"============+ Creating $oldSymbol:${Printer.TypeReprShortCode.show(oldSymbol.termRef.widen)} -> ${newSymbolTerm.show}:${Printer.TypeReprShortCode.show(newSymbolTerm.tpe.widen)} replacement let:\n${Format(Printer.TreeShortCode.show(out))}")
+  //           out
 
-      def replaceSymbolInBody(body: Term)(newSymbolTerm: Term) =
-        nestType match
-          case NestType.ValDef(oldSymbol) =>
-            /**
-             * In a case where we have:
-             *  val a = unlift(foobar)
-             *  otherStuff
-             *
-             * We can either lift that into:
-             *  unlift(foobar).flatMap { v => (otherStuff /*with replaced a -> v*/) }
-             *
-             * Or we can just do
-             *  unlift(foobar).flatMap { v => { val a = v; otherStuff /* with the original a variable*/ } }
-             *
-             * I think the 2nd variant more performant but keeping 1st one (Trees.replaceIdent(...)) around for now.
-             */
-            //Trees.replaceIdent(using transformerQuotes)(body)(oldSymbol, newSymbolTerm.symbol)
+  //         case NestType.Wildcard =>
+  //           body
 
-            val out = replaceSymbolIn(body)(oldSymbol, newSymbolTerm)
-            println(s"============+ Creating $oldSymbol:${Printer.TypeReprShortCode.show(oldSymbol.termRef.widen)} -> ${newSymbolTerm.show}:${Printer.TypeReprShortCode.show(newSymbolTerm.tpe.widen)} replacement let:\n${Format(Printer.TreeShortCode.show(out))}")
-            out
+  //     bodyRaw match {
+  //       // q"${Resolve.flatMap(monad.pos, monad)}(${toVal(name)} => $body)"
+  //       case Transform(body) =>
+  //         symbolType match
+  //           case '[t] =>
+  //             '{ $monad.asInstanceOf[ZIO[?, ?, t]].flatMap((v: t) =>
+  //               ${replaceSymbolInBody(body)(('v).asTerm).asExprOf[ZIO[?, ?, ?]]}
+  //             ).asInstanceOf[ZIO[?, ?, ?]] }
 
-          case NestType.Wildcard =>
-            body
-
-      bodyRaw match {
-        // q"${Resolve.flatMap(monad.pos, monad)}(${toVal(name)} => $body)"
-        case Transform(body) =>
-          println(s"=================== Flat Mapping: ${Format(Printer.TreeShortCode.show(body.asTerm))}")
-          println(s"Monad Type: ${monad.asTerm.tpe.show}")
-          symbolType match
-            case '[t] =>
-              '{ $monad.asInstanceOf[ZIO[Any, Throwable, t]].flatMap((v: t) =>
-                ${replaceSymbolInBody(body.asTerm)(('v).asTerm).asExprOf[ZIO[Any, Throwable, ?]]}
-              ) }
-
-        // q"${Resolve.map(monad.pos, monad)}(${toVal(name)} => $body)"
-        case body            =>
-          println(s"=================== Mapping: ${Format(Printer.TreeShortCode.show(body.asTerm))}")
-          symbolType match
-            case '[t] =>
-              '{ $monad.asInstanceOf[ZIO[Any, Throwable, t]].map((v: t) =>
-                ${replaceSymbolInBody(body.asTerm)(('v).asTerm).asExpr}
-              ) }
-      }
-    }
-  }
+  //       // q"${Resolve.map(monad.pos, monad)}(${toVal(name)} => $body)"
+  //       case body            =>
+  //         symbolType match
+  //           // TODO check that 'a' is the same as 't' here?
+  //           case '[t] =>
+  //             '{ $monad.asInstanceOf[ZIO[?, ?, t]].map((v: t) =>
+  //               ${replaceSymbolInBody(body.asTerm)(('v).asTerm).asExpr}
+  //             ).asInstanceOf[ZIO[?, ?, ?]] } // since the body has it's own term not specifying that here
+  //     }
+  //   }
+  // }
 
   /**
     * Transform a sequence of steps
@@ -337,7 +347,7 @@ class Transformer(using transformerQuotes: Quotes) {
     * Into a.flatMap()
     */
   private object TransformBlock {
-    def unapply(block: Block): Option[Expr[ZIO[Any, Throwable, ?]]] =
+    def unapply(block: Block): Option[IR.Monadic] =
       val Block(head, tail) = block
       val parts = head :+ tail
       parts match {
@@ -352,10 +362,15 @@ class Transformer(using transformerQuotes: Quotes) {
         // This basically does that with some additional details
         // (e.g. it can actually be stuff.flatMap(v => val x = v; stuff-that-uses-x))
         // TODO A zero-args DefDef (i.e. a ByName can essentially be treated as a ValDef so we can use that too)
-        case ValDefStatement(symbol , Seal(Transform(monad))) :: tail =>
-          println(s"============= Block - Val Def: ${Printer.TreeShortCode.show(monad.asTerm)}")
-          val nest = Nest(monad, Nest.NestType.ValDef(symbol), BlockN(tail).asExpr)
-          Some(nest.asExprOf[ZIO[Any, Throwable, ?]])
+
+        case ValDefStatement(symbol , Transform(monad)) :: tail =>
+          val out =
+            BlockN(tail) match
+              case Transform(monadBody) =>
+                IR.FlatMap(monad, symbol, monadBody)
+              case pureBody =>
+                IR.Map(monad, symbol, IR.Pure(pureBody))
+          Some(out)
 
         // TODO Validate this?
         //case MatchValDef(name, body) :: tail =>
@@ -363,8 +378,8 @@ class Transformer(using transformerQuotes: Quotes) {
 
         // other statements possible including ClassDef etc... should look into that
 
-        case IsTerm(Seal(Transform(monad))) :: tail =>
-          println(s"============= Block - Head Transform: ${Printer.TreeShortCode.show(monad.asTerm)} ===== ${tail.map(Format.Tree(_))}")
+        case Transform(monad) :: tail =>
+          //println(s"============= Block - Head Transform: ${Printer.TreeShortCode.show(monad.asTerm)} ===== ${tail.map(Format.Tree(_))}")
           tail match {
             // In this case where is one statement in the block which my definition
             // needs to have the same type as the output: e.g.
@@ -372,8 +387,8 @@ class Transformer(using transformerQuotes: Quotes) {
             // since we've pulled out the `doSomething` inside the signature
             // will be ZIO[_, _, T] instead of T.
             case Nil =>
-              println(s"============= Block - With zero terms: ${monad.show}")
-              Some(monad.asExprOf[ZIO[Any, Throwable, ?]])
+              //println(s"============= Block - With zero terms: ${monad.show}")
+              Some(monad)
             case list =>
               // In this case there are multiple instructions inside the seauence e.g:
               //   val v: T = { unlift(x), y /*pure*/, unlift(z:ZIO[_, _, T]) }
@@ -382,9 +397,14 @@ class Transformer(using transformerQuotes: Quotes) {
               // x.flatMap(.. -> {y; z: ZIO[_, _, T]}). Of course the value will be ZIO[_, _, T]
               // since the last value of a nested flatMap chain is just the last instruction
               // in the nested sequence.
-              println(s"============= Block - With multiple terms: ${monad.show}, ${list.map(_.show)}")
-              val nest = Nest(monad, Nest.NestType.Wildcard, BlockN(tail).asExpr)
-              Some(nest.asExprOf[ZIO[Any, Throwable, ?]])
+              //println(s"============= Block - With multiple terms: ${monad.show}, ${list.map(_.show)}")
+              val out =
+                BlockN(tail) match
+                  case Transform(bodyMonad) =>
+                    IR.FlatMap(monad, None, bodyMonad)
+                  case bodyPure =>
+                    IR.Map(monad, None, IR.Pure(bodyPure))
+              Some(out)
           }
 
         // This is the recursive case of TransformBlock, it will work across multiple things
@@ -393,8 +413,8 @@ class Transformer(using transformerQuotes: Quotes) {
         //   import blah._          // 2nd part, will recurse 2nd time (here)
         //   val b = unlift(ZIO.succeed(value).asInstanceOf[Task[Int]]) // Then will match valdef case
         case head :: BlockN(TransformBlock(parts)) =>
-          println(s"============= Block - With end parts: ${Format.Expr(parts)}")
-          Some(BlockN(List(head, parts.asTerm)).asExprOf[ZIO[Any, Throwable, ?]])
+          //println(s"============= Block - With end parts: ${Format.Expr(parts)}")
+          Some(IR.Block(head, parts))
 
         case other =>
           println(s"============= Block - None: ${other.map(Format.Tree(_))}")
@@ -404,39 +424,37 @@ class Transformer(using transformerQuotes: Quotes) {
 
 
   private object TransformCases {
-    private sealed trait AppliedTree { def tree: CaseDef }
-    private case object AppliedTree {
-      case class HasTransform(tree: CaseDef) extends AppliedTree
-      case class NoTransform(tree: CaseDef) extends AppliedTree
-    }
+    // private sealed trait AppliedTree { def tree: CaseDef }
+    // private case object AppliedTree {
+    //   case class HasTransform(tree: CaseDef) extends AppliedTree
+    //   case class NoTransform(tree: CaseDef) extends AppliedTree
+    // }
 
-    def apply(cases: List[CaseDef]): List[CaseDef] =
-      applyMark(cases).map(_.tree)
+    def apply(cases: List[CaseDef]): List[IR.Match.CaseDef] =
+      applyMark(cases)
 
     private def applyMark(cases: List[CaseDef]) =
       cases.map {
-        case CaseDef(pattern, cond, Seal(Transform(body))) => AppliedTree.HasTransform(CaseDef(pattern, cond, body.asTerm))
-        case CaseDef(pattern, cond, body) => AppliedTree.NoTransform(CaseDef(pattern, cond, '{ ZIO.attempt(${body.asExpr}) }.asTerm))
+        case CaseDef(pattern, cond, Transform(body)) =>
+          IR.Match.CaseDef(pattern, cond, body)
+        case CaseDef(pattern, cond, body) =>
+          IR.Match.CaseDef(pattern, cond, IR.Monad('{ ZIO.attempt(${body.asExpr}) }.asTerm))
       }
 
-    def unapply(cases: List[CaseDef]) = {
-        // If at least one of the match-cases need to be transformed, transform all of them
-        val mappedCases = applyMark(cases)
-        if (mappedCases.exists(_.isInstanceOf[AppliedTree.HasTransform]))
-          Some(mappedCases.map(_.tree))
-        else
-          None
-      }
+    def unapply(cases: List[CaseDef]) =
+      // If at least one of the match-cases need to be transformed, transform all of them
+      Some(applyMark(cases))
   }
 
-  def apply[T: Type](valueRaw: Expr[T]): Expr[ZIO[Any, Throwable, T]] = {
+  def apply[T: Type](valueRaw: Expr[T]): Expr[ZIO[?, ?, ?]] = {
     import quotes.reflect._
-    val value = valueRaw.asTerm.underlyingArgument
-    // Do a top-level transform to check that there are no invalid constructs
-    Allowed.validateBlocksIn(value.asExpr)
-    // Do the main transformation
-    val transformed = Transform(value.asExpr)
-    // TODO verify that there are no await calls left. Otherwise throw an error
-    '{ ${transformed}.asInstanceOf[ZIO[Any, Throwable, T]] }
+    // val value = valueRaw.asTerm.underlyingArgument
+    // // Do a top-level transform to check that there are no invalid constructs
+    // Allowed.validateBlocksIn(value.asExpr)
+    // // Do the main transformation
+    // val transformed = Transform(value.asExpr)
+    // // TODO verify that there are no await calls left. Otherwise throw an error
+    // transformed
+    ???
   }
 }
