@@ -8,12 +8,9 @@ import zio.asyncawait.core.metaprog.Extractors.Seal
 
 /** Facade objects to make display of zio flatMap simpler */
 object ZioFacade {
-  trait ZIO[R, E, A] {
-    def flatMap[R1 <: R, E1 >: E, B](f: A => B): zio.ZIO[R1, E1, B] = ???
-    def map[B](f: A => B): zio.ZIO[R, E, B] = ???
-  }
   object ZIO {
     def succeed[T](any: T): zio.ZIO[Any, Throwable, T] = ???
+    def service[T]: zio.URIO[T, T] = ???
   }
 
   def makeFacade(using q: Quotes)(tree: quotes.reflect.Tree): q.reflect.Tree =
@@ -23,19 +20,9 @@ object ZioFacade {
           tree match
             case Seal('{ zio.ZIO.succeed[t]($tt)($impl) }) =>
               '{ ZIO.succeed[t](${transformTerm(tt.asTerm)(owner).asExprOf[t]}) }.asTerm
+            case Seal('{ zio.ZIO.service[t]($impl, $impl2) }) =>
+              '{ ZIO.service[t] }.asTerm
             case _: Term =>
-              val str = tree.show
-                // if (str.contains("zio.ZIO.succeed"))
-                //println(s"============= NO FORMAT MATCH:\n${tree.show}\n${tree}")
-                // println(
-                //   if (tree.isExpr)
-                //     tree.asExpr match {
-                //       case '{ zio.ZIO.succeed[t]($tt)($impl) } => "============ LATER MATCH"
-                //       case _ => "============ NO LATER MATCH"
-                //     }
-                //   else
-                //     "============ NOT EXPR"
-                // )
               super.transformTerm(tree)(owner)
         }
       ).transformTree(tree)(Symbol.spliceOwner)
@@ -119,7 +106,7 @@ object Format {
     import quotes.reflect._
     printShortCode(expr.asTerm)
 
-  def apply(code: String, showErrorTrace: Boolean = false) = {
+  def apply(code: String, showErrorTrace: Boolean = true) = {
     val encosedCode =
       s"""|object DummyEnclosure {
             |  ${code}

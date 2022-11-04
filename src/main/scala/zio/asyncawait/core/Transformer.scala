@@ -11,72 +11,51 @@ import scala.collection.mutable
 import zio.Chunk
 import zio.asyncawait.core.util.PureTree
 import zio.asyncawait.core.util.ComputeTotalZioType
+import zio.asyncawait.core.metaprog.ModelPrinting
+import zio.asyncawait.core.metaprog.Embedder._
 
-class Transformer(using transformerQuotes: Quotes) {
+
+class Transformer(inputQuotes: Quotes) extends ModelPrinting {
+  implicit val transformerQuotes = inputQuotes
   import quotes.reflect._
 
-  private sealed trait IR
-  private object IR {
-    sealed trait Monadic extends IR
-    case class FlatMap(monad: Monadic, valSymbol: Option[Symbol], body: IR) extends Monadic
-    object FlatMap {
-      def apply(monad: IR.Monadic, valSymbol: Symbol, body: IR.Monadic) =
-        new FlatMap(monad, Some(valSymbol), body)
-    }
-    case class Map(monad: Monadic, valSymbol: Option[Symbol], body: IR.Pure) extends Monadic
-    object Map {
-      def apply(monad: Monadic, valSymbol: Symbol, body: IR.Pure) =
-        new Map(monad, Some(valSymbol), body)
-    }
-    case class Monad(code: Term) extends Monadic
-    // TODO Function to collapse inner blocks into one block because you can have Block(term, Block(term, Block(monad)))
-    case class Block(head: Statement, tail: Monadic) extends Monadic
+  private object Render {
+    def apply(ir: IR): Expr[ZIO[?, ?, ?]] =
+      ir match
+        case IR.Pure(code) => '{ ZIO.succeed(${code.asExpr}) }
 
-    // TODO scrutinee can be monadic or Match output can be monadic, how about both?
-    // scrutinee can be Monadic or Pure. Not using union type so that perhaps can backward-compat with Scala 2
-    case class Match(scrutinee: IR, caseDefs: List[IR.Match.CaseDef]) extends Monadic
-    object Match {
-      case class CaseDef(pattern: Tree, guard: Option[Term], rhs: Monadic)
-    }
+        case IR.FlatMap(monad, valSymbol, body) => {
+          val monadExpr = apply(monad)
+          val bodyExpr = apply(body)
+          def symbolType =
+            valSymbol match
+              case Some(oldSymbol) =>
+                oldSymbol.termRef.widenTermRefByName.asType
+              case None =>
+                monadExpr.asTerm.tpe.asType match
+                  case '[ZIO[r, e, a]] => Type.of[a]
 
-    // Since we ultimately transform If statements into Task[Boolean] segments, they are monadic
-    // TODO during transformation, decided cases based on if ifTrue/ifFalse is monadic or not
-    case class If(cond: IR.Bool, ifTrue: IR, ifFalse: IR) extends Monadic
-    case class Pure(code: Term) extends IR
+          // Symbol type needs to be the same as the A-parameter of the ZIO, if not it's an error
+          // should possibly introduce an asserition for that
+          // Also:
+          // TODO synthesize + eta-expand the lambda manually so it's ame is based on the previous symbol name
+          symbolType match
+            case '[t] =>
+              '{ $monadExpr.asInstanceOf[ZIO[?, ?, t]].flatMap((v: t) =>
+                ${replaceSymbolInBodyMaybe(using transformerQuotes)(bodyExpr.asTerm)(valSymbol, ('v).asTerm).asExprOf[ZIO[?, ?, ?]]}
+              ).asInstanceOf[ZIO[?, ?, ?]] }
+        }
 
-    sealed trait Bool extends IR
-    object Bool {
-      // Note that And/Or expressions ultimately need to have both of their sides lifted,
-      // if one either side is not actually a monad we need to lift it. Therefore
-      // we can treat And/Or as monadic (i.e. return the from the main Transform)
-      case class And(left: IR, right: IR) extends Bool with Monadic
-      case class Or(left: IR, right: IR) extends Bool with Monadic
-      case class Pure(code: Term) extends Bool
-    }
-  }
+        // Pull out the value from IR.Pure and use it directly in the mapping
+        case IR.Map(monad, valSymbol, IR.Pure(body)) => ???
 
-
-  private def replaceSymbolIn(in: Term)(oldSymbol: Symbol, newSymbolTerm: Term) =
-    BlockN(List(
-      ValDef(oldSymbol, Some(newSymbolTerm)),
-      in
-    ))
-
-  def useNewSymbolIn(using Quotes)(tpe: quotes.reflect.TypeRepr)(useSymbol: quotes.reflect.Term => quotes.reflect.Term) = {
-    import quotes.reflect._
-    // TODO Try to write this using ValDef.let(...). Might be more efficient
-    val (symbol, body) =
-      tpe.asType match
-        case '[t] =>
-          // TODO get rid of underlyingArgument. Should only need one top-level Uninline
-          '{ val m: t = ???; ${useSymbol(('m).asTerm).asExpr} }.asTerm.underlyingArgument match
-            case Block(
-              (valdef @ ValDef(_, _, _)) :: Nil,
-              body
-            ) =>
-              (valdef.symbol, body)
-
-    (symbol, body)
+        case IR.Monad(code) => ???
+        case IR.Block(head, tail) => ???
+        case IR.Match(scrutinee, caseDefs) => ???
+        case IR.If(cond, ifTrue, ifFalse) => ???
+        case IR.Bool.And(left, right) => ???
+        case IR.Bool.Or(left, right) => ???
+        case IR.Bool.Pure(code) => ??? // back here
   }
 
   private object Transform {
@@ -447,14 +426,14 @@ class Transformer(using transformerQuotes: Quotes) {
   }
 
   def apply[T: Type](valueRaw: Expr[T]): Expr[ZIO[?, ?, ?]] = {
-    import quotes.reflect._
-    // val value = valueRaw.asTerm.underlyingArgument
+    val value = valueRaw.asTerm.underlyingArgument
     // // Do a top-level transform to check that there are no invalid constructs
     // Allowed.validateBlocksIn(value.asExpr)
     // // Do the main transformation
-    // val transformed = Transform(value.asExpr)
+    val transformed = Transform(value)
+    println(mprint(transformed))
     // // TODO verify that there are no await calls left. Otherwise throw an error
     // transformed
-    ???
+    '{ ZIO.unit }
   }
 }
