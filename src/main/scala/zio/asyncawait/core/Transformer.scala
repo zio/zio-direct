@@ -17,7 +17,7 @@ import zio.asyncawait.core.metaprog.Embedder._
 // TODO replace all instances of ZIO.succeed with ZIO.attempt?
 //      need to look through cases to see which ones expect errors
 class Transformer(inputQuotes: Quotes) extends ModelPrinting {
-  implicit val transformerQuotes = inputQuotes
+  implicit val macroQuotes = inputQuotes
   import quotes.reflect._
 
   private case class ZioType(r: TypeRepr, e: TypeRepr, a: TypeRepr) {
@@ -150,7 +150,7 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
         case nextBlock: IR.Block =>
           compressBlock(block.head +: accum, nextBlock)
         case otherMonad =>
-          (accum, apply(otherMonad).asTerm)
+          (block.head +: accum, apply(otherMonad).asTerm)
 
     def apply(ir: IR): Expr[ZIO[?, ?, ?]] = {
       ir match
@@ -168,7 +168,7 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
             case '[t] =>
               '{ $monadExpr.asInstanceOf[ZIO[?, ?, t]].flatMap((v: t) =>
                 ${
-                  replaceSymbolInBodyMaybe(using transformerQuotes)(bodyExpr.asTerm)(valSymbol, ('v).asTerm).asExprOf[ZIO[?, ?, ?]]
+                  replaceSymbolInBodyMaybe(using macroQuotes)(bodyExpr.asTerm)(valSymbol, ('v).asTerm).asExprOf[ZIO[?, ?, ?]]
                 }
               ) } //.asInstanceOf[ZIO[?, ?, ?]]
         }
@@ -181,7 +181,7 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
           // TODO check that 'a' is the same as 't' here?
           case '[t] =>
             '{ $monadExpr.asInstanceOf[ZIO[?, ?, t]].map((v: t) =>
-              ${replaceSymbolInBodyMaybe(using transformerQuotes)(body)(valSymbol, ('v).asTerm).asExpr}
+              ${replaceSymbolInBodyMaybe(using macroQuotes)(body)(valSymbol, ('v).asTerm).asExpr}
             ) } // .asInstanceOf[ZIO[?, ?, ?]] // since the body has it's own term not specifying that here
             // TODO any ownership changes needed in the body?
 
@@ -189,6 +189,7 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
 
         case block: IR.Block =>
           val (stmts, term) = compressBlock(List(), block)
+          //println(s"----------- Block Stmts: ${stmts.map(_.show)}")
           Block(stmts, term).asExprOf[ZIO[?, ?, ?]]
 
         case IR.Match(scrutinee, caseDefs) =>
@@ -297,7 +298,7 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
         case IR.Parallel(unlifts, newTree) =>
           unlifts.toList match {
             case List() =>
-              println("=========== No Unlifts ==========")
+              //println("=========== No Unlifts ==========")
               '{ ZIO.succeed(${newTree.asExpr}) }
 
             /*
@@ -594,24 +595,33 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
       symbolLineage(sym.owner)
     }
 
-  def apply[T: Type](valueRaw: Expr[T]): Expr[ZIO[?, ?, ?]] = {
+  def apply[T: Type](valueRaw: Expr[T], instructions: Instructions): Expr[ZIO[?, ?, ?]] = {
     val value = valueRaw.asTerm.underlyingArgument
+
     // // Do a top-level transform to check that there are no invalid constructs
     // Allowed.validateBlocksIn(value.asExpr)
     // // Do the main transformation
     val transformed = Transform(value)
 
-    println("============== Before Render ==============")
-    println(mprint(transformed))
+    if (instructions.info == InfoBehavior.Verbose)
+      println("============== Deconstructed Instructions ==============\n" + mprint(transformed))
 
     val output = Render(transformed)
-    println("============== After Render ==============")
-    println(Format.Expr(output))
+    if (instructions.info == InfoBehavior.Info || instructions.info == InfoBehavior.Verbose)
+      println("============== Reconstituted Code ==============\n" + Format.Expr(output))
 
     val computedType = ComputeType(transformed)
 
     val zioType = computedType.toZioType
-    println(s"-------- Computed-Type: ${Format.TypeRepr(zioType)}. Discovered-Type: ${Format.TypeRepr(output.asTerm.tpe)}. Is Subtype: ${zioType <:< output.asTerm.tpe}")
+
+    if (instructions.info == InfoBehavior.Verbose)
+      println(
+        s"""-------------
+        |Computed-Type: ${Format.TypeRepr(zioType)}
+        |Discovered-Type: ${Format.TypeRepr(output.asTerm.tpe)}
+        |Is Subtype: ${zioType <:< output.asTerm.tpe}
+        |""".stripMargin
+      )
 
     // // TODO verify that there are no await calls left. Otherwise throw an error
     val ownerPositionOpt = topLevelOwner.pos
@@ -620,12 +630,13 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
       case ('[r], '[e], '[a]) =>
         val computedTypeMsg = s"Computed Type: ${Format.TypeOf[ZIO[r, e, a]]}"
 
-        ownerPositionOpt match {
-          case Some(pos) =>
-            report.info(computedTypeMsg, pos)
-          case None =>
-            report.info(computedTypeMsg)
-        }
+        if (instructions.info == InfoBehavior.Info || instructions.info == InfoBehavior.Verbose)
+          ownerPositionOpt match {
+            case Some(pos) =>
+              report.info(computedTypeMsg, pos)
+            case None =>
+              report.info(computedTypeMsg)
+          }
         '{ $output.asInstanceOf[ZIO[r, e, a]] }
     }
 

@@ -6,8 +6,8 @@ import fansi.Str
 import zio.asyncawait.core.util.Format
 
 trait ModelPrinting extends Model {
-  implicit val transformerQuotes: Quotes
-  import transformerQuotes.reflect
+  implicit val macroQuotes: Quotes
+  import macroQuotes.reflect
 
   def mprint(model: IR) =
     Format(new AstPrinter().apply(model).plainText)
@@ -65,8 +65,8 @@ trait ModelPrinting extends Model {
 }
 
 trait Model {
-  implicit val transformerQuotes: Quotes
-  import transformerQuotes.reflect._
+  implicit val macroQuotes: Quotes
+  import macroQuotes.reflect._
 
   protected sealed trait IR
   protected object IR {

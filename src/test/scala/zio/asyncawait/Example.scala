@@ -174,25 +174,49 @@ object Example {
     //       env <- ZIO.service[Config]
     //       value <- ZIO.succeed(env.value)
     //     } yield (value)
-    //   }))
+    //   }) == "blah")
     //     "foo"
     //   else
     //     "barr"
     // })
 
-    val out = (async {
-      if (await({
-        for {
-          env <- ZIO.service[Config]
-          value <- ZIO.succeed(env.value)
-        } yield (value)
-      }) == "x") // && await(ZIO.succeed("u")) == "u"
-        "foo"
-      else
-        "barr"
-    })
+    val out =
+      async.info {
+        val (x, y) = (await(ZIO.succeed("foo")), await(ZIO.succeed("bar")))
+        val (x1, y1) = (await(ZIO.succeed("foo2" + x)), await(ZIO.succeed("bar2" + y)))
+        x + x1 + y + y1
+      }
 
-    val provided = out.provide(ZLayer.succeed(Config("y")))
+    // Make a test for this
+    // val out =
+    //   async.verbose {
+    //     val (x, y) = (await(ZIO.succeed("foo")), await(ZIO.succeed("bar")))
+    //     val config = await(ZIO.service[Config])
+    //     x + config.value + y
+    //   }
+
+    // Noisy exception
+    // val out =
+    //   async.info {
+    //     val tup = (await(ZIO.succeed("foo")), await(ZIO.succeed("bar")))
+    //     val configValue =
+    //       await(ZIO.service[Config]) match {
+    //         case Config(value) => value
+    //       }
+    //     tup._1 + config.value + tup._2
+    //   }
+
+    // val out =
+    //   async.info {
+    //     val tup = (await(ZIO.succeed("foo")), await(ZIO.succeed("bar")))
+    //     val configValue =
+    //       await(ZIO.service[Config]) match {
+    //         case Config(value) => await(ZIO.succeed(value))
+    //       }
+    //     tup._1 + configValue + tup._2
+    //   }
+
+    val provided = out.provide(ZLayer.succeed(Config("x")))
 
     val outRun =
       zio.Unsafe.unsafe { implicit unsafe =>
