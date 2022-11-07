@@ -2,6 +2,7 @@ package zio.asyncawait
 
 import zio._
 import zio.asyncawait.core.util.debug.PrintMac
+import java.sql.SQLException
 
 object Example {
   // def funA():Unit = {
@@ -158,16 +159,15 @@ object Example {
   //     }
   //   println("====== RESULT: " + outRun)
   // }
+  //
+  //
+
+  case class Config(value: String) // // // // // // //
 
   def funH(): Unit = {
-    val out = (async {
-      if (await {
-          for {
-            //env <- ZIO.service[String]
-            out <- ZIO.succeed("1".toInt == 1)
-          } yield out
-        }
-        && await(ZIO.succeed("2".toInt == 2))
+
+    val out = (async { //
+      if (await(ZIO.attempt("2".toInt == 3))
       )
         "foo"
       else
@@ -179,11 +179,11 @@ object Example {
     //   blah("foo")("bar") + "baz"
     // })
 
-    val outRun =
-      zio.Unsafe.unsafe { implicit unsafe =>
-        zio.Runtime.default.unsafe.run(out).getOrThrow()
-      }
-    println("====== RESULT: " + outRun)
+    // val outRun =
+    //   zio.Unsafe.unsafe { implicit unsafe =>
+    //     zio.Runtime.default.unsafe.run(out).getOrThrow()
+    //   }
+    // println("====== RESULT: " + outRun)
   }
 
   def main(args: Array[String]): Unit = {
