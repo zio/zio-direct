@@ -1,4 +1,4 @@
-// package zio.asyncawait
+package zio.asyncawait
 
 // import zio._
 
@@ -26,3 +26,5 @@
 
 //   }
 // }
+
+case class Config(value: String)

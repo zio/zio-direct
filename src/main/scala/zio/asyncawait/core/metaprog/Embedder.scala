@@ -5,6 +5,35 @@ import zio.asyncawait.core.metaprog.Extractors._
 import zio.asyncawait.core.util.Format
 
 object Embedder {
+
+  def topLevelOwner(using Quotes): quotes.reflect.Symbol =
+    import quotes.reflect._
+    // Need to check the name because for some reason checking symbol flags recurisvely upward gives you
+    // a |dotty.tools.dotc.core.CyclicReference error.
+    findOwner(Symbol.spliceOwner, sym => sym.name == "macro")
+
+  object ZioApply {
+    def apply(using Quotes)(term: quotes.reflect.Term) =
+      import quotes.reflect._
+      term.tpe.widen.asType match
+        case '[t] =>
+          '{ zio.ZIO.succeed[t](${term.asExprOf[t]}) }
+
+    def True(using Quotes) =
+      import quotes.reflect._
+      apply(Expr(true).asTerm).asExprOf[zio.ZIO[Any, Nothing, Boolean]]
+
+    def False(using Quotes) =
+      import quotes.reflect._
+      apply(Expr(false).asTerm).asExprOf[zio.ZIO[Any, Nothing, Boolean]]
+  }
+
+
+  private def findOwner(using Quotes)(owner: quotes.reflect.Symbol, skipSymbol: quotes.reflect.Symbol => Boolean): quotes.reflect.Symbol =
+    var topOwner = owner
+    while (skipSymbol(topOwner)) topOwner = topOwner.owner
+    topOwner
+
   // TODO Maybe a better name? Alternative we can actually search for the old symbol and replace
   // it but that is much worse for performance
   /**
@@ -33,7 +62,7 @@ object Embedder {
     oldSymbolTerm match
       case Some(oldSymbol) =>
         val out = replaceSymbolIn(body)(oldSymbol, newSymbolTerm)
-        println(s"============+ Creating $oldSymbol:${Printer.TypeReprShortCode.show(oldSymbol.termRef.widen)} -> ${newSymbolTerm.show}:${Printer.TypeReprShortCode.show(newSymbolTerm.tpe.widen)} replacement let:\n${Format(Printer.TreeShortCode.show(out))}")
+        //println(s"============+ Creating $oldSymbol:${Printer.TypeReprShortCode.show(oldSymbol.termRef.widen)} -> ${newSymbolTerm.show}:${Printer.TypeReprShortCode.show(newSymbolTerm.tpe.widen)} replacement let:\n${Format(Printer.TreeShortCode.show(out))}")
         out
       case None =>
         body

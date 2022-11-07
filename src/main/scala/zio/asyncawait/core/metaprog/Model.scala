@@ -36,10 +36,13 @@ trait ModelPrinting extends Model {
           val sym = someSymbol.asInstanceOf[reflect.Symbol]
           // Need to tell the formatter to ignore these things because formatting will fail if it doesn't
           // so we put them into a scala comment, should figure out some better way to do it eventually.
-          Tree.Apply("SCALA_SYM", Iterator(Tree.Literal(s"/*${sym}*/")))
+          if (sym.isNoSymbol)
+            Tree.Literal("NO_SYMBOL")
+          else
+            Tree.Apply("SCALA_SYM", Iterator(Tree.Literal(s"/*${sym}*/")))
 
         case _ =>
-          println(s"CLASS OF: ${x.getClass()}")
+          //println(s"CLASS OF: ${x.getClass()}")
           super.treeify(x)
       }
 

@@ -3,6 +3,7 @@ package zio.asyncawait
 import zio._
 import zio.asyncawait.core.util.debug.PrintMac
 import java.sql.SQLException
+import java.io.IOException
 
 object Example {
   // def funA():Unit = {
@@ -162,28 +163,42 @@ object Example {
   //
   //
 
-  case class Config(value: String) // // // // // // //
+   // // // // // // // ..
 
   def funH(): Unit = {
 
-    val out = (async { //
-      if (await(ZIO.attempt("2".toInt == 3))
-      )
-        "foo"
-      else
-        "bar"
-    })
-
+    // Correct issue but error is misleading
     // val out = (async {
-    //   def blah(b: String)(c: String) = await(async(b + c))
-    //   blah("foo")("bar") + "baz"
+    //   if (await({
+    //     for {
+    //       env <- ZIO.service[Config]
+    //       value <- ZIO.succeed(env.value)
+    //     } yield (value)
+    //   }))
+    //     "foo"
+    //   else
+    //     "barr"
     // })
 
-    // val outRun =
-    //   zio.Unsafe.unsafe { implicit unsafe =>
-    //     zio.Runtime.default.unsafe.run(out).getOrThrow()
-    //   }
-    // println("====== RESULT: " + outRun)
+    val out = (async {
+      if (await({
+        for {
+          env <- ZIO.service[Config]
+          value <- ZIO.succeed(env.value)
+        } yield (value)
+      }) == "x") // && await(ZIO.succeed("u")) == "u"
+        "foo"
+      else
+        "barr"
+    })
+
+    val provided = out.provide(ZLayer.succeed(Config("y")))
+
+    val outRun =
+      zio.Unsafe.unsafe { implicit unsafe =>
+        zio.Runtime.default.unsafe.run(provided).getOrThrow()
+      }
+    println("====== RESULT: " + outRun)
   }
 
   def main(args: Array[String]): Unit = {

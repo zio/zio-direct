@@ -13,7 +13,9 @@ trait AsyncAwaitSpec extends ZIOSpecDefault {
 
   inline def runLiftTest[T](expected: T)(inline body: T) = {
     val asyncBody = async(body)
-    assertZIO(asyncBody)(Assertion.equalTo(expected))
+    // Not sure why but If I don't cast to .asInstanceOf[ZIO[Any, Nothing, ?]]
+    // zio says it expects a layer of scala.Nothing
+    assertZIO(asyncBody.asInstanceOf[ZIO[Any, Nothing, ?]])(Assertion.equalTo(expected))
   }
 
   transparent inline def runLiftFailMsg(errorStringContains: String)(body: String) = {

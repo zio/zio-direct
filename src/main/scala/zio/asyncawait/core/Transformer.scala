@@ -21,13 +21,15 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
   import quotes.reflect._
 
   private case class ZioType(r: TypeRepr, e: TypeRepr, a: TypeRepr) {
+    def show = s"ZioType(${Format.TypeRepr(r)}, ${Format.TypeRepr(e)}, ${Format.TypeRepr(a)})"
+
     def toZioType: TypeRepr =
       (r.asType, e.asType, a.asType) match
         case ('[r], '[e], '[a]) =>
           TypeRepr.of[ZIO[r, e, a]]
 
     def flatMappedWith(other: ZioType) =
-      ZioType(ZioType.union(r, other.r), ZioType.intersection(e, other.e), other.a)
+      ZioType(ZioType.and(r, other.r), ZioType.or(e, other.e), other.a)
 
     def mappedWith(other: Term) =
       ZioType(r, e, other.tpe)
@@ -48,23 +50,31 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
 
     def composeN(zioTypes: List[ZioType]): ZioType =
       val (rs, es, as) = zioTypes.map(zt => (zt.r, zt.e, zt.a)).unzip3
-      ZioType(unionN(rs), intersectionN(es), unionN(as))
+      val out = ZioType(andN(rs), orN(es), andN(as))
+      //println(s"composeN Inputs: ${zioTypes.map(_.show)}. Output: ${out.show}")
+      out
 
-    def unionN(types: List[TypeRepr]) =
-      types.foldLeft(TypeRepr.of[Any])(union(_, _))
+    def andN(types: List[TypeRepr]) =
+      if (types.length > 0)
+        types.reduce(and(_, _))
+      else
+        TypeRepr.of[Any]
 
-    def intersectionN(types: List[TypeRepr]) =
-      types.foldLeft(TypeRepr.of[Any])(intersection(_, _))
+    def orN(types: List[TypeRepr]) =
+      if (types.length > 0)
+        types.reduce(or(_, _))
+      else
+        TypeRepr.of[Nothing]
 
     def compose(a: ZioType, b: ZioType): ZioType =
-      ZioType(union(a.r, b.r), intersection(a.e, b.e), union(a.a, b.a))
+      ZioType(and(a.r, b.r), or(a.e, b.e), and(a.a, b.a))
 
-    def intersection(a: TypeRepr, b: TypeRepr) =
+    def or(a: TypeRepr, b: TypeRepr) =
       (a.widen.asType, b.widen.asType) match
         case ('[at], '[bt]) =>
           TypeRepr.of[at | bt].simplified
 
-    def union(a: TypeRepr, b: TypeRepr) =
+    def and(a: TypeRepr, b: TypeRepr) =
       // if either type is Any, specialize to the thing that is narrower
       val out =
       (a.widen.asType, b.widen.asType) match
@@ -77,7 +87,7 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
             TypeRepr.of[at]
           else
            TypeRepr.of[at with bt]
-      println(s"<<<<<<<<<<<< Union of (${Format.TypeRepr(a.widen)}, ${Format.TypeRepr(b.widen)}) = ${Format.TypeRepr(out)}")
+      //println(s"<<<<<<<<<<<< Union of (${Format.TypeRepr(a.widen)}, ${Format.TypeRepr(b.widen)}) = ${Format.TypeRepr(out)}")
       out
   }
   private object ComputeType {
@@ -144,7 +154,7 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
 
     def apply(ir: IR): Expr[ZIO[?, ?, ?]] = {
       ir match
-        case IR.Pure(code) => '{ ZIO.succeed(${code.asExpr}) }
+        case IR.Pure(code) => ZioApply(code)
 
         case IR.FlatMap(monad, valSymbol, body) => {
           val monadExpr = apply(monad)
@@ -160,7 +170,7 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
                 ${
                   replaceSymbolInBodyMaybe(using transformerQuotes)(bodyExpr.asTerm)(valSymbol, ('v).asTerm).asExprOf[ZIO[?, ?, ?]]
                 }
-              ).asInstanceOf[ZIO[?, ?, ?]] }
+              ) } //.asInstanceOf[ZIO[?, ?, ?]]
         }
 
         // Pull out the value from IR.Pure and use it directly in the mapping
@@ -172,7 +182,7 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
           case '[t] =>
             '{ $monadExpr.asInstanceOf[ZIO[?, ?, t]].map((v: t) =>
               ${replaceSymbolInBodyMaybe(using transformerQuotes)(body)(valSymbol, ('v).asTerm).asExpr}
-            ).asInstanceOf[ZIO[?, ?, ?]] } // since the body has it's own term not specifying that here
+            ) } // .asInstanceOf[ZIO[?, ?, ?]] // since the body has it's own term not specifying that here
             // TODO any ownership changes needed in the body?
 
         case IR.Monad(code) => code.asExprOf[ZIO[?, ?, ?]]
@@ -217,8 +227,8 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
           val conditionState =
             (ifTrue, ifFalse) match {
               case (IR.Puric(a), IR.Puric(b)) => ConditionState.BothPure(a, b)
-              case (IR.Puric(a), b: IR.Monadic) => ConditionState.BothMonadic(IR.Monad('{ ZIO.succeed(${a.asExpr}) }.asTerm), b)
-              case (a: IR.Monadic, IR.Puric(b)) => ConditionState.BothMonadic(a, IR.Monad('{ ZIO.succeed(${b.asExpr}) }.asTerm))
+              case (IR.Puric(a), b: IR.Monadic) => ConditionState.BothMonadic(IR.Monad(ZioApply(a).asTerm), b)
+              case (a: IR.Monadic, IR.Puric(b)) => ConditionState.BothMonadic(a, IR.Monad(ZioApply(b).asTerm))
               case (a: IR.Monadic, b: IR.Monadic) => ConditionState.BothMonadic(a, b)
             }
 
@@ -243,10 +253,10 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
                 case ConditionState.BothMonadic(ifTrue, ifFalse) =>
                     val ifTrueTerm = apply(ifTrue).asTerm
                     val ifFalseTerm = apply(ifFalse).asTerm
-                    If(value, ifTrueTerm, ifFalseTerm).asExprOf[ZIO[?, ?, ?]]
+                    ZioApply(If(value, ifTrueTerm, ifFalseTerm))
                 case ConditionState.BothPure(ifTrue, ifFalse) =>
                   val ifStatement = If(value, ifTrue, ifFalse)
-                  '{ ZIO.succeed(${ifStatement.asExpr}) }
+                  ZioApply(ifStatement)
               }
             }
           }
@@ -254,11 +264,11 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
         case expr @ IR.Bool.And(left, right) =>
           (left, right) match {
             case (a: IR.Monadic, b: IR.Monadic) =>
-              '{ ${apply(a)}.flatMap { case true => ${apply(b)}; case false => ZIO.succeed(false) } }
+              '{ ${apply(a)}.flatMap { case true => ${apply(b)}; case false => ${ZioApply.False} } }
             case (a: IR.Monadic, IR.Pure(b)) =>
-              '{ ${apply(a)}.map { case true => ${b.asExpr}; case false => false } }
+              '{ ${apply(a)}.map { case true => ${b.asExpr}; case false => ${ZioApply.False} } }
             case (IR.Pure(a), b: IR.Monadic) =>
-              '{ if (${a.asExprOf[Boolean]}) ${apply(b)} else ZIO.succeed(false) }
+              '{ if (${a.asExprOf[Boolean]}) ${apply(b)} else ZIO.succeed(${ZioApply.False}) }
             // case Pure/Pure is taken care by in the transformer on a higher-level via the PureTree case. Still, handle them just in case
             case (IR.Bool.Pure(a), IR.Bool.Pure(b)) =>
               '{ ZIO.succeed(${a.asExprOf[Boolean]} && ${b.asExprOf[Boolean]}) }
@@ -268,11 +278,11 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
         case expr @ IR.Bool.Or(left, right) =>
           (left, right) match {
             case (a: IR.Monadic, b: IR.Monadic) =>
-              '{ ${apply(a)}.flatMap { case true => ZIO.succeed(true); case false => ${apply(b)}  } }
+              '{ ${apply(a)}.flatMap { case true => ${ZioApply.True}; case false => ${apply(b)}  } }
             case (a: IR.Monadic, IR.Pure(b)) =>
-              '{ ${apply(a)}.map { case true => true; case false => ${b.asExpr} } }
+              '{ ${apply(a)}.map { case true => ${ZioApply.True}; case false => ${b.asExpr} } }
             case (IR.Pure(a), b: IR.Monadic) =>
-              '{ if (${a.asExprOf[Boolean]}) ZIO.succeed(true) else ${apply(b)} }
+              '{ if (${a.asExprOf[Boolean]}) ${ZioApply.True} else ${apply(b)} }
             // case Pure/Pure is taken care by in the transformer on a higher-level via the PureTree case. Still, handle them just in case
             case (IR.Bool.Pure(a), IR.Bool.Pure(b)) =>
               '{ ZIO.succeed(${a.asExprOf[Boolean]} || ${b.asExprOf[Boolean]}) }
@@ -348,8 +358,8 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
                     }
 
               val out = apply(IR.Monad(output.asTerm))
-              println(s"============ Computed Output: ${Format.TypeRepr(output.asTerm.tpe)}")
-              println("=========== Multiple unlift: ==========\n" + Format.Expr(output))
+              // println(s"============ Computed Output: ${Format.TypeRepr(output.asTerm.tpe)}")
+              // println("=========== Multiple unlift: ==========\n" + Format.Expr(output))
               out
           }
     }
@@ -357,7 +367,7 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
 
   private object Transform {
     def apply(term: Term): IR.Monadic =
-      unapply(term).getOrElse(IR.Monad('{ ZIO.succeed(${term.asExpr}) }.asTerm))
+      unapply(term).getOrElse(IR.Monad(ZioApply(term).asTerm))
 
     // TODO really use underlyingArgument????
     def unapply(expr: Term): Option[IR.Monadic] = {
@@ -465,7 +475,7 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
             }
           Some(IR.Parallel(unlifts.toList, newTree))
       }
-      println("================== DONE UNAPPLY ==================")
+      //println("================== DONE UNAPPLY ==================")
       ret
     }
   }
@@ -575,29 +585,48 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
       Some(applyMark(cases))
   }
 
-  def apply[T: Type](valueRaw: Expr[T]): Expr[ZIO[Any, Throwable, T]] = {
+  def symbolLineage(sym: Symbol): Unit =
+    if (sym.isNoSymbol) {
+      println(s"------- NO SYMBOL")
+      ()
+    } else {
+      println(s"------- Symbol: ${sym}. Synthetic: ${sym.flags.is(Flags.Synthetic)}. Macro: ${sym.flags.is(Flags.Macro)}") //Flags: ${sym.flags.show}
+      symbolLineage(sym.owner)
+    }
+
+  def apply[T: Type](valueRaw: Expr[T]): Expr[ZIO[?, ?, ?]] = {
     val value = valueRaw.asTerm.underlyingArgument
     // // Do a top-level transform to check that there are no invalid constructs
     // Allowed.validateBlocksIn(value.asExpr)
     // // Do the main transformation
     val transformed = Transform(value)
+
+    println("============== Before Render ==============")
     println(mprint(transformed))
 
     val output = Render(transformed)
+    println("============== After Render ==============")
+    println(Format.Expr(output))
 
     val computedType = ComputeType(transformed)
 
     val zioType = computedType.toZioType
-    println(s"-------- Computed Type: ${Format.TypeRepr(zioType)}")
-    // // TODO verify that there are no await calls left. Otherwise throw an error
-    // transformed
+    println(s"-------- Computed-Type: ${Format.TypeRepr(zioType)}. Discovered-Type: ${Format.TypeRepr(output.asTerm.tpe)}. Is Subtype: ${zioType <:< output.asTerm.tpe}")
 
-    //
+    // // TODO verify that there are no await calls left. Otherwise throw an error
+    val ownerPositionOpt = topLevelOwner.pos
+
     (computedType.r.asType, computedType.e.asType, computedType.a.asType) match {
       case ('[r], '[e], '[a]) =>
-        val outputType = TypeRepr.of[ZIO[Any | r, e & Throwable, a & T]]
-        println(s"-------- Output Type: ${Format.TypeRepr(outputType)}")
-        '{ $output.asInstanceOf[ZIO[Any | r, e & Throwable, a & T]] }
+        val computedTypeMsg = s"Computed Type: ${Format.TypeOf[ZIO[r, e, a]]}"
+
+        ownerPositionOpt match {
+          case Some(pos) =>
+            report.info(computedTypeMsg, pos)
+          case None =>
+            report.info(computedTypeMsg)
+        }
+        '{ $output.asInstanceOf[ZIO[r, e, a]] }
     }
 
     //  '{ $output.asInstanceOf[ZIO[Any, Throwable, T]] }
