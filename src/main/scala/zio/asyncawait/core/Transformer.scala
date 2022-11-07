@@ -554,8 +554,10 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
     // // Do the main transformation
     val transformed = Transform(value)
     println(mprint(transformed))
+
+    val output = Render(transformed)
     // // TODO verify that there are no await calls left. Otherwise throw an error
     // transformed
-    '{ ZIO.unit }
+    '{ $output.asInstanceOf[ZIO[Any, Throwable, T]] }
   }
 }

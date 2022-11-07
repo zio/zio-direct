@@ -160,10 +160,10 @@ object Example {
   // }
 
   def funH(): Unit = {
-    val v = (async {
+    val out = (async {
       if (await {
           for {
-            env <- ZIO.service[String]
+            //env <- ZIO.service[String]
             out <- ZIO.succeed("1".toInt == 1)
           } yield out
         }
@@ -179,11 +179,11 @@ object Example {
     //   blah("foo")("bar") + "baz"
     // })
 
-    // val outRun =
-    //   zio.Unsafe.unsafe { implicit unsafe =>
-    //     zio.Runtime.default.unsafe.run(out).getOrThrow()
-    //   }
-    // println("====== RESULT: " + outRun)
+    val outRun =
+      zio.Unsafe.unsafe { implicit unsafe =>
+        zio.Runtime.default.unsafe.run(out).getOrThrow()
+      }
+    println("====== RESULT: " + outRun)
   }
 
   def main(args: Array[String]): Unit = {
