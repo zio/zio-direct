@@ -14,7 +14,8 @@ import zio.asyncawait.core.util.ComputeTotalZioType
 import zio.asyncawait.core.metaprog.ModelPrinting
 import zio.asyncawait.core.metaprog.Embedder._
 
-
+// TODO replace all instances of ZIO.succeed with ZIO.attempt?
+//      need to look through cases to see which ones expect errors
 class Transformer(inputQuotes: Quotes) extends ModelPrinting {
   implicit val transformerQuotes = inputQuotes
   import quotes.reflect._
@@ -64,6 +65,7 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
             '{ $monadExpr.asInstanceOf[ZIO[?, ?, t]].map((v: t) =>
               ${replaceSymbolInBodyMaybe(using transformerQuotes)(body)(valSymbol, ('v).asTerm).asExpr}
             ).asInstanceOf[ZIO[?, ?, ?]] } // since the body has it's own term not specifying that here
+            // TODO any ownership changes needed in the body?
 
         case IR.Monad(code) => code.asExprOf[ZIO[?, ?, ?]]
 
@@ -99,9 +101,49 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
               // treat the whole thing as a ZIO (i.e. monadic) expression
               newMatch.asExprOf[ZIO[?, ?, ?]]
 
-        case IR.If(cond, ifTrue, ifFalse) => ???
+        case IR.If(cond, ifTrue, ifFalse) =>
+          enum ConditionState:
+            case BothPure(ifTrue: Term, ifFalse: Term)
+            case BothMonadic(ifTrue: IR.Monadic, ifFalse: IR.Monadic)
 
-        case IR.Bool.And(left, right) =>
+          val conditionState =
+            (ifTrue, ifFalse) match {
+              case (IR.Puric(a), IR.Puric(b)) => ConditionState.BothPure(a, b)
+              case (IR.Puric(a), b: IR.Monadic) => ConditionState.BothMonadic(IR.Monad('{ ZIO.succeed(${a.asExpr}) }.asTerm), b)
+              case (a: IR.Monadic, IR.Puric(b)) => ConditionState.BothMonadic(a, IR.Monad('{ ZIO.succeed(${b.asExpr}) }.asTerm))
+              case (a: IR.Monadic, b: IR.Monadic) => ConditionState.BothMonadic(a, b)
+            }
+
+          cond match {
+            case m: IR.Monadic => {
+              val sym = Symbol.newVal(Symbol.spliceOwner, "ifVar", TypeRepr.of[Boolean], Flags.EmptyFlags, Symbol.noSymbol)
+              conditionState match {
+                // For example: if(await(something)) await(foo) else await(bar)
+                // => something.map(ifVar => (foo, bar) /*replace-to-ifVar*/)
+                // Note that in this case we embed foo, bar into the if-statement. They are ZIO-values which is why we need a flatMap
+                case ConditionState.BothMonadic(ifTrue, ifFalse) =>
+                  val ifTrueTerm = apply(ifTrue).asTerm
+                  val ifFalseTerm = apply(ifFalse).asTerm
+                  apply(IR.FlatMap(m, sym, IR.Monad(If(Ref(sym), ifTrueTerm, ifFalseTerm))))
+                // For example: if(await(something)) "foo" else "bar"
+                case ConditionState.BothPure(ifTrue, ifFalse) =>
+                  apply(IR.Map(m, sym, IR.Pure(If(Ref(sym), ifTrue, ifFalse))))
+              }
+            }
+            case IR.Bool.Pure(value) => {
+              conditionState match {
+                case ConditionState.BothMonadic(ifTrue, ifFalse) =>
+                    val ifTrueTerm = apply(ifTrue).asTerm
+                    val ifFalseTerm = apply(ifFalse).asTerm
+                    If(value, ifTrueTerm, ifFalseTerm).asExprOf[ZIO[?, ?, ?]]
+                case ConditionState.BothPure(ifTrue, ifFalse) =>
+                  val ifStatement = If(value, ifTrue, ifFalse)
+                  '{ ZIO.succeed(${ifStatement.asExpr}) }
+              }
+            }
+          }
+
+        case expr @ IR.Bool.And(left, right) =>
           (left, right) match {
             case (a: IR.Monadic, b: IR.Monadic) =>
               '{ ${apply(a)}.flatMap { case true => ${apply(b)}; case false => ZIO.succeed(false) } }
@@ -109,12 +151,30 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
               '{ ${apply(a)}.map { case true => ${b.asExpr}; case false => false } }
             case (IR.Pure(a), b: IR.Monadic) =>
               '{ if (${a.asExprOf[Boolean]}) ${apply(b)} else ZIO.succeed(false) }
-            // case Pure/Pure is taken care by in the transformer on a higher-level via the PureTree case
+            // case Pure/Pure is taken care by in the transformer on a higher-level via the PureTree case. Still, handle them just in case
+            case (IR.Bool.Pure(a), IR.Bool.Pure(b)) =>
+              '{ ZIO.succeed(${a.asExprOf[Boolean]} && ${b.asExprOf[Boolean]}) }
+            case _ => report.errorAndAbort(s"Invalid boolean variable combination:\n${mprint(expr)}")
           }
 
-        case IR.Bool.Or(left, right) => ???
+        case expr @ IR.Bool.Or(left, right) =>
+          (left, right) match {
+            case (a: IR.Monadic, b: IR.Monadic) =>
+              '{ ${apply(a)}.flatMap { case true => ZIO.succeed(true); case false => ${apply(b)}  } }
+            case (a: IR.Monadic, IR.Pure(b)) =>
+              '{ ${apply(a)}.map { case true => true; case false => ${b.asExpr} } }
+            case (IR.Pure(a), b: IR.Monadic) =>
+              '{ if (${a.asExprOf[Boolean]}) ZIO.succeed(true) else ${apply(b)} }
+            // case Pure/Pure is taken care by in the transformer on a higher-level via the PureTree case. Still, handle them just in case
+            case (IR.Bool.Pure(a), IR.Bool.Pure(b)) =>
+              '{ ZIO.succeed(${a.asExprOf[Boolean]} || ${b.asExprOf[Boolean]}) }
+            case _ => report.errorAndAbort(s"Invalid boolean variable combination:\n${mprint(expr)}")
+          }
 
-        case IR.Bool.Pure(code) => ??? // back here
+        // Note, does not get here when it's a IR.Map function, the value is directly embedded since it
+        // does not need to be wrapped into a ZIO in that case.
+        case IR.Bool.Pure(code) =>
+          '{ ZIO.succeed(${code.asExpr}) }
     }
   }
 
@@ -129,22 +189,24 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
           None
 
         case If(cond, ifTrue, ifFalse) =>
-          cond match
-            case Transform(monad) =>
-              val sym = Symbol.newVal(Symbol.spliceOwner, "ifVar", TypeRepr.of[Boolean], Flags.EmptyFlags, Symbol.noSymbol)
-              val body = If(Ref(sym), ifTrue, ifFalse)
-              Some(IR.FlatMap(monad, sym, IR.Monad(body)))
-            case _ =>
-              (ifTrue, ifFalse) match {
-                case (Transform(ifTrue), Transform(ifFalse)) =>
-                  Some(IR.If(IR.Bool.Pure(cond), ifTrue, ifFalse))
-                case (Transform(ifTrue), ifFalse) =>
-                  Some(IR.If(IR.Bool.Pure(cond), ifTrue, IR.Monad('{ ZIO.succeed(${ifFalse.asExpr}) }.asTerm)))
-                case (ifTrue, Transform(ifFalse)) =>
-                  Some(IR.If(IR.Bool.Pure(cond), IR.Monad('{ ZIO.succeed(${ifTrue.asExpr}) }.asTerm), ifFalse))
-                case (ifTrue, ifFalse) =>
-                  None
-              }
+          // NOTE: Code below is quite inefficient, do instead do this:
+          // (Transform.unapply(ifTrue), Transform.unapply(ifFalse)). Then match on the Some/Some, Some/None, etc... cases
+          val (ifTrueIR, ifFalseIR) =
+            (ifTrue, ifFalse) match {
+              case (Transform(ifTrue), Transform(ifFalse)) =>
+                (ifTrue, ifFalse)
+              case (Transform(ifTrue), ifFalse) =>
+                (ifTrue, IR.Pure(ifFalse))
+              case (ifTrue, Transform(ifFalse)) =>
+                (IR.Pure(ifTrue), ifFalse)
+              case (ifTrue, ifFalse) =>
+                (IR.Pure(ifTrue), IR.Pure(ifFalse))
+          }
+          val condIR: IR.Monadic | IR.Bool.Pure =
+            cond match
+              case Transform(monad) => monad
+              case _ => IR.Bool.Pure(cond)
+          Some(IR.If(condIR, ifTrueIR, ifFalseIR))
 
         case Seal('{ ($a: Boolean) && ($b: Boolean) }) =>
           (a.asTerm, b.asTerm) match {

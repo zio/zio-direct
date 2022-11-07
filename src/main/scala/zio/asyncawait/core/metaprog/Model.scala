@@ -68,6 +68,14 @@ trait Model {
   protected sealed trait IR
   protected object IR {
     sealed trait Monadic extends IR
+    sealed trait Puric extends IR
+    object Puric {
+      def unapply(p: IR.Puric) =
+        p match
+          case IR.Pure(term) => Some(term)
+          case IR.Bool.Pure(term) => Some(term)
+    }
+
     case class FlatMap(monad: Monadic, valSymbol: Option[Symbol], body: IR.Monadic) extends Monadic
     object FlatMap {
       def apply(monad: IR.Monadic, valSymbol: Symbol, body: IR.Monadic) =
@@ -91,8 +99,8 @@ trait Model {
 
     // Since we ultimately transform If statements into Task[Boolean] segments, they are monadic
     // TODO during transformation, decided cases based on if ifTrue/ifFalse is monadic or not
-    case class If(cond: IR.Bool, ifTrue: IR, ifFalse: IR) extends Monadic
-    case class Pure(code: Term) extends IR
+    case class If(cond: IR.Bool | IR.Monadic, ifTrue: IR, ifFalse: IR) extends Monadic
+    case class Pure(code: Term) extends IR with Puric
 
     sealed trait Bool extends IR
     object Bool {
@@ -101,7 +109,7 @@ trait Model {
       // we can treat And/Or as monadic (i.e. return the from the main Transform)
       case class And(left: IR.Bool.Pure | IR.Monadic, right: IR.Bool.Pure | IR.Monadic) extends Bool with Monadic
       case class Or(left: IR.Bool.Pure | IR.Monadic, right: IR.Bool.Pure | IR.Monadic) extends Bool with Monadic
-      case class Pure(code: Term) extends Bool
+      case class Pure(code: Term) extends Bool with Puric
     }
   }
 }
