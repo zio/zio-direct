@@ -599,7 +599,7 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
     val value = valueRaw.asTerm.underlyingArgument
 
     // // Do a top-level transform to check that there are no invalid constructs
-    // Allowed.validateBlocksIn(value.asExpr)
+    Allowed.validateBlocksIn(value.asExpr)
     // // Do the main transformation
     val transformed = Transform(value)
 

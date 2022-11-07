@@ -12,10 +12,10 @@ trait AsyncAwaitSpec extends ZIOSpecDefault {
     "Detected an `await` call inside of an unsupported structure"
 
   inline def runLiftTest[T](expected: T)(inline body: T) = {
-    val asyncBody = async.verbose(body)
+    val asyncBody = async(body)
     // Not sure why but If I don't cast to .asInstanceOf[ZIO[Any, Nothing, ?]]
     // zio says it expects a layer of scala.Nothing
-    assertZIO(asyncBody)(Assertion.equalTo(expected))
+    assertZIO(asyncBody.asInstanceOf[ZIO[Any, ?, ?]])(Assertion.equalTo(expected))
   }
 
   transparent inline def runLiftFailMsg(errorStringContains: String)(body: String) = {
