@@ -180,12 +180,12 @@
 //     //     "barr"
 //     // })
 
-//     val out =
-//       async.info {
-//         val (x, y) = (await(ZIO.succeed("foo")), await(ZIO.succeed("bar")))
-//         val (x1, y1) = (await(ZIO.succeed("foo2" + x)), await(ZIO.succeed("bar2" + y)))
-//         x + x1 + y + y1
-//       }
+//     // val out =
+//     //   async.info {
+//     //     val (x, y) = (await(ZIO.succeed("foo")), await(ZIO.succeed("bar")))
+//     //     val (x1, y1) = (await(ZIO.succeed("foo2" + x)), await(ZIO.succeed("bar2" + y)))
+//     //     x + x1 + y + y1
+//     //   }
 
 //     // Make a test for this
 //     // val out =
@@ -216,7 +216,13 @@
 //     //     tup._1 + configValue + tup._2
 //     //   }
 
-//     val provided = out.provide(ZLayer.succeed(Config("x")))
+//     val out =
+//       async {
+//         def a(i: Int, s: String) = await(async(i)) + s.toInt
+//         a(1, "2") + await(async(1))
+//       }
+
+//     val provided = out //.provide(ZLayer.succeed(Config("x")))
 
 //     val outRun =
 //       zio.Unsafe.unsafe { implicit unsafe =>
