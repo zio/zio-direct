@@ -175,6 +175,75 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
         // does not need to be wrapped into a ZIO in that case.
         case IR.Bool.Pure(code) =>
           '{ ZIO.succeed(${code.asExpr}) }
+
+        case IR.Parallel(unlifts, newTree) =>
+          unlifts.toList match {
+            case List() =>
+              println("=========== No Unlifts ==========")
+              '{ ZIO.succeed(${newTree.asExpr}) }
+
+            /*
+            For a expression (in a single block-line) that has one await in the middle of things e.g.
+            { await(foo) + bar }
+            Needs to turn into something like:
+            { await(foo).map(fooVal => fooVal + bar) }
+            When thinking about types, it looks something like:
+            { (await(foo:Task[t]):t + bar):r }
+            { await(foo:t):Task[t].map[r](fooVal:t => (fooVal + bar):r) }
+            */
+            case List((monad, name)) =>
+              val out =
+              (monad.tpe.asType, newTree.tpe.asType) match
+                case ('[ZIO[x, y, t]], '[r]) =>
+                  val mtpe = MethodType(List("sm"))(_ => List(TypeRepr.of[t]), _ => TypeRepr.of[r])
+                  val lam =
+                    Lambda(Symbol.spliceOwner, mtpe, {
+                        case (methSym, List(sm: Term)) =>
+                          replaceSymbolIn(newTree)(name, sm).changeOwner(methSym)
+                        case _ =>
+                          report.errorAndAbort(s"Invalid lambda created for: ${Format.Tree(monad)}.flatMap of ${Format.Tree(newTree)}. This should not be possible.")
+                      }
+                    )
+                  apply(IR.Monad('{ ${monad.asExprOf[ZIO[?, ?, t]]}.map[r](${lam.asExprOf[t => r]}) }.asTerm))
+              //println("=========== Single unlift: ==========\n" + Format.Term(out.get.code))
+              out
+
+            case unlifts =>
+              val unliftTriples =
+                unlifts.map(
+                  (term, name) => {
+                    val tpe =
+                      term.tpe.asType match
+                        case '[ZIO[x, y, t]] => TypeRepr.of[t]
+                    (term, name, tpe)
+                })
+              val (terms, names, types) = unliftTriples.unzip3
+              val termsExpr = Expr.ofList(terms.map(_.asExprOf[ZIO[?, ?, ?]]))
+              val collect = '{ ZIO.collectAll(Chunk.from($termsExpr)) }
+              def makeVariables(iterator: Expr[Iterator[?]]) =
+                unliftTriples.map((monad, symbol, tpe) =>
+                    tpe.asType match {
+                      case '[t] =>
+                        ValDef(symbol, Some('{ $iterator.next().asInstanceOf[t] }.asTerm))
+                    }
+                )
+
+              val totalType = ComputeTotalZioType.valueOf(terms: _*)
+              val output =
+                totalType.asType match
+                  case '[t] =>
+                    '{
+                      $collect.map(terms => {
+                        val iter = terms.iterator
+                        ${ Block(makeVariables('iter), newTree).asExpr }
+                      }).asInstanceOf[ZIO[?, ?, t]]
+                    }
+
+              val out = apply(IR.Monad(output.asTerm))
+              println(s"============ Computed Output: ${Format.TypeRepr(output.asTerm.tpe)}")
+              println("=========== Multiple unlift: ==========\n" + Format.Expr(output))
+              out
+          }
     }
   }
 
@@ -268,179 +337,30 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
         case Typed(tree, _) =>
           unapply(tree)
 
-        // Change something that looks like this:
+
+        // This is perhaps the most powerful component of the monadless-paradigm. It changes something that looks like this:
         // { (unlift(foo), unlift(bar)) }
         // To something that looks like:
         // { ZIO.collect(foo, bar).map(iter => val a = iter.next(); val b = iter.next(); (a, b)) }
-        // TODO MAJOR Only support parallel awaits for strict-set of known constructs
-        //      Examine set of cases where this occurs. Then as a final case
-        //      Check that there are awaits in any other kind of construct
-        //      and throw an unsupproted-construct exception.
         case term => // @ Allowed.ParallelExpression()
-          println(s"=============== Other: ${Format(Printer.TreeShortCode.show(term))}")
-          val unlifts = mutable.ArrayBuffer.empty[(Term, Symbol, TypeRepr)]
+          val unlifts = mutable.ArrayBuffer.empty[(Term, Symbol)]
           val newTree: Term =
             Trees.Transform(term, Symbol.spliceOwner) {
               case Seal('{ await[r, e, a]($task) }) =>
+                // TODO Maybe should store this type in the ulifts after-all to not have to compute it multiple times?
                 val tpe =
                   task.asTerm.tpe.asType match
                     case '[ZIO[x, y, t]] => TypeRepr.of[t]
-                // (unlift(A), unlift(B))
-                // Would yield
-                // (newSymA:Symbol, Ident(newSymA)), (newSymA:Symbol, Ident(newSymB))
-                // The idents would be swapped back into the expressions and A, B
-                // would be stored in the unlifts array
-
                 val sym = Symbol.newVal(Symbol.spliceOwner, "par", tpe, Flags.EmptyFlags, Symbol.noSymbol)
-                unlifts += ((task.asTerm, sym, tpe))
+                unlifts += ((task.asTerm, sym))
                 Ref(sym)
-
-                // val (sym, symId) =
-                //   useNewSymbolIn(tpe)(symId => symId)
-                // unlifts += ((task.asTerm, sym, tpe))
-                // symId
             }
-
-          unlifts.toList match {
-            case List() =>
-              println("=========== No Unlifts ==========")
-              None
-
-            /*
-            For a expression (in a single block-line) that has one await in the middle of things e.g.
-            { await(foo) + bar }
-            Needs to turn into something like:
-            { await(foo).map(fooVal => fooVal + bar) }
-            When thinking about types, it looks something like:
-            { (await(foo:Task[t]):t + bar):r }
-            { await(foo:t):Task[t].map[r](fooVal:t => (fooVal + bar):r) }
-            */
-            case List((monad, name, tpe)) =>
-              val out =
-              (tpe.asType, newTree.tpe.asType) match
-                case ('[t], '[r]) =>
-                  val mtpe = MethodType(List("sm"))(_ => List(TypeRepr.of[t]), _ => TypeRepr.of[r])
-                  val lam =
-                    Lambda(Symbol.spliceOwner, mtpe, {
-                        case (methSym, List(sm: Term)) =>
-                          replaceSymbolIn(newTree)(name, sm).changeOwner(methSym)
-                        case _ =>
-                          report.errorAndAbort(s"Invalid lambda created for: ${Format.Tree(monad)}.flatMap of ${Format.Tree(newTree)}. This should not be possible.")
-                      }
-                    )
-                  Some(IR.Monad('{ ${monad.asExprOf[ZIO[?, ?, t]]}.map[r](${lam.asExprOf[t => r]}) }.asTerm))
-
-              println("=========== Single unlift: ==========\n" + Format.Term(out.get.code))
-              out
-
-            case unlifts =>
-              val (terms, names, types) = unlifts.unzip3
-              val termsExpr = Expr.ofList(terms.map(_.asExprOf[ZIO[?, ?, ?]]))
-              val collect = '{ ZIO.collectAll(Chunk.from($termsExpr)) }
-              def makeVariables(iterator: Expr[Iterator[?]]) =
-                unlifts.map((monad, symbol, tpe) =>
-                    tpe.asType match {
-                      case '[t] =>
-                        ValDef(symbol, Some('{ $iterator.next().asInstanceOf[t] }.asTerm))
-                    }
-                )
-
-              val totalType = ComputeTotalZioType.valueOf(terms: _*)
-              val output =
-                totalType.asType match
-                  case '[t] =>
-                    '{
-                      $collect.map(terms => {
-                        val iter = terms.iterator
-                        ${ Block(makeVariables('iter), newTree).asExpr }
-                      }).asInstanceOf[ZIO[?, ?, t]]
-                    }
-
-              val out = Some(IR.Monad(output.asTerm))
-              println(s"============ Computed Output: ${Format.TypeRepr(output.asTerm.tpe)}")
-              println("=========== Multiple unlift: ==========\n" + Format.Expr(output))
-              out
-          }
+          Some(IR.Parallel(unlifts.toList, newTree))
       }
       println("================== DONE UNAPPLY ==================")
       ret
     }
   }
-
-  // private object Nest {
-  //   enum NestType:
-  //     case ValDef(symbol: Symbol)
-  //     case Wildcard
-
-  //   /**
-  //     * This will actually take some block of code (that is either in a ZIO or just 'pure' code)
-  //     * and will nest it into the previously-sequenced ZIO. If it is ZIO code, it will
-  //     * flatMap from the previously-sequenced ZIO, otherwise it map.
-  //     */
-  //   def apply(monad: Expr[ZIO[?, ?, ?]], nestType: NestType, bodyRaw: Expr[_]): Expr[ZIO[?, ?, ?]] = {
-  //     def symbolType =
-  //       nestType match
-  //         case NestType.ValDef(oldSymbol) =>
-  //           oldSymbol.termRef.widenTermRefByName.asType
-  //         case _ =>
-  //           monad.asTerm.tpe.asType match
-  //             case '[ZIO[r, e, a]] => Type.of[a]
-
-  //     // def decideMonadType[MonadType: Type] =
-  //     //   val monadType = Type.of[MonadType]
-  //     //   monadType match
-  //     //     case '[Any] =>
-  //     //       oldSymbolType match
-  //     //         case Some(value) => (value.asType, true)
-  //     //         case None => (monadType, false)
-  //     //     case _ =>
-  //     //       (monadType, false)
-
-  //     def replaceSymbolInBody(body: Term)(newSymbolTerm: Term) =
-  //       nestType match
-  //         case NestType.ValDef(oldSymbol) =>
-  //           /**
-  //            * In a case where we have:
-  //            *  val a = unlift(foobar)
-  //            *  otherStuff
-  //            *
-  //            * We can either lift that into:
-  //            *  unlift(foobar).flatMap { v => (otherStuff /*with replaced a -> v*/) }
-  //            *
-  //            * Or we can just do
-  //            *  unlift(foobar).flatMap { v => { val a = v; otherStuff /* with the original a variable*/ } }
-  //            *
-  //            * I think the 2nd variant more performant but keeping 1st one (Trees.replaceIdent(...)) around for now.
-  //            */
-  //           //Trees.replaceIdent(using transformerQuotes)(body)(oldSymbol, newSymbolTerm.symbol)
-
-  //           val out = replaceSymbolIn(body)(oldSymbol, newSymbolTerm)
-  //           println(s"============+ Creating $oldSymbol:${Printer.TypeReprShortCode.show(oldSymbol.termRef.widen)} -> ${newSymbolTerm.show}:${Printer.TypeReprShortCode.show(newSymbolTerm.tpe.widen)} replacement let:\n${Format(Printer.TreeShortCode.show(out))}")
-  //           out
-
-  //         case NestType.Wildcard =>
-  //           body
-
-  //     bodyRaw match {
-  //       // q"${Resolve.flatMap(monad.pos, monad)}(${toVal(name)} => $body)"
-  //       case Transform(body) =>
-  //         symbolType match
-  //           case '[t] =>
-  //             '{ $monad.asInstanceOf[ZIO[?, ?, t]].flatMap((v: t) =>
-  //               ${replaceSymbolInBody(body)(('v).asTerm).asExprOf[ZIO[?, ?, ?]]}
-  //             ).asInstanceOf[ZIO[?, ?, ?]] }
-
-  //       // q"${Resolve.map(monad.pos, monad)}(${toVal(name)} => $body)"
-  //       case body            =>
-  //         symbolType match
-  //           // TODO check that 'a' is the same as 't' here?
-  //           case '[t] =>
-  //             '{ $monad.asInstanceOf[ZIO[?, ?, t]].map((v: t) =>
-  //               ${replaceSymbolInBody(body.asTerm)(('v).asTerm).asExpr}
-  //             ).asInstanceOf[ZIO[?, ?, ?]] } // since the body has it's own term not specifying that here
-  //     }
-  //   }
-  // }
 
   /**
     * Transform a sequence of steps

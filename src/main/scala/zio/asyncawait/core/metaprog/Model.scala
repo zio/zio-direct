@@ -111,5 +111,7 @@ trait Model {
       case class Or(left: IR.Bool.Pure | IR.Monadic, right: IR.Bool.Pure | IR.Monadic) extends Bool with Monadic
       case class Pure(code: Term) extends Bool with Puric
     }
+
+    case class Parallel(monads: List[(Term, Symbol)], body: Term) extends Monadic
   }
 }
