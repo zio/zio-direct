@@ -28,8 +28,11 @@ class Transformer(inputQuotes: Quotes)
   import quotes.reflect._
 
   private object Decompose {
-    def apply(term: Term): IR.Monadic =
-      unapply(term).getOrElse(IR.Monad(ZioApply(term).asTerm))
+    def orPure(term: Term): IR =
+      unapply(term).getOrElse(IR.Pure(term))
+
+    def orPure2(termA: Term, termB: Term): (IR, IR) =
+      (unapply(termA).getOrElse(IR.Pure(termA)), unapply(termB).getOrElse(IR.Pure(termB)))
 
     // TODO really use underlyingArgument????
     def unapply(expr: Term): Option[IR.Monadic] = {
@@ -40,44 +43,24 @@ class Transformer(inputQuotes: Quotes)
         case If(cond, ifTrue, ifFalse) =>
           // NOTE: Code below is quite inefficient, do instead do this:
           // (Decompose.unapply(ifTrue), Decompose.unapply(ifFalse)). Then match on the Some/Some, Some/None, etc... cases
-          val (ifTrueIR, ifFalseIR) =
-            (ifTrue, ifFalse) match {
-              case (Decompose(ifTrue), Decompose(ifFalse)) =>
-                (ifTrue, ifFalse)
-              case (Decompose(ifTrue), ifFalse) =>
-                (ifTrue, IR.Pure(ifFalse))
-              case (ifTrue, Decompose(ifFalse)) =>
-                (IR.Pure(ifTrue), ifFalse)
-              case (ifTrue, ifFalse) =>
-                (IR.Pure(ifTrue), IR.Pure(ifFalse))
-          }
-          val condIR: IR.Monadic | IR.Pure =
-            cond match
-              case Decompose(monad) => monad
-              case _ => IR.Pure(cond)
+          val (ifTrueIR, ifFalseIR) = Decompose.orPure2(ifTrue, ifFalse)
+          val condIR = Decompose.orPure(cond)
           Some(IR.If(condIR, ifTrueIR, ifFalseIR))
 
         case Seal('{ ($a: Boolean) && ($b: Boolean) }) =>
-          (a.asTerm, b.asTerm) match {
-            case (Decompose(a), Decompose(b)) =>
-              Some(IR.And(a, b))
-            case (Decompose(a), b) =>
-              Some(IR.And(a, IR.Pure(b)))
-            case (a, Decompose(b)) =>
-              Some(IR.And(IR.Pure(a), b))
-            // case (a, b) is handled by the PureTree case
-          }
+          // the actual case where they are both cure is handled by the PureTree case
+          val (aTerm, bTerm) = Decompose.orPure2(a.asTerm, b.asTerm)
+          Some(IR.And(aTerm, bTerm))
 
         case Seal('{ ($a: Boolean) || ($b: Boolean) }) =>
-          (a.asTerm, b.asTerm) match {
-            case (Decompose(a), Decompose(b)) =>
-              Some(IR.Or(a, b))
-            case (Decompose(a), b) =>
-              Some(IR.Or(a, IR.Pure(b)))
-            case (a, Decompose(b)) =>
-              Some(IR.And(IR.Pure(a), b))
-            // case (a, b) is handled by the PureTree case
-          }
+          // the actual case where they are both cure is handled by the PureTree case
+          val (aTerm, bTerm) = Decompose.orPure2(a.asTerm, b.asTerm)
+          Some(IR.Or(aTerm, bTerm))
+
+        case tryTerm @ Try(tryBlock, caseDefs, finallyBlock) =>
+          val tryBlockIR = Decompose.orPure(tryBlock)
+          val cases = DecomposeCases(caseDefs)
+          Some(IR.Try(Decompose.orPure(tryBlock), DecomposeCases(caseDefs), tryTerm.tpe, finallyBlock.map(Decompose.orPure(_))))
 
         case block @ Block(parts, lastPart) if (parts.nonEmpty) =>
           DecomposeBlock.unapply(block)
@@ -137,7 +120,6 @@ class Transformer(inputQuotes: Quotes)
             }
           Some(IR.Parallel(unlifts.toList, newTree))
       }
-      //println("================== DONE UNAPPLY ==================")
       ret
     }
   }
@@ -225,12 +207,6 @@ class Transformer(inputQuotes: Quotes)
 
 
   private object DecomposeCases {
-    // private sealed trait AppliedTree { def tree: CaseDef }
-    // private case object AppliedTree {
-    //   case class HasDecompose(tree: CaseDef) extends AppliedTree
-    //   case class NoDecompose(tree: CaseDef) extends AppliedTree
-    // }
-
     def apply(cases: List[CaseDef]): List[IR.Match.CaseDef] =
       applyMark(cases)
 
@@ -239,7 +215,7 @@ class Transformer(inputQuotes: Quotes)
         case CaseDef(pattern, cond, Decompose(body)) =>
           IR.Match.CaseDef(pattern, cond, body)
         case CaseDef(pattern, cond, body) =>
-          IR.Match.CaseDef(pattern, cond, IR.Monad('{ ZIO.attempt(${body.asExpr}) }.asTerm))
+          IR.Match.CaseDef(pattern, cond, IR.Monad(ZioApply(body).asTerm))
       }
 
     def unapply(cases: List[CaseDef]) =
@@ -262,7 +238,7 @@ class Transformer(inputQuotes: Quotes)
     // // Do a top-level transform to check that there are no invalid constructs
     Allowed.validateBlocksIn(value.asExpr)
     // // Do the main transformation
-    val transformed = Decompose(value)
+    val transformed = Decompose.orPure(value)
 
     if (instructions.info == InfoBehavior.Verbose)
       println("============== Deconstructed Instructions ==============\n" + mprint(transformed))

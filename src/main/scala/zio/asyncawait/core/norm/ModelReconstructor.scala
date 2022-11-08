@@ -8,6 +8,8 @@ import zio.asyncawait.core.metaprog.ModelPrinting
 import zio.Chunk
 import zio.asyncawait.core.util.ComputeTotalZioType
 import zio.asyncawait.core.util.Format
+import zio.Exit.Success
+import zio.Exit.Failure
 
 trait ModelReconstructor {
   self: Model with ModelPrinting =>
@@ -69,78 +71,13 @@ trait ModelReconstructor {
 
         case block: IR.Block =>
           val (stmts, term) = compressBlock(List(), block)
-          //println(s"----------- Block Stmts: ${stmts.map(_.show)}")
           Block(stmts, term).asExprOf[ZIO[?, ?, ?]]
 
-        case IR.Match(scrutinee, caseDefs) =>
-          scrutinee match
-            case value: IR.Monadic =>
-              val monadExpr = apply(value)
-              // use the symbol instead of the monad as the scrutinee because the monad needs to be flatmapped first
-              // (Note don't think you need to change ownership of caseDef.rhs to the new symbol but possible.)
-              val matchSymbol = Symbol.newVal(Symbol.spliceOwner, "matchVar", monadExpr.asTerm.tpe, Flags.EmptyFlags, Symbol.noSymbol)
-              val newCaseDefs =
-                caseDefs.map { caseDef =>
-                  val bodyExpr = apply(caseDef.rhs)
-                  CaseDef(caseDef.pattern, caseDef.guard, bodyExpr.asTerm)
-                }
-              // even if the content of the match is pure we lifted it into a monad. If we want to optimize we
-              // change the IR.CaseDef.rhs to be IR.Pure as well as IR.Monadic and handle both cases
-              val newMatch = Match(Ref(matchSymbol), newCaseDefs)
-              // We can synthesize the monadExpr.flatMap call from the monad at this point but I would rather pass it to the FlatMap case to take care of
-              apply(IR.FlatMap(IR.Monad(monadExpr.asTerm), matchSymbol, IR.Monad(newMatch)))
-            case IR.Pure(termValue) =>
-              val newCaseDefs =
-                caseDefs.map { caseDef =>
-                  val bodyExpr = apply(caseDef.rhs)
-                  CaseDef(caseDef.pattern, caseDef.guard, bodyExpr.asTerm)
-                }
-              val newMatch = Match(termValue, newCaseDefs)
-              // recall that the expressions in the case defs need all be ZIO instances (i.e. monadic) we we can
-              // treat the whole thing as a ZIO (i.e. monadic) expression
-              newMatch.asExprOf[ZIO[?, ?, ?]]
+        case value: IR.Match =>
+          reconstructMatch(value)
 
-        case IR.If(cond, ifTrue, ifFalse) =>
-          enum ConditionState:
-            case BothPure(ifTrue: Term, ifFalse: Term)
-            case BothMonadic(ifTrue: IR.Monadic, ifFalse: IR.Monadic)
-
-          val conditionState =
-            (ifTrue, ifFalse) match {
-              case (IR.Pure(a), IR.Pure(b)) => ConditionState.BothPure(a, b)
-              case (IR.Pure(a), b: IR.Monadic) => ConditionState.BothMonadic(IR.Monad(ZioApply(a).asTerm), b)
-              case (a: IR.Monadic, IR.Pure(b)) => ConditionState.BothMonadic(a, IR.Monad(ZioApply(b).asTerm))
-              case (a: IR.Monadic, b: IR.Monadic) => ConditionState.BothMonadic(a, b)
-            }
-
-          cond match {
-            case m: IR.Monadic => {
-              val sym = Symbol.newVal(Symbol.spliceOwner, "ifVar", TypeRepr.of[Boolean], Flags.EmptyFlags, Symbol.noSymbol)
-              conditionState match {
-                // For example: if(await(something)) await(foo) else await(bar)
-                // => something.map(ifVar => (foo, bar) /*replace-to-ifVar*/)
-                // Note that in this case we embed foo, bar into the if-statement. They are ZIO-values which is why we need a flatMap
-                case ConditionState.BothMonadic(ifTrue, ifFalse) =>
-                  val ifTrueTerm = apply(ifTrue).asTerm
-                  val ifFalseTerm = apply(ifFalse).asTerm
-                  apply(IR.FlatMap(m, sym, IR.Monad(If(Ref(sym), ifTrueTerm, ifFalseTerm))))
-                // For example: if(await(something)) "foo" else "bar"
-                case ConditionState.BothPure(ifTrue, ifFalse) =>
-                  apply(IR.Map(m, sym, IR.Pure(If(Ref(sym), ifTrue, ifFalse))))
-              }
-            }
-            case IR.Pure(value) => {
-              conditionState match {
-                case ConditionState.BothMonadic(ifTrue, ifFalse) =>
-                    val ifTrueTerm = apply(ifTrue).asTerm
-                    val ifFalseTerm = apply(ifFalse).asTerm
-                    ZioApply(If(value, ifTrueTerm, ifFalseTerm))
-                case ConditionState.BothPure(ifTrue, ifFalse) =>
-                  val ifStatement = If(value, ifTrue, ifFalse)
-                  ZioApply(ifStatement)
-              }
-            }
-          }
+        case value: IR.If =>
+          reconstructIf(value)
 
         case expr @ IR.And(left, right) =>
           (left, right) match {
@@ -170,75 +107,176 @@ trait ModelReconstructor {
             case _ => report.errorAndAbort(s"Invalid boolean variable combination:\n${mprint(expr)}")
           }
 
-        case IR.Parallel(unlifts, newTree) =>
-          unlifts.toList match {
-            case List() =>
-              //println("=========== No Unlifts ==========")
-              '{ ZIO.succeed(${newTree.asExpr}) }
-
-            /*
-            For a expression (in a single block-line) that has one await in the middle of things e.g.
-            { await(foo) + bar }
-            Needs to turn into something like:
-            { await(foo).map(fooVal => fooVal + bar) }
-            When thinking about types, it looks something like:
-            { (await(foo:Task[t]):t + bar):r }
-            { await(foo:t):Task[t].map[r](fooVal:t => (fooVal + bar):r) }
-            */
-            case List((monad, name)) =>
-              val out =
-              (monad.tpe.asType, newTree.tpe.asType) match
-                case ('[ZIO[x, y, t]], '[r]) =>
-                  val mtpe = MethodType(List("sm"))(_ => List(TypeRepr.of[t]), _ => TypeRepr.of[r])
-                  val lam =
-                    Lambda(Symbol.spliceOwner, mtpe, {
-                        case (methSym, List(sm: Term)) =>
-                          replaceSymbolIn(newTree)(name, sm).changeOwner(methSym)
-                        case _ =>
-                          report.errorAndAbort(s"Invalid lambda created for: ${Format.Tree(monad)}.flatMap of ${Format.Tree(newTree)}. This should not be possible.")
-                      }
-                    )
-                  apply(IR.Monad('{ ${monad.asExprOf[ZIO[?, ?, t]]}.map[r](${lam.asExprOf[t => r]}) }.asTerm))
-              //println("=========== Single unlift: ==========\n" + Format.Term(out.get.code))
-              out
-
-            case unlifts =>
-              val unliftTriples =
-                unlifts.map(
-                  (term, name) => {
-                    val tpe =
-                      term.tpe.asType match
-                        case '[ZIO[x, y, t]] => TypeRepr.of[t]
-                    (term, name, tpe)
-                })
-              val (terms, names, types) = unliftTriples.unzip3
-              val termsExpr = Expr.ofList(terms.map(_.asExprOf[ZIO[?, ?, ?]]))
-              val collect = '{ ZIO.collectAll(Chunk.from($termsExpr)) }
-              def makeVariables(iterator: Expr[Iterator[?]]) =
-                unliftTriples.map((monad, symbol, tpe) =>
-                    tpe.asType match {
-                      case '[t] =>
-                        ValDef(symbol, Some('{ $iterator.next().asInstanceOf[t] }.asTerm))
+        case IR.Try(tryBlock, cases, resultType, finallyBlock) =>
+          val newCaseDefs = reconstructCaseDefs(cases)
+          val tryTerm = apply(tryBlock)
+          val (methodType, matchLam) =
+            (tryTerm.asTerm.tpe.asType, resultType.asType) match
+              case ('[t], '[r]) => {
+                val methodType = MethodType(List("tryLam"))(_ => List(TypeRepr.of[t]), _ => TypeRepr.of[r])
+                val matchLam =
+                  Lambda(Symbol.spliceOwner, methodType, {
+                      case (methSym, List(sm: Term)) =>
+                        Match(sm, newCaseDefs.map(_.changeOwner(methSym)))
+                      case _ =>
+                        report.errorAndAbort(s"Invalid lambda created. This should not be possible.")
                     }
-                )
+                  )
+                (methodType, matchLam)
+              }
 
-              val totalType = ComputeTotalZioType.valueOf(terms: _*)
-              val output =
-                totalType.asType match
-                  case '[t] =>
-                    '{
-                      $collect.map(terms => {
-                        val iter = terms.iterator
-                        ${ Block(makeVariables('iter), newTree).asExpr }
-                      }).asInstanceOf[ZIO[?, ?, t]]
-                    }
 
-              val out = apply(IR.Monad(output.asTerm))
-              // println(s"============ Computed Output: ${Format.TypeRepr(output.asTerm.tpe)}")
-              // println("=========== Multiple unlift: ==========\n" + Format.Expr(output))
-              out
-          }
+          tryTerm.asTerm.tpe.asType match
+            case '[ZIO[r, e, a]] =>
+              '{ ${tryTerm.asExprOf[ZIO[r, e, a]]}.catchSome { ${matchLam.asExprOf[PartialFunction[e, ZIO[r, e, a]]]} } }
+
+
+        case value: IR.Parallel =>
+          reconstructParallel(value)
     }
+
+    def reconstructMatch(value: IR.Match) =
+      val IR.Match(scrutinee, caseDefs) = value
+      scrutinee match
+        case value: IR.Monadic =>
+          val monadExpr = apply(value)
+          // use the symbol instead of the monad as the scrutinee because the monad needs to be flatmapped first
+          // (Note don't think you need to change ownership of caseDef.rhs to the new symbol but possible.)
+          val matchSymbol = Symbol.newVal(Symbol.spliceOwner, "matchVar", monadExpr.asTerm.tpe, Flags.EmptyFlags, Symbol.noSymbol)
+          val newCaseDefs = reconstructCaseDefs(caseDefs)
+          // even if the content of the match is pure we lifted it into a monad. If we want to optimize we
+          // change the IR.CaseDef.rhs to be IR.Pure as well as IR.Monadic and handle both cases
+          val newMatch = Match(Ref(matchSymbol), newCaseDefs)
+          // We can synthesize the monadExpr.flatMap call from the monad at this point but I would rather pass it to the FlatMap case to take care of
+          apply(IR.FlatMap(IR.Monad(monadExpr.asTerm), matchSymbol, IR.Monad(newMatch)))
+        case IR.Pure(termValue) =>
+          val newCaseDefs = reconstructCaseDefs(caseDefs)
+          val newMatch = Match(termValue, newCaseDefs)
+          // recall that the expressions in the case defs need all be ZIO instances (i.e. monadic) we we can
+          // treat the whole thing as a ZIO (i.e. monadic) expression
+          newMatch.asExprOf[ZIO[?, ?, ?]]
+    end reconstructMatch
+
+    private def reconstructCaseDefs(caseDefs: List[IR.Match.CaseDef]) =
+      caseDefs.map { caseDef =>
+        val bodyExpr = apply(caseDef.rhs)
+        CaseDef(caseDef.pattern, caseDef.guard, bodyExpr.asTerm)
+      }
+
+    def reconstructIf(value: IR.If) =
+      val IR.If(cond, ifTrue, ifFalse) = value
+      enum ConditionState:
+        case BothPure(ifTrue: Term, ifFalse: Term)
+        case BothMonadic(ifTrue: IR.Monadic, ifFalse: IR.Monadic)
+
+      val conditionState =
+        (ifTrue, ifFalse) match {
+          case (IR.Pure(a), IR.Pure(b)) => ConditionState.BothPure(a, b)
+          case (IR.Pure(a), b: IR.Monadic) => ConditionState.BothMonadic(IR.Monad(ZioApply(a).asTerm), b)
+          case (a: IR.Monadic, IR.Pure(b)) => ConditionState.BothMonadic(a, IR.Monad(ZioApply(b).asTerm))
+          case (a: IR.Monadic, b: IR.Monadic) => ConditionState.BothMonadic(a, b)
+        }
+
+      cond match {
+        case m: IR.Monadic => {
+          val sym = Symbol.newVal(Symbol.spliceOwner, "ifVar", TypeRepr.of[Boolean], Flags.EmptyFlags, Symbol.noSymbol)
+          conditionState match {
+            // For example: if(await(something)) await(foo) else await(bar)
+            // => something.map(ifVar => (foo, bar) /*replace-to-ifVar*/)
+            // Note that in this case we embed foo, bar into the if-statement. They are ZIO-values which is why we need a flatMap
+            case ConditionState.BothMonadic(ifTrue, ifFalse) =>
+              val ifTrueTerm = apply(ifTrue).asTerm
+              val ifFalseTerm = apply(ifFalse).asTerm
+              apply(IR.FlatMap(m, sym, IR.Monad(If(Ref(sym), ifTrueTerm, ifFalseTerm))))
+            // For example: if(await(something)) "foo" else "bar"
+            case ConditionState.BothPure(ifTrue, ifFalse) =>
+              apply(IR.Map(m, sym, IR.Pure(If(Ref(sym), ifTrue, ifFalse))))
+          }
+        }
+        case IR.Pure(value) => {
+          conditionState match {
+            case ConditionState.BothMonadic(ifTrue, ifFalse) =>
+                val ifTrueTerm = apply(ifTrue).asTerm
+                val ifFalseTerm = apply(ifFalse).asTerm
+                ZioApply(If(value, ifTrueTerm, ifFalseTerm))
+            case ConditionState.BothPure(ifTrue, ifFalse) =>
+              val ifStatement = If(value, ifTrue, ifFalse)
+              ZioApply(ifStatement)
+          }
+        }
+      }
+    end reconstructIf
+
+    def reconstructParallel(value: IR.Parallel) =
+      val IR.Parallel(unlifts, newTree) = value
+      unlifts.toList match {
+        case List() =>
+          //println("=========== No Unlifts ==========")
+          '{ ZIO.succeed(${newTree.asExpr}) }
+
+        /*
+        For a expression (in a single block-line) that has one await in the middle of things e.g.
+        { await(foo) + bar }
+        Needs to turn into something like:
+        { await(foo).map(fooVal => fooVal + bar) }
+        When thinking about types, it looks something like:
+        { (await(foo:Task[t]):t + bar):r }
+        { await(foo:t):Task[t].map[r](fooVal:t => (fooVal + bar):r) }
+        */
+        case List((monad, name)) =>
+          val out =
+          (monad.tpe.asType, newTree.tpe.asType) match
+            case ('[ZIO[x, y, t]], '[r]) =>
+              val mtpe = MethodType(List("sm"))(_ => List(TypeRepr.of[t]), _ => TypeRepr.of[r])
+              val lam =
+                Lambda(Symbol.spliceOwner, mtpe, {
+                    case (methSym, List(sm: Term)) =>
+                      replaceSymbolIn(newTree)(name, sm).changeOwner(methSym)
+                    case _ =>
+                      report.errorAndAbort(s"Invalid lambda created for: ${Format.Tree(monad)}.flatMap of ${Format.Tree(newTree)}. This should not be possible.")
+                  }
+                )
+              apply(IR.Monad('{ ${monad.asExprOf[ZIO[?, ?, t]]}.map[r](${lam.asExprOf[t => r]}) }.asTerm))
+          //println("=========== Single unlift: ==========\n" + Format.Term(out.get.code))
+          out
+
+        case unlifts =>
+          val unliftTriples =
+            unlifts.map(
+              (term, name) => {
+                val tpe =
+                  term.tpe.asType match
+                    case '[ZIO[x, y, t]] => TypeRepr.of[t]
+                (term, name, tpe)
+            })
+          val (terms, names, types) = unliftTriples.unzip3
+          val termsExpr = Expr.ofList(terms.map(_.asExprOf[ZIO[?, ?, ?]]))
+          val collect = '{ ZIO.collectAll(Chunk.from($termsExpr)) }
+          def makeVariables(iterator: Expr[Iterator[?]]) =
+            unliftTriples.map((monad, symbol, tpe) =>
+                tpe.asType match {
+                  case '[t] =>
+                    ValDef(symbol, Some('{ $iterator.next().asInstanceOf[t] }.asTerm))
+                }
+            )
+
+          val totalType = ComputeTotalZioType.valueOf(terms: _*)
+          val output =
+            totalType.asType match
+              case '[t] =>
+                '{
+                  $collect.map(terms => {
+                    val iter = terms.iterator
+                    ${ Block(makeVariables('iter), newTree).asExpr }
+                  }).asInstanceOf[ZIO[?, ?, t]]
+                }
+
+          val out = apply(IR.Monad(output.asTerm))
+          // println(s"============ Computed Output: ${Format.TypeRepr(output.asTerm.tpe)}")
+          // println("=========== Multiple unlift: ==========\n" + Format.Expr(output))
+          out
+      }
+
   }
 
 }
