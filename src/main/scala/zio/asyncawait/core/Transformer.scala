@@ -120,19 +120,16 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
           val expressionType = ZioType.compose(apply(ifTrue), apply(ifFalse))
           condType.flatMappedWith(expressionType)
 
-        case IR.Bool.And(left, right) =>
+        case IR.And(left, right) =>
           ZioType.compose(apply(left), apply(right))
 
-        case IR.Bool.Or(left, right) =>
+        case IR.Or(left, right) =>
           ZioType.compose(apply(left), apply(right))
 
         case IR.Parallel(monads, body) =>
           val monadsType = ZioType.composeN(monads.map((term, _) => ZioType.fromZIO(term)))
           val bodyType = ZioType.fromPure(body)
           monadsType.flatMappedWith(bodyType)
-
-        case IR.Bool.Pure(code) =>
-          ZioType.fromPure(code)
 
   }
 
@@ -227,9 +224,9 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
 
           val conditionState =
             (ifTrue, ifFalse) match {
-              case (IR.Puric(a), IR.Puric(b)) => ConditionState.BothPure(a, b)
-              case (IR.Puric(a), b: IR.Monadic) => ConditionState.BothMonadic(IR.Monad(ZioApply(a).asTerm), b)
-              case (a: IR.Monadic, IR.Puric(b)) => ConditionState.BothMonadic(a, IR.Monad(ZioApply(b).asTerm))
+              case (IR.Pure(a), IR.Pure(b)) => ConditionState.BothPure(a, b)
+              case (IR.Pure(a), b: IR.Monadic) => ConditionState.BothMonadic(IR.Monad(ZioApply(a).asTerm), b)
+              case (a: IR.Monadic, IR.Pure(b)) => ConditionState.BothMonadic(a, IR.Monad(ZioApply(b).asTerm))
               case (a: IR.Monadic, b: IR.Monadic) => ConditionState.BothMonadic(a, b)
             }
 
@@ -249,7 +246,7 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
                   apply(IR.Map(m, sym, IR.Pure(If(Ref(sym), ifTrue, ifFalse))))
               }
             }
-            case IR.Bool.Pure(value) => {
+            case IR.Pure(value) => {
               conditionState match {
                 case ConditionState.BothMonadic(ifTrue, ifFalse) =>
                     val ifTrueTerm = apply(ifTrue).asTerm
@@ -262,7 +259,7 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
             }
           }
 
-        case expr @ IR.Bool.And(left, right) =>
+        case expr @ IR.And(left, right) =>
           (left, right) match {
             case (a: IR.Monadic, b: IR.Monadic) =>
               '{ ${apply(a)}.flatMap { case true => ${apply(b)}; case false => ${ZioApply.False} } }
@@ -271,12 +268,12 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
             case (IR.Pure(a), b: IR.Monadic) =>
               '{ if (${a.asExprOf[Boolean]}) ${apply(b)} else ZIO.succeed(${ZioApply.False}) }
             // case Pure/Pure is taken care by in the transformer on a higher-level via the PureTree case. Still, handle them just in case
-            case (IR.Bool.Pure(a), IR.Bool.Pure(b)) =>
+            case (IR.Pure(a), IR.Pure(b)) =>
               '{ ZIO.succeed(${a.asExprOf[Boolean]} && ${b.asExprOf[Boolean]}) }
             case _ => report.errorAndAbort(s"Invalid boolean variable combination:\n${mprint(expr)}")
           }
 
-        case expr @ IR.Bool.Or(left, right) =>
+        case expr @ IR.Or(left, right) =>
           (left, right) match {
             case (a: IR.Monadic, b: IR.Monadic) =>
               '{ ${apply(a)}.flatMap { case true => ${ZioApply.True}; case false => ${apply(b)}  } }
@@ -285,15 +282,10 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
             case (IR.Pure(a), b: IR.Monadic) =>
               '{ if (${a.asExprOf[Boolean]}) ${ZioApply.True} else ${apply(b)} }
             // case Pure/Pure is taken care by in the transformer on a higher-level via the PureTree case. Still, handle them just in case
-            case (IR.Bool.Pure(a), IR.Bool.Pure(b)) =>
+            case (IR.Pure(a), IR.Pure(b)) =>
               '{ ZIO.succeed(${a.asExprOf[Boolean]} || ${b.asExprOf[Boolean]}) }
             case _ => report.errorAndAbort(s"Invalid boolean variable combination:\n${mprint(expr)}")
           }
-
-        // Note, does not get here when it's a IR.Map function, the value is directly embedded since it
-        // does not need to be wrapped into a ZIO in that case.
-        case IR.Bool.Pure(code) =>
-          '{ ZIO.succeed(${code.asExpr}) }
 
         case IR.Parallel(unlifts, newTree) =>
           unlifts.toList match {
@@ -390,31 +382,31 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
               case (ifTrue, ifFalse) =>
                 (IR.Pure(ifTrue), IR.Pure(ifFalse))
           }
-          val condIR: IR.Monadic | IR.Bool.Pure =
+          val condIR: IR.Monadic | IR.Pure =
             cond match
               case Decompose(monad) => monad
-              case _ => IR.Bool.Pure(cond)
+              case _ => IR.Pure(cond)
           Some(IR.If(condIR, ifTrueIR, ifFalseIR))
 
         case Seal('{ ($a: Boolean) && ($b: Boolean) }) =>
           (a.asTerm, b.asTerm) match {
             case (Decompose(a), Decompose(b)) =>
-              Some(IR.Bool.And(a, b))
+              Some(IR.And(a, b))
             case (Decompose(a), b) =>
-              Some(IR.Bool.And(a, IR.Bool.Pure(b)))
+              Some(IR.And(a, IR.Pure(b)))
             case (a, Decompose(b)) =>
-              Some(IR.Bool.And(IR.Bool.Pure(a), b))
+              Some(IR.And(IR.Pure(a), b))
             // case (a, b) is handled by the PureTree case
           }
 
         case Seal('{ ($a: Boolean) || ($b: Boolean) }) =>
           (a.asTerm, b.asTerm) match {
             case (Decompose(a), Decompose(b)) =>
-              Some(IR.Bool.Or(a, b))
+              Some(IR.Or(a, b))
             case (Decompose(a), b) =>
-              Some(IR.Bool.Or(a, IR.Bool.Pure(b)))
+              Some(IR.Or(a, IR.Pure(b)))
             case (a, Decompose(b)) =>
-              Some(IR.Bool.And(IR.Bool.Pure(a), b))
+              Some(IR.And(IR.Pure(a), b))
             // case (a, b) is handled by the PureTree case
           }
 
