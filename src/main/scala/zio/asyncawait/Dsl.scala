@@ -16,6 +16,9 @@ object async {
   transparent inline def verbose[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.verboseImpl[T]('value) }
 }
 
+extension [R, E, A](inline value: ZIO[R, E, A])
+  transparent inline def run = await(value)
+
 
 object Dsl {
   def verboseImpl[T: Type](value: Expr[T])(using q: Quotes): Expr[ZIO[?, ?, ?]] = {

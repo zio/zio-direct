@@ -11,6 +11,7 @@ object ZioFacade {
   object ZIO {
     def succeed[T](any: T): zio.ZIO[Any, Throwable, T] = ???
     def service[T]: zio.URIO[T, T] = ???
+    def attempt[T](any: T): zio.Task[T] = ???
   }
 
   def makeFacade(using q: Quotes)(tree: quotes.reflect.Tree): q.reflect.Tree =
@@ -20,6 +21,8 @@ object ZioFacade {
           tree match
             case Seal('{ zio.ZIO.succeed[t]($tt)($impl) }) =>
               '{ ZIO.succeed[t](${transformTerm(tt.asTerm)(owner).asExprOf[t]}) }.asTerm
+            case Seal('{ zio.ZIO.attempt[t]($tt)($impl) }) =>
+              '{ ZIO.attempt[t](${transformTerm(tt.asTerm)(owner).asExprOf[t]}) }.asTerm
             case Seal('{ zio.ZIO.service[t]($impl, $impl2) }) =>
               '{ ZIO.service[t] }.asTerm
             case _: Term =>

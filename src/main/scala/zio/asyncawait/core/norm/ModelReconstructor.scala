@@ -114,8 +114,6 @@ trait ModelReconstructor {
           //val (methodType, matchLam) =
           (tryTerm.asTerm.tpe.asType, resultType.asType) match
             case ('[ZIO[r0, e0, a0]], '[ZIO[r, e, b]]) => {
-              println(s"============== Block Type: ${Format.TypeRepr(tryTerm.asTerm.tpe)}")
-
               // A normal lambda looks something like:
               //   Block(List(
               //     DefDef(newMethodSymbol, terms:List[List[Tree]] => Option(body))
@@ -123,7 +121,7 @@ trait ModelReconstructor {
               //   ))
               // A PartialFunction lambda looks looks something like:
               //   Block(List(
-              //     DefDef(newMethodSymbol, terms:List[List[Tree]] => Option(body))
+                //     DefDef(newMethodSymbol, terms:List[List[Tree]] => Option(body))
               //     Closure(Ref(newMethodSymbol), TypeRepr.of[PartialFunction[input, output]])
               //   ))
               // So basically the only difference is in the typing of the closure
@@ -146,22 +144,7 @@ trait ModelReconstructor {
               val closure = Closure(Ref(methSym), Some(pfTree))
               val functionBlock = Block(List(method), closure).asExprOf[PartialFunction[e0, ZIO[r, e, b]]]
               '{ ${tryTerm.asExprOf[ZIO[r0, e0, a0]]}.catchSome { ${functionBlock} } }
-
-              //Block((DefDef(_, _, params :: Nil, _, Some(rhsFn(meth, paramRefs)))) :: Nil, Closure(meth, _))
-
-              // val matchLam =
-              //   Lambda(Symbol.spliceOwner, methodType, {
-              //       case (methSym, List(sm: Term)) =>
-              //         Match(sm, newCaseDefs.map(_.changeOwner(methSym)))
-              //       case _ =>
-              //         report.errorAndAbort(s"Invalid lambda created. This should not be possible.")
-              //     }
-              //   )
-              // (methodType, matchLam)
             }
-          // tryTerm.asTerm.tpe.asType match
-          //   case '[ZIO[r, e, a]] =>
-          //     '{ ${tryTerm.asExprOf[ZIO[r, e, a]]}.catchSome { ${matchLam.asExpr}.asInstanceOf[PartialFunction[e, ZIO[r, e, a]]] } }
 
         case value: IR.Parallel =>
           reconstructParallel(value)
@@ -283,7 +266,7 @@ trait ModelReconstructor {
             })
           val (terms, names, types) = unliftTriples.unzip3
           val termsExpr = Expr.ofList(terms.map(_.asExprOf[ZIO[?, ?, ?]]))
-          val collect = '{ ZIO.collectAll(Chunk.from($termsExpr)) }
+          val collect = '{ ZIO.collectAllPar(Chunk.from($termsExpr)) }
           def makeVariables(iterator: Expr[Iterator[?]]) =
             unliftTriples.map((monad, symbol, tpe) =>
                 tpe.asType match {

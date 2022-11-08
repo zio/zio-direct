@@ -232,15 +232,49 @@ object Example {
   // }
 
   def funH(): Unit = { //
+    // val out =
+    //   async.verbose {
+    //     val msg =
+    //       async(
+    //         try {
+    //           //await(ZIO.attempt("foo"))
+    //           await(ZIO.attempt { throw new IOException("blah") })
+    //         } catch {
+    //           case e: IOException => e.getMessage()
+    //         }
+    //       )
+    //     val msgResult = await(msg)
+
+    //     await(ZIO.succeed(msgResult))
+    //   }
+
+
+    // Bug: moving currTime right before starTime makes a "forward reference"
+
+    def currTime(): Double = java.lang.System.currentTimeMillis()
+
     val out =
       async.verbose {
-        try {
-          //await(ZIO.attempt("foo"))
-          await(ZIO.attempt { throw new IOException("blah") })
-        } catch {
-          case e: IOException => "bar"
-        }
+        val a = ZIO.sleep(10.seconds).fork.run
+        val b = ZIO.sleep(2.seconds).fork.run
+        lazy val startTime = currTime()
+        zio.Console.printLine(s"Started waiting: ${(currTime() - startTime)/1000d}").run
+        val aResult = await(a.join)
+        zio.Console.printLine(s"A completed: ${(currTime() - startTime)/1000d}").run
+        val bResult = await(b.join)
+        zio.Console.printLine(s"B completed: ${(currTime() - startTime)/1000d}").run
+        (aResult, bResult)
       }
+
+    // def currTime(): Double = java.lang.System.currentTimeMillis()
+    // val out =
+    //   async.verbose {
+    //     val startTime = currTime()
+    //     val a = await(ZIO.collectAllPar(Chunk(ZIO.sleep(10.seconds), ZIO.sleep(2.seconds))))
+    //     await(zio.Console.printLine(s"Completed in: ${(currTime() - startTime)/1000d}"))
+    //     a
+    //   }
+
     val outRun =
       zio.Unsafe.unsafe { implicit unsafe =>
         zio.Runtime.default.unsafe.run(out).getOrThrow()
@@ -252,21 +286,21 @@ object Example {
     funH()
   }
 
-  def printPartialFuncExample(): Unit = {
-    println("========================Partial Function Lambda=============================")
-    PrintMac(stuff {
-      case x: IOException => 123
-      case y: IllegalArgumentException => 456
-    })
-  }
-
-  //   PrintMac(stuff2(
-  //     x => x.length()
-  //   ))
+  // def printPartialFuncExample(): Unit = {
+  //   println("========================Partial Function Lambda=============================")
+  //   PrintMac(stuff {
+  //     case x: IOException => 123
+  //     case y: IllegalArgumentException => 456
+  //   })
   // }
 
-  def stuff(input: PartialFunction[String, Int]): Option[Int] =
-    input.lift("foo").map(_ + 1)
+  // //   PrintMac(stuff2(
+  // //     x => x.length()
+  // //   ))
+  // // }
+
+  // def stuff(input: PartialFunction[String, Int]): Option[Int] =
+  //   input.lift("foo").map(_ + 1)
 
   // def stuff2(input: Function[String, Int]): Int =
   //   input.apply("foo")
