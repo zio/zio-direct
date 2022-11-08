@@ -366,7 +366,7 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
     }
   }
 
-  private object Transform {
+  private object Decompose {
     def apply(term: Term): IR.Monadic =
       unapply(term).getOrElse(IR.Monad(ZioApply(term).asTerm))
 
@@ -378,50 +378,50 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
 
         case If(cond, ifTrue, ifFalse) =>
           // NOTE: Code below is quite inefficient, do instead do this:
-          // (Transform.unapply(ifTrue), Transform.unapply(ifFalse)). Then match on the Some/Some, Some/None, etc... cases
+          // (Decompose.unapply(ifTrue), Decompose.unapply(ifFalse)). Then match on the Some/Some, Some/None, etc... cases
           val (ifTrueIR, ifFalseIR) =
             (ifTrue, ifFalse) match {
-              case (Transform(ifTrue), Transform(ifFalse)) =>
+              case (Decompose(ifTrue), Decompose(ifFalse)) =>
                 (ifTrue, ifFalse)
-              case (Transform(ifTrue), ifFalse) =>
+              case (Decompose(ifTrue), ifFalse) =>
                 (ifTrue, IR.Pure(ifFalse))
-              case (ifTrue, Transform(ifFalse)) =>
+              case (ifTrue, Decompose(ifFalse)) =>
                 (IR.Pure(ifTrue), ifFalse)
               case (ifTrue, ifFalse) =>
                 (IR.Pure(ifTrue), IR.Pure(ifFalse))
           }
           val condIR: IR.Monadic | IR.Bool.Pure =
             cond match
-              case Transform(monad) => monad
+              case Decompose(monad) => monad
               case _ => IR.Bool.Pure(cond)
           Some(IR.If(condIR, ifTrueIR, ifFalseIR))
 
         case Seal('{ ($a: Boolean) && ($b: Boolean) }) =>
           (a.asTerm, b.asTerm) match {
-            case (Transform(a), Transform(b)) =>
+            case (Decompose(a), Decompose(b)) =>
               Some(IR.Bool.And(a, b))
-            case (Transform(a), b) =>
+            case (Decompose(a), b) =>
               Some(IR.Bool.And(a, IR.Bool.Pure(b)))
-            case (a, Transform(b)) =>
+            case (a, Decompose(b)) =>
               Some(IR.Bool.And(IR.Bool.Pure(a), b))
             // case (a, b) is handled by the PureTree case
           }
 
         case Seal('{ ($a: Boolean) || ($b: Boolean) }) =>
           (a.asTerm, b.asTerm) match {
-            case (Transform(a), Transform(b)) =>
+            case (Decompose(a), Decompose(b)) =>
               Some(IR.Bool.Or(a, b))
-            case (Transform(a), b) =>
+            case (Decompose(a), b) =>
               Some(IR.Bool.Or(a, IR.Bool.Pure(b)))
-            case (a, Transform(b)) =>
+            case (a, Decompose(b)) =>
               Some(IR.Bool.And(IR.Bool.Pure(a), b))
             // case (a, b) is handled by the PureTree case
           }
 
         case block @ Block(parts, lastPart) if (parts.nonEmpty) =>
-          TransformBlock.unapply(block)
+          DecomposeBlock.unapply(block)
 
-        case Match(m @ Transform(monad), caseDefs) =>
+        case Match(m @ Decompose(monad), caseDefs) =>
           // Since in Scala 3 we cannot just create a arbitrary symbol and pass it around.
           // (See https://github.com/lampepfl/dotty/blob/33818506801c80c8c73649fdaab3782c052580c6/library/src/scala/quoted/Quotes.scala#L3675)
           // In order to be able to have a valdef-symbol to manipulate, we need to create the actual valdef
@@ -441,13 +441,13 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
 
           val out =
             body match
-              case Transform(bodyMonad) =>
+              case Decompose(bodyMonad) =>
                 IR.FlatMap(monad, oldSymbol, bodyMonad)
               case bodyPure =>
                 IR.Map(monad, oldSymbol, IR.Pure(bodyPure))
           Some(out)
 
-        case m @ Match(value, TransformCases(cases)) =>
+        case m @ Match(value, DecomposeCases(cases)) =>
           Some(IR.Match(IR.Pure(value), cases))
 
         case Seal('{ await[r, e, a]($task) }) =>
@@ -482,11 +482,11 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
   }
 
   /**
-    * Transform a sequence of steps
+    * Decompose a sequence of steps
     * a; b = unlift(zio); c
     * Into a.flatMap()
     */
-  private object TransformBlock {
+  private object DecomposeBlock {
     def unapply(block: Block): Option[IR.Monadic] =
       val Block(head, tail) = block
       val parts = head :+ tail
@@ -503,10 +503,10 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
         // (e.g. it can actually be stuff.flatMap(v => val x = v; stuff-that-uses-x))
         // TODO A zero-args DefDef (i.e. a ByName can essentially be treated as a ValDef so we can use that too)
 
-        case ValDefStatement(symbol , Transform(monad)) :: tail =>
+        case ValDefStatement(symbol , Decompose(monad)) :: tail =>
           val out =
             BlockN(tail) match
-              case Transform(monadBody) =>
+              case Decompose(monadBody) =>
                 IR.FlatMap(monad, symbol, monadBody)
               case pureBody =>
                 IR.Map(monad, symbol, IR.Pure(pureBody))
@@ -518,8 +518,8 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
 
         // other statements possible including ClassDef etc... should look into that
 
-        case Transform(monad) :: tail =>
-          //println(s"============= Block - Head Transform: ${Printer.TreeShortCode.show(monad.asTerm)} ===== ${tail.map(Format.Tree(_))}")
+        case Decompose(monad) :: tail =>
+          //println(s"============= Block - Head Decompose: ${Printer.TreeShortCode.show(monad.asTerm)} ===== ${tail.map(Format.Tree(_))}")
           tail match {
             // In this case where is one statement in the block which my definition
             // needs to have the same type as the output: e.g.
@@ -540,19 +540,19 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
               //println(s"============= Block - With multiple terms: ${monad.show}, ${list.map(_.show)}")
               val out =
                 BlockN(tail) match
-                  case Transform(bodyMonad) =>
+                  case Decompose(bodyMonad) =>
                     IR.FlatMap(monad, None, bodyMonad)
                   case bodyPure =>
                     IR.Map(monad, None, IR.Pure(bodyPure))
               Some(out)
           }
 
-        // This is the recursive case of TransformBlock, it will work across multiple things
+        // This is the recursive case of DecomposeBlock, it will work across multiple things
         // between blocks due to the recursion e.g:
         //   val blah = new Blah(2) // 1st part, will recurse 1st time (here)
         //   import blah._          // 2nd part, will recurse 2nd time (here)
         //   val b = unlift(ZIO.succeed(value).asInstanceOf[Task[Int]]) // Then will match valdef case
-        case head :: BlockN(TransformBlock(parts)) =>
+        case head :: BlockN(DecomposeBlock(parts)) =>
           //println(s"============= Block - With end parts: ${Format.Expr(parts)}")
           Some(IR.Block(head, parts))
 
@@ -563,11 +563,11 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
   }
 
 
-  private object TransformCases {
+  private object DecomposeCases {
     // private sealed trait AppliedTree { def tree: CaseDef }
     // private case object AppliedTree {
-    //   case class HasTransform(tree: CaseDef) extends AppliedTree
-    //   case class NoTransform(tree: CaseDef) extends AppliedTree
+    //   case class HasDecompose(tree: CaseDef) extends AppliedTree
+    //   case class NoDecompose(tree: CaseDef) extends AppliedTree
     // }
 
     def apply(cases: List[CaseDef]): List[IR.Match.CaseDef] =
@@ -575,7 +575,7 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
 
     private def applyMark(cases: List[CaseDef]) =
       cases.map {
-        case CaseDef(pattern, cond, Transform(body)) =>
+        case CaseDef(pattern, cond, Decompose(body)) =>
           IR.Match.CaseDef(pattern, cond, body)
         case CaseDef(pattern, cond, body) =>
           IR.Match.CaseDef(pattern, cond, IR.Monad('{ ZIO.attempt(${body.asExpr}) }.asTerm))
@@ -601,7 +601,7 @@ class Transformer(inputQuotes: Quotes) extends ModelPrinting {
     // // Do a top-level transform to check that there are no invalid constructs
     Allowed.validateBlocksIn(value.asExpr)
     // // Do the main transformation
-    val transformed = Transform(value)
+    val transformed = Decompose(value)
 
     if (instructions.info == InfoBehavior.Verbose)
       println("============== Deconstructed Instructions ==============\n" + mprint(transformed))
