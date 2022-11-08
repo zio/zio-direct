@@ -48,18 +48,18 @@ object Allowed {
         validateBlocksTree(ifTrue)
         validateBlocksTree(ifFalse)
 
+      case Try(tryBlock, caseDefs, finallyBlock) =>
+        validateBlocksTree(tryBlock)
+        caseDefs.foreach(validateCaseDef(_))
+        finallyBlock match {
+          case Some(value) => validateBlocksTree(value)
+          case None =>
+        }
+
       case Match(input, caseDefs) =>
         validateBlocksTree(input)
-        caseDefs.foreach {
-          case CaseDef(pattern, cond, output) =>
-            cond match {
-              case None =>
-              case Some(PureTree(_)) =>
-              case Some(nonpure) =>
-                UnsupportedError.throwIt(nonpure, "Match conditionals are not allow to contain `await`. Move the `await` call out of the match-statement.")
-            }
-            validateBlocksTree(output)
-        }
+        caseDefs.foreach(validateCaseDef(_))
+
       case Block(stmts, ret) =>
         (stmts :+ ret).foreach(validateBlocksTree(_))
       // otherwise it has an await clause and with an unsupported construct
@@ -71,6 +71,18 @@ object Allowed {
       // TODO custom warning for assignment
       // TODO custom warning for awaits in defs (and tip for how to fix)
     }
+
+  private def validateCaseDef(using Quotes)(caseDef: quotes.reflect.CaseDef) = {
+    import quotes.reflect._
+    val CaseDef(pattern, cond, output) = caseDef
+    cond match {
+      case None =>
+      case Some(PureTree(_)) =>
+      case Some(nonpure) =>
+        UnsupportedError.throwIt(nonpure, "Match conditionals are not allow to contain `await`. Move the `await` call out of the match-statement.")
+    }
+    validateBlocksTree(output)
+  }
 
   object ParallelExpression {
     def unapply(using Quotes)(expr: Expr[_]): Boolean =

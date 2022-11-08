@@ -58,12 +58,12 @@ trait ModelTypeComputation {
         TypeRepr.of[Nothing]
 
     def compose(a: ZioType, b: ZioType): ZioType =
-      ZioType(and(a.r, b.r), or(a.e, b.e), and(a.a, b.a))
+      ZioType(and(a.r, b.r), or(a.e, b.e), or(a.a, b.a))
 
     def or(a: TypeRepr, b: TypeRepr) =
       (a.widen.asType, b.widen.asType) match
         case ('[at], '[bt]) =>
-          TypeRepr.of[at | bt].simplified
+          TypeRepr.of[at | bt].simplified.widen // TODO check that this widens multiple exceptions to `Throwable`
 
     def and(a: TypeRepr, b: TypeRepr) =
       // if either type is Any, specialize to the thing that is narrower
@@ -102,6 +102,8 @@ trait ModelTypeComputation {
           // Ultimately the scrutinee will be used if it is pure or lifted, either way we can
           // treat it as a value that will be flatMapped (or Mapped) against the caseDef values.
           val scrutineeType = apply(scrutinee)
+          // TODO Maybe do the same thing as IR.Try and pass through the Match result tpe, then
+          //      then use that to figure out what the type should be
           val caseDefTypes = caseDefs.map(caseDef => apply(caseDef.rhs))
           val caseDefTotalType = ZioType.composeN(caseDefTypes)
           scrutineeType.flatMappedWith(caseDefTotalType)
@@ -116,6 +118,19 @@ trait ModelTypeComputation {
 
         case IR.Or(left, right) =>
           ZioType.compose(apply(left), apply(right))
+
+        case IR.Try(tryBlock, caseDefs, outputType, finallyBlock) =>
+          val tryBlockType = apply(tryBlock)
+          // val caseDefType =
+          //   ZioType.composeN(
+          //     caseDefs.map(caseDef => apply(caseDef.rhs))
+          //   )
+          val caseDefType =
+            outputType.asType match
+              case '[ZIO[r, e, a]] => ZioType(TypeRepr.of[r].widen, TypeRepr.of[e].widen, TypeRepr.of[a].widen)
+              case '[t] => ZioType(TypeRepr.of[Any].widen, TypeRepr.of[Throwable].widen, TypeRepr.of[t].widen)
+
+          tryBlockType.flatMappedWith(caseDefType)
 
         case IR.Parallel(monads, body) =>
           val monadsType = ZioType.composeN(monads.map((term, _) => ZioType.fromZIO(term)))

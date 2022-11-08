@@ -12,7 +12,7 @@ import zio.Exit.Success
 import zio.Exit.Failure
 
 trait ModelReconstructor {
-  self: Model with ModelPrinting =>
+  self: Model with ModelTypeComputation with ModelPrinting =>
 
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._
@@ -107,29 +107,61 @@ trait ModelReconstructor {
             case _ => report.errorAndAbort(s"Invalid boolean variable combination:\n${mprint(expr)}")
           }
 
-        case IR.Try(tryBlock, cases, resultType, finallyBlock) =>
+        case tryIR @ IR.Try(tryBlock, cases, _, finallyBlock) =>
           val newCaseDefs = reconstructCaseDefs(cases)
+          val resultType = ComputeType(tryIR).toZioType
           val tryTerm = apply(tryBlock)
-          val (methodType, matchLam) =
-            (tryTerm.asTerm.tpe.asType, resultType.asType) match
-              case ('[t], '[r]) => {
-                val methodType = MethodType(List("tryLam"))(_ => List(TypeRepr.of[t]), _ => TypeRepr.of[r])
-                val matchLam =
-                  Lambda(Symbol.spliceOwner, methodType, {
-                      case (methSym, List(sm: Term)) =>
-                        Match(sm, newCaseDefs.map(_.changeOwner(methSym)))
-                      case _ =>
-                        report.errorAndAbort(s"Invalid lambda created. This should not be possible.")
-                    }
-                  )
-                (methodType, matchLam)
-              }
+          //val (methodType, matchLam) =
+          (tryTerm.asTerm.tpe.asType, resultType.asType) match
+            case ('[ZIO[r0, e0, a0]], '[ZIO[r, e, b]]) => {
+              println(s"============== Block Type: ${Format.TypeRepr(tryTerm.asTerm.tpe)}")
 
+              // A normal lambda looks something like:
+              //   Block(List(
+              //     DefDef(newMethodSymbol, terms:List[List[Tree]] => Option(body))
+              //     Closure(Ref(newMethodSymbol), None)
+              //   ))
+              // A PartialFunction lambda looks looks something like:
+              //   Block(List(
+              //     DefDef(newMethodSymbol, terms:List[List[Tree]] => Option(body))
+              //     Closure(Ref(newMethodSymbol), TypeRepr.of[PartialFunction[input, output]])
+              //   ))
+              // So basically the only difference is in the typing of the closure
 
-          tryTerm.asTerm.tpe.asType match
-            case '[ZIO[r, e, a]] =>
-              '{ ${tryTerm.asExprOf[ZIO[r, e, a]]}.catchSome { ${matchLam.asExprOf[PartialFunction[e, ZIO[r, e, a]]]} } }
+              // Make the new symbol and method types. (Note the `e` parameter extracted from the ZIO above)
+              // Should look something like:
+              //   def tryLamParam(tryLam: e0): ZIO[r, e, a] = ...
+              // Note:
+              //   The `e` type can change because you can specify a ZIO in the response to the try
+              //   e.g: (x:ZIO[Any, Throwable, A]).catchSome { case io: IOException => y:ZIO[Any, OtherExcpetion, A] }
+              val methodType = MethodType(List("tryLamParam"))(_ => List(TypeRepr.of[e0]), _ => TypeRepr.of[ZIO[r, e, b]])
+              val methSym = Symbol.newMethod(Symbol.spliceOwner, "tryLam", methodType)
 
+              // Now we actually make the method with the body:
+              //   def tryLamParam(tryLam: e) = { case ...exception => ... }
+              val method = DefDef(methSym, sm => Some(Match(sm(0)(0).asInstanceOf[Term], newCaseDefs.map(_.changeOwner(methSym)))))
+              val pfTree = TypeRepr.of[PartialFunction[e, ZIO[r, e, b]]]
+
+              // Assemble the peices together into a closure
+              val closure = Closure(Ref(methSym), Some(pfTree))
+              val functionBlock = Block(List(method), closure).asExprOf[PartialFunction[e0, ZIO[r, e, b]]]
+              '{ ${tryTerm.asExprOf[ZIO[r0, e0, a0]]}.catchSome { ${functionBlock} } }
+
+              //Block((DefDef(_, _, params :: Nil, _, Some(rhsFn(meth, paramRefs)))) :: Nil, Closure(meth, _))
+
+              // val matchLam =
+              //   Lambda(Symbol.spliceOwner, methodType, {
+              //       case (methSym, List(sm: Term)) =>
+              //         Match(sm, newCaseDefs.map(_.changeOwner(methSym)))
+              //       case _ =>
+              //         report.errorAndAbort(s"Invalid lambda created. This should not be possible.")
+              //     }
+              //   )
+              // (methodType, matchLam)
+            }
+          // tryTerm.asTerm.tpe.asType match
+          //   case '[ZIO[r, e, a]] =>
+          //     '{ ${tryTerm.asExprOf[ZIO[r, e, a]]}.catchSome { ${matchLam.asExpr}.asInstanceOf[PartialFunction[e, ZIO[r, e, a]]] } }
 
         case value: IR.Parallel =>
           reconstructParallel(value)
@@ -144,7 +176,7 @@ trait ModelReconstructor {
           // (Note don't think you need to change ownership of caseDef.rhs to the new symbol but possible.)
           val matchSymbol = Symbol.newVal(Symbol.spliceOwner, "matchVar", monadExpr.asTerm.tpe, Flags.EmptyFlags, Symbol.noSymbol)
           val newCaseDefs = reconstructCaseDefs(caseDefs)
-          // even if the content of the match is pure we lifted it into a monad. If we want to optimize we
+          // Possible exploration: if the content of the match is pure we lifted it into a monad. If we want to optimize we
           // change the IR.CaseDef.rhs to be IR.Pure as well as IR.Monadic and handle both cases
           val newMatch = Match(Ref(matchSymbol), newCaseDefs)
           // We can synthesize the monadExpr.flatMap call from the monad at this point but I would rather pass it to the FlatMap case to take care of

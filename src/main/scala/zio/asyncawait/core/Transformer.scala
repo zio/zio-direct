@@ -246,6 +246,7 @@ class Transformer(inputQuotes: Quotes)
     val output = Reconstruct(transformed)
     if (instructions.info == InfoBehavior.Info || instructions.info == InfoBehavior.Verbose)
       println("============== Reconstituted Code ==============\n" + Format.Expr(output))
+      println("============== Reconstituted Code Raw ==============\n" + Format(Printer.TreeStructure.show(output.asTerm)))
 
     val computedType = ComputeType(transformed)
 

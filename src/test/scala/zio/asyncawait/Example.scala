@@ -231,11 +231,44 @@ object Example {
   //   println("====== RESULT: " + outRun)
   // }
 
+  def funH(): Unit = { //
+    val out =
+      async.verbose {
+        try {
+          //await(ZIO.attempt("foo"))
+          await(ZIO.attempt { throw new IOException("blah") })
+        } catch {
+          case e: IOException => "bar"
+        }
+      }
+    val outRun =
+      zio.Unsafe.unsafe { implicit unsafe =>
+        zio.Runtime.default.unsafe.run(out).getOrThrow()
+      }
+    println("====== RESULT: " + outRun)
+  }
+
   def main(args: Array[String]): Unit = {
-    //funH()
-    PrintMac(ZIO.attempt("foo").catchSome {
-      case x: IOException => ZIO.succeed("x")
-      case y: IllegalArgumentException => ZIO.succeed("y")
+    funH()
+  }
+
+  def printPartialFuncExample(): Unit = {
+    println("========================Partial Function Lambda=============================")
+    PrintMac(stuff {
+      case x: IOException => 123
+      case y: IllegalArgumentException => 456
     })
   }
+
+  //   PrintMac(stuff2(
+  //     x => x.length()
+  //   ))
+  // }
+
+  def stuff(input: PartialFunction[String, Int]): Option[Int] =
+    input.lift("foo").map(_ + 1)
+
+  // def stuff2(input: Function[String, Int]): Int =
+  //   input.apply("foo")
+
 }
