@@ -19,6 +19,14 @@ object ComputeTotalZioType {
           additionalTerm.tpe.asType match
             case '[ZIO[x1, y1, b]] =>
               TypeRepr.of[a with b]
+            case _ =>
+              TypeRepr.of[a]
+        case _ =>
+          additionalTerm.tpe.asType match
+            case '[ZIO[x1, y1, b]] =>
+              TypeRepr.of[b]
+            case _ =>
+              TypeRepr.of[Nothing]
     )
 
   def errorOf(using Quotes)(terms: quotes.reflect.Term*) =

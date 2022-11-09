@@ -121,15 +121,21 @@ trait ModelReconstructor {
 
           val newMethodBody =
             IR.If(whileCond,
-              IR.Block(
-                apply(whileBody).asTerm.changeOwner(methSym),
+              IR.FlatMap(
+                IR.Monad(apply(whileBody).asTerm), //apply().asTerm.changeOwner(methSym),
+                None,
                 IR.Monad(Apply(Ref(methSym), Nil))
               ),
               IR.Pure('{ () }.asTerm)
             )
-          val newMethodBodyExpr = apply(newMethodBody)
+          val newMethodBodyExpr =
+            methOutputComputed.asTypeTuple match
+              case ('[r], '[e], '[a]) =>
+                '{ ${apply(newMethodBody)}.asInstanceOf[ZIO[r, e, a]] }
+
           val newMethod = DefDef(methSym, sm => Some(newMethodBodyExpr.asTerm))
-          Block(List(newMethod), Apply(Ref(methSym), Nil)).asExprOf[ZIO[?, ?, ?]]
+          //Block(List(newMethod), Apply(Ref(methSym), Nil)).asExprOf[ZIO[?, ?, ?]]
+          apply(IR.Block(newMethod, IR.Monad(Apply(Ref(methSym), Nil))))
 
 
         case tryIR @ IR.Try(tryBlock, cases, _, finallyBlock) =>

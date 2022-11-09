@@ -7,6 +7,7 @@ import zio.asyncawait.core.metaprog.Extractors._
 import zio.asyncawait.await
 import zio.asyncawait.core.util.PureTree
 import zio.asyncawait.core.util.UnsupportedError
+import zio.asyncawait.core.util.Msg
 
 object Allowed {
 
@@ -14,9 +15,21 @@ object Allowed {
     import quotes.reflect._
     validateBlocksTree(expr.asTerm)
 
+  private def validateAwaitClause(using Quotes)(expr: quotes.reflect.Tree): Unit =
+    import quotes.reflect._
+    Trees.traverse(expr, Symbol.spliceOwner) {
+      case asi: Assign =>
+        UnsupportedError.throwItMsg(
+          asi, _ => Msg.Simple("Assignment is not allowed anywhere inside of async calls. Please use a ZIO Ref instead.")
+        )
+    }
+
   private def validateBlocksTree(using Quotes)(expr: quotes.reflect.Tree): Unit =
     import quotes.reflect._
     Trees.traverse(expr, Symbol.spliceOwner) {
+      case tree @ Seal('{ await[r, e, a]($content) }) =>
+        validateAwaitClause(content.asTerm)
+
       case Select(term, _) =>
         validateBlocksTree(term)
       // Generally speaking, async/awaits can be used both inside of functions and function paramters
@@ -25,8 +38,10 @@ object Allowed {
       case Apply(term, args) =>
         validateBlocksTree(term)
 
-      // TODO Should we diallow assignment anywhere inside an async block?
-      //      if so, that conditional should be added here.
+      case asi: Assign =>
+        UnsupportedError.throwItMsg(
+          asi, _ => Msg.Simple("Assignment is not allowed anywhere inside of async calls. Please use a ZIO Ref instead.")
+        )
 
       case TypeApply(term, args) =>
         validateBlocksTree(term)
@@ -66,8 +81,7 @@ object Allowed {
 
       case Block(stmts, ret) =>
         (stmts :+ ret).foreach(validateBlocksTree(_))
-      // otherwise it has an await clause and with an unsupported construct
-      case Seal('{ await[r, e, a]($content) }) =>
+
       case otherTree =>
         UnsupportedError.throwIt(otherTree)
 

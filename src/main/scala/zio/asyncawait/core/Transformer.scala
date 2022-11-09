@@ -76,7 +76,7 @@ class Transformer(inputQuotes: Quotes)
           val cases = DecomposeCases(caseDefs)
           Some(IR.Try(Decompose.orPure(tryBlock), DecomposeCases(caseDefs), tryTerm.tpe, finallyBlock.map(Decompose.orPure(_))))
 
-        case block @ Block(parts, lastPart) if (parts.nonEmpty) =>
+        case block @ Block(parts, lastPart) =>
           DecomposeBlock.unapply(block)
 
         case Match(m @ Decompose(monad), caseDefs) =>
@@ -120,6 +120,8 @@ class Transformer(inputQuotes: Quotes)
         // To something that looks like:
         // { ZIO.collect(foo, bar).map(iter => val a = iter.next(); val b = iter.next(); (a, b)) }
         case term => // @ Allowed.ParallelExpression()
+          //println(s"========== GENERIC CONSTRUCT: ${Format.Tree(term)}\n==============\n${Format(Printer.TreeStructure.show(term))}")
+
           val unlifts = mutable.ArrayBuffer.empty[(Term, Symbol)]
           val newTree: Term =
             Trees.Transform(term, Symbol.spliceOwner) {

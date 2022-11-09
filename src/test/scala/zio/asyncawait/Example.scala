@@ -293,10 +293,17 @@ object Example {
   def funJ() = {
     val out =
       async.verbose {
-        var i = 10
-        while (await(ZIO.succeed(i - 1)) > 0) {
-          println(s"i is: ${i}")
-          await(ZIO.succeed { i = i + 1 } ) //
+        var i = await(Ref.make(10))
+        // while ({ val v = await(i.get) - 2; println(v); v } > 0) {
+        while (await(i.get) - 2 > 0) {
+          println(s"======= HERE Zero ===========")
+          val curr = await(i.get)
+          println(s"======= HERE: ${curr} ===========")
+          // don't allow await in await
+          //await(zio.Console.printLine(s"i is: ${i.get}"))
+          //val curr = await(i.get)
+          //await(zio.Console.printLine(s"i is: ${curr}"))
+          await(i.getAndUpdate(i => {println(s"--- Cur: ${i}"); i - 1}))
         }
       }
 
