@@ -251,20 +251,21 @@ object Example {
 
     // Bug: moving currTime right before starTime makes a "forward reference"
 
-    def currTime(): Double = java.lang.System.currentTimeMillis()
+    def currTime(): Double = java.lang.System.currentTimeMillis() //
 
-    val out =
-      async.verbose {
-        val a = ZIO.sleep(10.seconds).fork.run
-        val b = ZIO.sleep(2.seconds).fork.run
-        lazy val startTime = currTime()
-        zio.Console.printLine(s"Started waiting: ${(currTime() - startTime)/1000d}").run
-        val aResult = await(a.join)
-        zio.Console.printLine(s"A completed: ${(currTime() - startTime)/1000d}").run
-        val bResult = await(b.join)
-        zio.Console.printLine(s"B completed: ${(currTime() - startTime)/1000d}").run
-        (aResult, bResult)
-      }
+    // val out =
+    //   async.verbose {
+    //     val a = ZIO.sleep(10.seconds).fork.run
+    //     val b = ZIO.sleep(2.seconds).fork.run
+    //     lazy val startTime = currTime()
+    //     ZIO.sleep(4.seconds)
+    //     zio.Console.printLine(s"Started waiting: ${(currTime() - startTime)/1000d}").run
+    //     val aResult = await(a.join)
+    //     zio.Console.printLine(s"A completed: ${(currTime() - startTime)/1000d}").run
+    //     val bResult = await(b.join)
+    //     zio.Console.printLine(s"B completed: ${(currTime() - startTime)/1000d}").run
+    //     (aResult, bResult)
+    //   }
 
     // def currTime(): Double = java.lang.System.currentTimeMillis()
     // val out =
@@ -274,6 +275,11 @@ object Example {
     //     await(zio.Console.printLine(s"Completed in: ${(currTime() - startTime)/1000d}"))
     //     a
     //   }
+
+    val out =
+      async.info {
+        (await(ZIO.sleep(5.seconds)), await(ZIO.sleep(10.seconds)))
+      }
 
     val outRun =
       zio.Unsafe.unsafe { implicit unsafe =>

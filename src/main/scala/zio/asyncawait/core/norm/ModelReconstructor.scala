@@ -10,6 +10,8 @@ import zio.asyncawait.core.util.ComputeTotalZioType
 import zio.asyncawait.core.util.Format
 import zio.Exit.Success
 import zio.Exit.Failure
+import zio.asyncawait.core.metaprog.Instructions
+import zio.asyncawait.core.metaprog.Collect
 
 trait ModelReconstructor {
   self: Model with ModelTypeComputation with ModelPrinting =>
@@ -18,7 +20,7 @@ trait ModelReconstructor {
   import macroQuotes.reflect._
 
 
-  protected object Reconstruct {
+  protected class Reconstruct(instructions: Instructions) {
     private def computeSymbolType(valSymbol: Option[Symbol], alternativeSource: Term) =
       valSymbol match
         case Some(oldSymbol) =>
@@ -266,7 +268,13 @@ trait ModelReconstructor {
             })
           val (terms, names, types) = unliftTriples.unzip3
           val termsExpr = Expr.ofList(terms.map(_.asExprOf[ZIO[?, ?, ?]]))
-          val collect = '{ ZIO.collectAllPar(Chunk.from($termsExpr)) }
+          val collect =
+            instructions.collect match
+              case Collect.Sequence =>
+                '{ ZIO.collectAll(Chunk.from($termsExpr)) }
+              case Collect.Parallel =>
+                '{ ZIO.collectAllPar(Chunk.from($termsExpr)) }
+
           def makeVariables(iterator: Expr[Iterator[?]]) =
             unliftTriples.map((monad, symbol, tpe) =>
                 tpe.asType match {

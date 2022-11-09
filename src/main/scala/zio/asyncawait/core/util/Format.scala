@@ -8,6 +8,8 @@ import zio.asyncawait.core.metaprog.Extractors.Seal
 
 /** Facade objects to make display of zio flatMap simpler */
 object ZioFacade {
+  type Bounds
+
   object ZIO {
     def succeed[T](any: T): zio.ZIO[Any, Throwable, T] = ???
     def service[T]: zio.URIO[T, T] = ???
@@ -17,6 +19,15 @@ object ZioFacade {
   def makeFacade(using q: Quotes)(tree: quotes.reflect.Tree): q.reflect.Tree =
     import quotes.reflect._
     (new TreeMap:
+        // want to remove noise from ZIO[_ >: Nothing <: Any, _ >: Nothing <: Any, _ >: Nothing <: Any]
+        // this doesn't seem to do it though
+        override def transformTypeTree(tree: TypeTree)(owner: Symbol): TypeTree = {
+          tree match
+            case _: TypeBoundsTree => TypeTree.of[ZioFacade.Bounds]
+
+            case _: Tree =>
+              super.transformTypeTree(tree)(owner)
+        }
         override def transformTerm(tree: Term)(owner: Symbol): Term = {
           tree match
             case Seal('{ zio.ZIO.succeed[t]($tt)($impl) }) =>

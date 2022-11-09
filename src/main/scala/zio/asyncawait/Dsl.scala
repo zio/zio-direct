@@ -4,16 +4,23 @@ import zio.Task
 import scala.quoted._
 import zio.asyncawait.core.Transformer
 import zio.ZIO
-import zio.asyncawait.core.metaprog.MakeInstructions
 import zio.asyncawait.core.metaprog.Instructions
 import zio.asyncawait.core.metaprog.InfoBehavior
+import zio.asyncawait.core.metaprog.Collect
+import zio.asyncawait.core.metaprog.Unliftables
 
 def await[R, E, A](value: ZIO[R, E, A]): A = ???
 
 object async {
-  transparent inline def apply[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.applyImpl[T]('value) }
-  transparent inline def info[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.infoImpl[T]('value) }
-  transparent inline def verbose[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.verboseImpl[T]('value) }
+  transparent inline def apply[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.Silent}, '{Collect.Sequence}) }
+  transparent inline def info[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.Info}, '{Collect.Sequence}) }
+  transparent inline def verbose[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.Verbose}, '{Collect.Sequence}) }
+  transparent inline def verboseTree[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.VerboseTree}, '{Collect.Sequence}) }
+
+  transparent inline def apply[T](inline collect: Collect)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.Silent}, 'collect) }
+  transparent inline def info[T](inline collect: Collect)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.Info}, 'collect) }
+  transparent inline def verbose[T](inline collect: Collect)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.Verbose}, 'collect) }
+  transparent inline def verboseTree[T](inline collect: Collect)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.VerboseTree}, '{Collect.Sequence}) }
 }
 
 extension [R, E, A](inline value: ZIO[R, E, A])
@@ -21,15 +28,11 @@ extension [R, E, A](inline value: ZIO[R, E, A])
 
 
 object Dsl {
-  def verboseImpl[T: Type](value: Expr[T])(using q: Quotes): Expr[ZIO[?, ?, ?]] = {
-    (new Transformer(q)).apply(value, Instructions(InfoBehavior.Verbose))
-  }
+  import InfoBehavior._
 
-  def infoImpl[T: Type](value: Expr[T])(using q: Quotes): Expr[ZIO[?, ?, ?]] = {
-    (new Transformer(q)).apply(value, Instructions(InfoBehavior.Info))
-  }
+  def impl[T: Type](value: Expr[T], infoBehavior: Expr[InfoBehavior], col: Expr[Collect])(using q: Quotes): Expr[ZIO[?, ?, ?]] =
+    doTransform(value, Unliftables.unliftInfoBehavior(infoBehavior), Unliftables.unliftCollect(col))
 
-  def applyImpl[T: Type](value: Expr[T])(using q: Quotes): Expr[ZIO[?, ?, ?]] = {
-    (new Transformer(q)).apply(value, Instructions(InfoBehavior.Silent))
-  }
+  def doTransform[T: Type](value: Expr[T], infoBehavior: InfoBehavior, collect: Collect)(using q: Quotes): Expr[ZIO[?, ?, ?]] =
+    (new Transformer(q)).apply(value, Instructions(infoBehavior, collect))
 }

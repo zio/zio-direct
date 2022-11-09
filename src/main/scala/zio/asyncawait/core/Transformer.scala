@@ -155,14 +155,7 @@ class Transformer(inputQuotes: Quotes)
                 IR.Map(monad, symbol, IR.Pure(pureBody))
           Some(out)
 
-        // TODO Validate this?
-        //case MatchValDef(name, body) :: tail =>
-        //  report.throwError(s"===== validef match bad body: ${body.show}")
-
-        // other statements possible including ClassDef etc... should look into that
-
         case Decompose(monad) :: tail =>
-          //println(s"============= Block - Head Decompose: ${Printer.TreeShortCode.show(monad.asTerm)} ===== ${tail.map(Format.Tree(_))}")
           tail match {
             // In this case where is one statement in the block which my definition
             // needs to have the same type as the output: e.g.
@@ -170,7 +163,6 @@ class Transformer(inputQuotes: Quotes)
             // since we've pulled out the `doSomething` inside the signature
             // will be ZIO[_, _, T] instead of T.
             case Nil =>
-              //println(s"============= Block - With zero terms: ${monad.show}")
               Some(monad)
             case list =>
               // In this case there are multiple instructions inside the seauence e.g:
@@ -180,7 +172,6 @@ class Transformer(inputQuotes: Quotes)
               // x.flatMap(.. -> {y; z: ZIO[_, _, T]}). Of course the value will be ZIO[_, _, T]
               // since the last value of a nested flatMap chain is just the last instruction
               // in the nested sequence.
-              //println(s"============= Block - With multiple terms: ${monad.show}, ${list.map(_.show)}")
               val out =
                 BlockN(tail) match
                   case Decompose(bodyMonad) =>
@@ -196,11 +187,23 @@ class Transformer(inputQuotes: Quotes)
         //   import blah._          // 2nd part, will recurse 2nd time (here)
         //   val b = unlift(ZIO.succeed(value).asInstanceOf[Task[Int]]) // Then will match valdef case
         case head :: BlockN(DecomposeBlock(parts)) =>
-          //println(s"============= Block - With end parts: ${Format.Expr(parts)}")
+          head match
+            case term: Term =>
+              term.tpe.asType match
+                case '[ZIO[r, e, a]] =>
+                  report.warning(
+                    s"Found a ZIO term that is not being awaited. Non-awaited ZIO terms will never be executed i.e. they will be discarded." +
+                    s"To execute this term add `.run` at the end or wrap it into an `await(...)` statement:" +
+                    s"\n========\n" +
+                    Format.Term(term),
+                    term.asExpr
+                  )
+                case _ =>
+            case _ =>
+
           Some(IR.Block(head, parts))
 
         case other =>
-          println(s"============= Block - None: ${other.map(Format.Tree(_))}")
           None
       }
   }
@@ -240,19 +243,21 @@ class Transformer(inputQuotes: Quotes)
     // // Do the main transformation
     val transformed = Decompose.orPure(value)
 
-    if (instructions.info == InfoBehavior.Verbose)
+    if (instructions.info.showDeconstructed)
       println("============== Deconstructed Instructions ==============\n" + mprint(transformed))
 
-    val output = Reconstruct(transformed)
-    if (instructions.info == InfoBehavior.Info || instructions.info == InfoBehavior.Verbose)
+    val output = new Reconstruct(instructions)(transformed)
+    if (instructions.info.showReconstructed)
       println("============== Reconstituted Code ==============\n" + Format.Expr(output))
-      //println("============== Reconstituted Code Raw ==============\n" + Format(Printer.TreeStructure.show(output.asTerm)))
+
+    if (instructions.info.showReconstructedTree)
+      println("============== Reconstituted Code Raw ==============\n" + Format(Printer.TreeStructure.show(output.asTerm)))
 
     val computedType = ComputeType(transformed)
 
     val zioType = computedType.toZioType
 
-    if (instructions.info == InfoBehavior.Verbose)
+    if (instructions.info.showReconstructed)
       println(
         s"""-------------
         |Computed-Type: ${Format.TypeRepr(zioType)}
@@ -268,7 +273,7 @@ class Transformer(inputQuotes: Quotes)
       case ('[r], '[e], '[a]) =>
         val computedTypeMsg = s"Computed Type: ${Format.TypeOf[ZIO[r, e, a]]}"
 
-        if (instructions.info == InfoBehavior.Info || instructions.info == InfoBehavior.Verbose)
+        if (instructions.info.showComputedType)
           ownerPositionOpt match {
             case Some(pos) =>
               report.info(computedTypeMsg, pos)
