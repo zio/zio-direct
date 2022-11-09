@@ -232,21 +232,23 @@ object Example {
   // }
 
   def funH(): Unit = { //
-    // val out =
-    //   async.verbose {
-    //     val msg =
-    //       async(
-    //         try {
-    //           //await(ZIO.attempt("foo"))
-    //           await(ZIO.attempt { throw new IOException("blah") })
-    //         } catch {
-    //           case e: IOException => e.getMessage()
-    //         }
-    //       )
-    //     val msgResult = await(msg)
+    val out =
+      async.verbose {
+        val msg =
+          async(
+            try {
+              //await(ZIO.attempt("foo"))
+              await(ZIO.attempt { throw new IOException("blah") })
+            } catch {
+              case e: IOException => e.getMessage()
+            } finally {
+              println("============ Recovering ========")
+            }
+          )
+        val msgResult = await(msg)
 
-    //     await(ZIO.succeed(msgResult))
-    //   }
+        await(ZIO.succeed(msgResult))
+      }
 
 
     // Bug: moving currTime right before starTime makes a "forward reference"
@@ -276,10 +278,10 @@ object Example {
     //     a
     //   }
 
-    val out =
-      async.info {
-        (await(ZIO.sleep(5.seconds)), await(ZIO.sleep(10.seconds)))
-      }
+    // val out =
+    //   async.info {
+    //     (await(ZIO.sleep(5.seconds)), await(ZIO.sleep(10.seconds)))
+    //   }
 
     val outRun =
       zio.Unsafe.unsafe { implicit unsafe =>

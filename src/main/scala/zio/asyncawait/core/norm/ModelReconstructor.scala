@@ -12,6 +12,7 @@ import zio.Exit.Success
 import zio.Exit.Failure
 import zio.asyncawait.core.metaprog.Instructions
 import zio.asyncawait.core.metaprog.Collect
+import zio.asyncawait.core.util.ZioUtil
 
 trait ModelReconstructor {
   self: Model with ModelTypeComputation with ModelPrinting =>
@@ -145,7 +146,16 @@ trait ModelReconstructor {
               // Assemble the peices together into a closure
               val closure = Closure(Ref(methSym), Some(pfTree))
               val functionBlock = Block(List(method), closure).asExprOf[PartialFunction[e0, ZIO[r, e, b]]]
-              '{ ${tryTerm.asExprOf[ZIO[r0, e0, a0]]}.catchSome { ${functionBlock} } }
+              val monadExpr = '{ ${tryTerm.asExprOf[ZIO[r0, e0, a0]]}.catchSome { ${functionBlock} } }
+
+              finallyBlock match {
+                case Some(ir) =>
+                  val finallyExpr = apply(ir)
+                  '{ $monadExpr.onExit(_ => ZioUtil.wrapWithThrowable($finallyExpr).orDie) }
+
+                case None =>
+                  monadExpr
+              }
             }
 
         case value: IR.Parallel =>
