@@ -48,6 +48,10 @@ object Allowed {
         validateBlocksTree(ifTrue)
         validateBlocksTree(ifFalse)
 
+      case While(cond, body) =>
+        validateBlocksTree(cond)
+        validateBlocksTree(body)
+
       case Try(tryBlock, caseDefs, finallyBlock) =>
         validateBlocksTree(tryBlock)
         caseDefs.foreach(validateCaseDef(_))

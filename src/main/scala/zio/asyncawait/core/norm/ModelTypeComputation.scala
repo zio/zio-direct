@@ -12,19 +12,24 @@ trait ModelTypeComputation {
   import macroQuotes.reflect._
 
   protected case class ZioType(r: TypeRepr, e: TypeRepr, a: TypeRepr) {
-  def show = s"ZioType(${Format.TypeRepr(r)}, ${Format.TypeRepr(e)}, ${Format.TypeRepr(a)})"
+    def show = s"ZioType(${Format.TypeRepr(r)}, ${Format.TypeRepr(e)}, ${Format.TypeRepr(a)})"
 
-  def toZioType: TypeRepr =
-    (r.asType, e.asType, a.asType) match
-      case ('[r], '[e], '[a]) =>
-        TypeRepr.of[ZIO[r, e, a]]
+    def asTypeTuple = (r.asType, e.asType, a.asType)
 
-  def flatMappedWith(other: ZioType) =
-    ZioType(ZioType.and(r, other.r), ZioType.or(e, other.e), other.a)
+    def toZioType: TypeRepr =
+      asTypeTuple match
+        case ('[r], '[e], '[a]) =>
+          TypeRepr.of[ZIO[r, e, a]]
 
-  def mappedWith(other: Term) =
-    ZioType(r, e, other.tpe)
-}
+    def flatMappedWith(other: ZioType) =
+      ZioType(ZioType.and(r, other.r), ZioType.or(e, other.e), other.a)
+
+    def mappedWith(other: Term) =
+      ZioType(r, e, other.tpe)
+
+    def mappedWithType(tpe: TypeRepr) =
+      ZioType(r, e, tpe)
+  }
   protected object ZioType {
     def fromZIO(zio: Term) =
       zio.tpe.asType match
@@ -129,8 +134,14 @@ trait ModelTypeComputation {
             outputType.asType match
               case '[ZIO[r, e, a]] => ZioType(TypeRepr.of[r].widen, TypeRepr.of[e].widen, TypeRepr.of[a].widen)
               case '[t] => ZioType(TypeRepr.of[Any].widen, TypeRepr.of[Throwable].widen, TypeRepr.of[t].widen)
-
           tryBlockType.flatMappedWith(caseDefType)
+
+        case IR.While(cond, body) =>
+          val condTpe = apply(cond)
+          val bodyTpe = apply(body)
+          val out = condTpe.flatMappedWith(bodyTpe).mappedWithType(TypeRepr.of[Unit])
+          println(s"----------- Type: ${condTpe.show}.flatMap(${bodyTpe.show}).map(Unit) => ${out.show}")
+          out
 
         case IR.Parallel(monads, body) =>
           val monadsType = ZioType.composeN(monads.map((term, _) => ZioType.fromZIO(term)))

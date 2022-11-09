@@ -110,11 +110,32 @@ trait ModelReconstructor {
             case _ => report.errorAndAbort(s"Invalid boolean variable combination:\n${mprint(expr)}")
           }
 
+        // TODO test with dependencyes and various errors types in both condition and body
+        case irWhile @ IR.While(whileCond, whileBody) =>
+          // Since the function needs to know the type for the definition (especially because it's recursive!) need to find that out here
+          val methOutputComputed = ComputeType(irWhile)
+          val methOutputTpe = methOutputComputed.toZioType
+
+          val methodType = MethodType(Nil)(_ => Nil, _ => methOutputTpe)
+          val methSym = Symbol.newMethod(Symbol.spliceOwner, "whileFunc", methodType)
+
+          val newMethodBody =
+            IR.If(whileCond,
+              IR.Block(
+                apply(whileBody).asTerm.changeOwner(methSym),
+                IR.Monad(Apply(Ref(methSym), Nil))
+              ),
+              IR.Pure('{ () }.asTerm)
+            )
+          val newMethodBodyExpr = apply(newMethodBody)
+          val newMethod = DefDef(methSym, sm => Some(newMethodBodyExpr.asTerm))
+          Block(List(newMethod), Apply(Ref(methSym), Nil)).asExprOf[ZIO[?, ?, ?]]
+
+
         case tryIR @ IR.Try(tryBlock, cases, _, finallyBlock) =>
           val newCaseDefs = reconstructCaseDefs(cases)
           val resultType = ComputeType(tryIR).toZioType
           val tryTerm = apply(tryBlock)
-          //val (methodType, matchLam) =
           (tryTerm.asTerm.tpe.asType, resultType.asType) match
             case ('[ZIO[r0, e0, a0]], '[ZIO[r, e, b]]) => {
               // A normal lambda looks something like:

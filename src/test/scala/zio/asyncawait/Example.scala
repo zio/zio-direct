@@ -231,57 +231,74 @@ object Example {
   //   println("====== RESULT: " + outRun)
   // }
 
-  def funH(): Unit = { //
+  // def funH(): Unit = { //
+  //   val out =
+  //     async.verbose {
+  //       val msg =
+  //         async(
+  //           try {
+  //             //await(ZIO.attempt("foo"))
+  //             await(ZIO.attempt { throw new IOException("blah") })
+  //           } catch {
+  //             case e: IOException => e.getMessage()
+  //           } finally {
+  //             println("============ Recovering ========")
+  //           }
+  //         )
+  //       val msgResult = await(msg)
+
+  //       await(ZIO.succeed(msgResult))
+  //     }
+
+
+  //   // Bug: moving currTime right before starTime makes a "forward reference"
+
+  //   def currTime(): Double = java.lang.System.currentTimeMillis() //
+
+  //   // val out =
+  //   //   async.verbose {
+  //   //     val a = ZIO.sleep(10.seconds).fork.run
+  //   //     val b = ZIO.sleep(2.seconds).fork.run
+  //   //     lazy val startTime = currTime()
+  //   //     ZIO.sleep(4.seconds)
+  //   //     zio.Console.printLine(s"Started waiting: ${(currTime() - startTime)/1000d}").run
+  //   //     val aResult = await(a.join)
+  //   //     zio.Console.printLine(s"A completed: ${(currTime() - startTime)/1000d}").run
+  //   //     val bResult = await(b.join)
+  //   //     zio.Console.printLine(s"B completed: ${(currTime() - startTime)/1000d}").run
+  //   //     (aResult, bResult)
+  //   //   }
+
+  //   // def currTime(): Double = java.lang.System.currentTimeMillis()
+  //   // val out =
+  //   //   async.verbose {
+  //   //     val startTime = currTime()
+  //   //     val a = await(ZIO.collectAllPar(Chunk(ZIO.sleep(10.seconds), ZIO.sleep(2.seconds))))
+  //   //     await(zio.Console.printLine(s"Completed in: ${(currTime() - startTime)/1000d}"))
+  //   //     a
+  //   //   }
+
+  //   // val out =
+  //   //   async.info {
+  //   //     (await(ZIO.sleep(5.seconds)), await(ZIO.sleep(10.seconds)))
+  //   //   }
+
+  //   val outRun =
+  //     zio.Unsafe.unsafe { implicit unsafe =>
+  //       zio.Runtime.default.unsafe.run(out).getOrThrow()
+  //     }
+  //   println("====== RESULT: " + outRun)
+  // }
+
+  def funJ() = {
     val out =
       async.verbose {
-        val msg =
-          async(
-            try {
-              //await(ZIO.attempt("foo"))
-              await(ZIO.attempt { throw new IOException("blah") })
-            } catch {
-              case e: IOException => e.getMessage()
-            } finally {
-              println("============ Recovering ========")
-            }
-          )
-        val msgResult = await(msg)
-
-        await(ZIO.succeed(msgResult))
+        var i = 10
+        while (await(ZIO.succeed(i - 1)) > 0) {
+          println(s"i is: ${i}")
+          await(ZIO.succeed { i = i + 1 } ) //
+        }
       }
-
-
-    // Bug: moving currTime right before starTime makes a "forward reference"
-
-    def currTime(): Double = java.lang.System.currentTimeMillis() //
-
-    // val out =
-    //   async.verbose {
-    //     val a = ZIO.sleep(10.seconds).fork.run
-    //     val b = ZIO.sleep(2.seconds).fork.run
-    //     lazy val startTime = currTime()
-    //     ZIO.sleep(4.seconds)
-    //     zio.Console.printLine(s"Started waiting: ${(currTime() - startTime)/1000d}").run
-    //     val aResult = await(a.join)
-    //     zio.Console.printLine(s"A completed: ${(currTime() - startTime)/1000d}").run
-    //     val bResult = await(b.join)
-    //     zio.Console.printLine(s"B completed: ${(currTime() - startTime)/1000d}").run
-    //     (aResult, bResult)
-    //   }
-
-    // def currTime(): Double = java.lang.System.currentTimeMillis()
-    // val out =
-    //   async.verbose {
-    //     val startTime = currTime()
-    //     val a = await(ZIO.collectAllPar(Chunk(ZIO.sleep(10.seconds), ZIO.sleep(2.seconds))))
-    //     await(zio.Console.printLine(s"Completed in: ${(currTime() - startTime)/1000d}"))
-    //     a
-    //   }
-
-    // val out =
-    //   async.info {
-    //     (await(ZIO.sleep(5.seconds)), await(ZIO.sleep(10.seconds)))
-    //   }
 
     val outRun =
       zio.Unsafe.unsafe { implicit unsafe =>
@@ -291,7 +308,7 @@ object Example {
   }
 
   def main(args: Array[String]): Unit = {
-    funH()
+    funJ()
   }
 
   // def printPartialFuncExample(): Unit = {

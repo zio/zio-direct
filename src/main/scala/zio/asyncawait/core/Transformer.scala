@@ -47,6 +47,20 @@ class Transformer(inputQuotes: Quotes)
           val condIR = Decompose.orPure(cond)
           Some(IR.If(condIR, ifTrueIR, ifFalseIR))
 
+        // For example, this:
+        //   while (foo) { await(bar:ZIO) }
+        // will be translated into:
+        //   def whileFunc() { if (foo) { bar; whileFunc() } }
+        // the actual function will be synthesized in the Reconstructor. Ultimately the following code will be spliced:
+        //   { def whileFunc() { if (foo) { bar; whileFunc() } } }
+        //
+        // in the case that `if` is a monad, i.e. something like this
+        //   while (await(foo)) { await(bar) }
+        // then something like this will happen:
+        //   def whileFunc() { foo.flatMap(fooVal => { if (foo) { bar; whileFunc() } })) }
+        case While(cond, body) =>
+          Some(IR.While(Decompose.orPure(cond), Decompose.orPure(body)))
+
         case Seal('{ ($a: Boolean) && ($b: Boolean) }) =>
           // the actual case where they are both cure is handled by the PureTree case
           val (aTerm, bTerm) = Decompose.orPure2(a.asTerm, b.asTerm)
