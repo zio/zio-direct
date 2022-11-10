@@ -6,8 +6,8 @@ import zio.asyncawait.core.metaprog.Trees
 import zio.asyncawait.core.metaprog.Extractors._
 import zio.asyncawait.await
 import zio.asyncawait.core.util.PureTree
-import zio.asyncawait.core.util.UnsupportedError
-import zio.asyncawait.core.util.Msg
+import zio.asyncawait.core.util.Unsupported
+import zio.asyncawait.core.util.Examples
 
 object Allowed {
 
@@ -18,10 +18,13 @@ object Allowed {
   private def validateAwaitClause(using Quotes)(expr: quotes.reflect.Tree): Unit =
     import quotes.reflect._
     Trees.traverse(expr, Symbol.spliceOwner) {
+      // Cannot have nested awaits:
+      case tree @ Seal('{ await[r, e, a]($content) }) =>
+        Unsupported.Error.withTree(tree, Examples.AwaitInAwaitError)
+
+      // Assignment in an await allowed by not recommenteded
       case asi: Assign =>
-        UnsupportedError.throwItMsg(
-          asi, _ => Msg.Simple("Assignment is not allowed anywhere inside of async calls. Please use a ZIO Ref instead.")
-        )
+        Unsupported.Warn.withTree(asi, Examples.AwaitAssignmentNotRecommended)
     }
 
   private def validateBlocksTree(using Quotes)(expr: quotes.reflect.Tree): Unit =
@@ -39,9 +42,7 @@ object Allowed {
         validateBlocksTree(term)
 
       case asi: Assign =>
-        UnsupportedError.throwItMsg(
-          asi, _ => Msg.Simple("Assignment is not allowed anywhere inside of async calls. Please use a ZIO Ref instead.")
-        )
+        Unsupported.Error.withTree(asi, Examples.AssignmentNotAllowed)
 
       case TypeApply(term, args) =>
         validateBlocksTree(term)
@@ -83,7 +84,7 @@ object Allowed {
         (stmts :+ ret).foreach(validateBlocksTree(_))
 
       case otherTree =>
-        UnsupportedError.throwIt(otherTree)
+        Unsupported.Error.awaitUnsupported(otherTree)
 
       // TODO custom warning if any mutable structures are being used inside async blocks
       // TODO custom warning for assignment
@@ -97,7 +98,7 @@ object Allowed {
       case None =>
       case Some(PureTree(_)) =>
       case Some(nonpure) =>
-        UnsupportedError.throwIt(nonpure, "Match conditionals are not allow to contain `await`. Move the `await` call out of the match-statement.")
+        Unsupported.Error.awaitUnsupported(nonpure, "Match conditionals are not allow to contain `await`. Move the `await` call out of the match-statement.")
     }
     validateBlocksTree(output)
   }
@@ -135,7 +136,7 @@ object Allowed {
         case Inlined(call, bindings, expansion) =>
           checkAllowed(expansion)
         case _ =>
-          UnsupportedError.throwIt(tree)
+          Unsupported.Error.awaitUnsupported(tree)
       }
     }
 

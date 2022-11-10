@@ -208,8 +208,8 @@ class Transformer(inputQuotes: Quotes)
               term.tpe.asType match
                 case '[ZIO[r, e, a]] =>
                   report.warning(
-                    s"Found a ZIO term that is not being awaited. Non-awaited ZIO terms will never be executed i.e. they will be discarded." +
-                    s"To execute this term add `.run` at the end or wrap it into an `await(...)` statement:" +
+                    s"Found a ZIO term that is not being awaited. Non-awaited ZIO terms inside of `{ ... }` blocks will never be executed i.e. they will be discarded. " +
+                    s"To execute this term add `.run` at the end or wrap it into an `await(...)` statement." +
                     s"\n========\n" +
                     Format.Term(term),
                     term.asExpr

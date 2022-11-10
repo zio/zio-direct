@@ -16,18 +16,40 @@ object ZioFacade {
     def attempt[T](any: T): zio.Task[T] = ???
   }
 
+  private trait Unk
+
   def makeFacade(using q: Quotes)(tree: quotes.reflect.Tree): q.reflect.Tree =
     import quotes.reflect._
     (new TreeMap:
         // want to remove noise from ZIO[_ >: Nothing <: Any, _ >: Nothing <: Any, _ >: Nothing <: Any]
         // this doesn't seem to do it though
-        override def transformTypeTree(tree: TypeTree)(owner: Symbol): TypeTree = {
-          tree match
-            case _: TypeBoundsTree => TypeTree.of[ZioFacade.Bounds]
+        // override def transformTypeTree(tree: TypeTree)(owner: Symbol): TypeTree = {
+        //   val str = Printer.TreeShortCode.show(tree)
+        //   if (str.contains("_ >: Nothing <: Any"))
+        //     println(s"========== Looking at type tree:\n${Printer.TreeShortCode.show(tree)}")
+        //     println(s"========== Expanded:\n${Printer.TreeStructure.show(tree)}")
+        //   tree match
+        //     case tree: Applied =>
+        //       Applied.copy(tree)(transformTypeTree(tree.tpt)(owner), transformTrees(tree.args)(owner))
 
-            case _: Tree =>
-              super.transformTypeTree(tree)(owner)
+        //     case TypeBoundsTree(_, _) =>
+        //       println("((((((((((((((((( HERE )))))))))))))))))")
+        //       TypeTree.of[Any]
+
+        //     case _: Tree =>
+        //       super.transformTypeTree(tree)(owner)
+        // }
+
+
+        override def transformTree(tree: Tree)(owner: Symbol): Tree = {
+          tree match {
+            case TypeBoundsTree(_, _) =>
+              TypeTree.of[Unk]
+
+            case _ => super.transformTree(tree)(owner)
+          }
         }
+
         override def transformTerm(tree: Term)(owner: Symbol): Term = {
           tree match
             case Seal('{ zio.ZIO.succeed[t]($tt)($impl) }) =>

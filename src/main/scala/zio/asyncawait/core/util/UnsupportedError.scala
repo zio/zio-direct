@@ -3,53 +3,61 @@ package zio.asyncawait.core.util
 import scala.quoted._
 import zio.asyncawait.core.util.IndentExt._
 
-sealed trait Msg {
-  def render: String
-}
-object Msg {
-  case class Simple(msg: String) extends Msg {
-    def render = msg
+object Unsupported {
+  private sealed trait Msg {
+    def render: String
+  }
+  private object Msg {
+    case class Simple(msg: String) extends Msg {
+      def render = msg
+    }
+
+    def AwaitUnsupportedTree(using Quotes)(tree: quotes.reflect.Tree, additionalMsg: String = "", example: String = Examples.MoveAwaitOut) =
+      AwaitUnsupported(Format.Tree(tree), additionalMsg, example)
+
+    case class AwaitUnsupported(unsupportedConstruct: String, additionalMsg: String = "", example: String = Examples.MoveAwaitOut) extends Msg {
+      def render =
+        s"""|Detected an `await` call inside of an unsupported structure:
+            |${unsupportedConstruct}
+            |""".stripMargin
+            + lineIfAnyDefined("============")(additionalMsg, example)
+            + lineIfDefined(additionalMsg)
+            + lineIfDefined(example)
+    }
+
+    private def lineIfAnyDefined(strToShow: String)(ifDefined: String*) =
+      if (ifDefined.exists(_.trim != ""))
+        strToShow + "\n"
+      else
+        ""
+
+    private def lineIfDefined(str: String) =
+      if (str.trim != "") str + "\n"
+      else ""
   }
 
-  def UnsuppTree(using Quotes)(tree: quotes.reflect.Tree, additionalMsg: String = "", example: Example = defaultExample) =
-    Unsupp(Format.Tree(tree), additionalMsg, example)
+  object Error {
+    def awaitUnsupported(using Quotes)(tree: quotes.reflect.Tree, additionalMessage: String = "") =
+      import quotes.reflect._
+      val text = Msg.AwaitUnsupportedTree(tree, additionalMessage).render
+      tree match
+        case t: Term if (t.isExpr) => report.errorAndAbort(text, t.asExpr)
+        case _ => report.errorAndAbort(text)
 
-  case class Unsupp(unsupportedConstruct: String, additionalMsg: String = "", example: Example = defaultExample) extends Msg {
-    def render =
-      s"""|Detected an `await` call inside of an unsupported structure:
-          |${unsupportedConstruct}
-          |===========
-          |${additionalMsg}
-          |${example.text}
-          |""".stripMargin
+    def withTree(using Quotes)(tree: quotes.reflect.Tree, message: String) =
+      import quotes.reflect._
+      val text = message
+      tree match
+        case t: Term if (t.isExpr) => report.errorAndAbort(text, t.asExpr)
+        case _ => report.errorAndAbort(text)
   }
-  case class Example(text: String) extends Msg {
-    def render = text
+
+  object Warn {
+    def withTree(using Quotes)(tree: quotes.reflect.Tree, message: String) =
+      import quotes.reflect._
+      val text = message
+      tree match
+        case t: Term if (t.isExpr) => report.warning(text, t.asExpr)
+        case _ => report.warning(text)
   }
-
-  val defaultExample = Example(defaultExampleMsg)
-  private val defaultExampleMsg =
-    s"""Move the `await` call outside of this structure in order to use it.
-      |For example, change this:
-      |  val v = somethingUnsupported(await(x))
-      |To this:
-      |  val a = await(x)
-      |  val v = somethingUnsupported(a)
-      """.stripMargin
-}
-
-object UnsupportedError {
-  def throwIt(using Quotes)(tree: quotes.reflect.Tree, additionalMessage: String = "") =
-    import quotes.reflect._
-    val text = Msg.UnsuppTree(tree, additionalMessage).render
-    tree match
-      case t: Term if (t.isExpr) => report.errorAndAbort(text, t.asExpr)
-      case _ => report.errorAndAbort(text)
-
-  def throwItMsg(using Quotes)(tree: quotes.reflect.Tree, makeMsg: quotes.reflect.Tree => Msg = Msg.UnsuppTree(_)) =
-    import quotes.reflect._
-    val text = makeMsg(tree).render
-    tree match
-      case t: Term if (t.isExpr) => report.errorAndAbort(text, t.asExpr)
-      case _ => report.errorAndAbort(text)
 }

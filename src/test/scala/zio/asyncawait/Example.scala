@@ -290,22 +290,42 @@ object Example {
   //   println("====== RESULT: " + outRun)
   // }
 
+  // while ({ val v = await(i.get) - 2; println(v); v } > 0) {
+
   def funJ() = {
+
+
     val out =
       async.verbose {
-        var i = await(Ref.make(10))
-        // while ({ val v = await(i.get) - 2; println(v); v } > 0) {
-        while (await(i.get) - 2 > 0) {
-          println(s"======= HERE Zero ===========")
-          val curr = await(i.get)
-          println(s"======= HERE: ${curr} ===========")
-          // don't allow await in await
-          //await(zio.Console.printLine(s"i is: ${i.get}"))
-          //val curr = await(i.get)
-          //await(zio.Console.printLine(s"i is: ${curr}"))
-          await(i.getAndUpdate(i => {println(s"--- Cur: ${i}"); i - 1}))
+        var i = 10; //Ref.make(10).run
+        while (i - 2 > 0) {
+          ZIO.succeed(i)
+          println("=========== Here ===========")
+          //await(await(ZIO.succeed(i.getAndUpdate(i => {println(s"Decrementing: $i"); i - 1}))))
+          await(ZIO.succeed({ i = i - 1 }))
         }
       }
+
+
+
+
+
+//////
+      // async.verbose {
+      //   var i = await(ZIO.succeed(10))
+      //   while (await(ZIO.succeed(i - 2)) >= 0) {
+      //     println(s"Currently: $i")
+      //     await(ZIO.succeed { i = i -1 } )
+      //   }
+      // }
+      //
+      // async.verbose {
+      //   var i = Ref.make(10).run
+      //   while (i.get.run - 2 >= 0) {
+      //     println(s"======= Currently: ${i.get.run} ===========")
+      //     i.getAndUpdate(i => i - 1).run
+      //   }
+      // }
 
     val outRun =
       zio.Unsafe.unsafe { implicit unsafe =>
