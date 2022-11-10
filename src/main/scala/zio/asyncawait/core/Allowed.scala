@@ -30,8 +30,23 @@ object Allowed {
   private def validateBlocksTree(using Quotes)(expr: quotes.reflect.Tree): Unit =
     import quotes.reflect._
     Trees.traverse(expr, Symbol.spliceOwner) {
-      case tree @ Seal('{ await[r, e, a]($content) }) =>
+      case _ if {
+        println(s"=========== Validate Blocks: ${Format.Tree(expr)}")
+        false
+      } => ???
+
+      case tree @ Seal('{ zio.asyncawait.await[r, e, a]($content) }) =>
+        println(s"=========== Matched the await: ${Format.Tree(tree)}")
         validateAwaitClause(content.asTerm)
+
+      case other if {
+        if (Format.Tree(other).contains("await")) {
+          println("============== IN HERE ===========\n" + Format.Tree(other))
+          false
+        } else {
+          false
+        }
+      } => ???
 
       case Select(term, _) =>
         validateBlocksTree(term)
@@ -40,6 +55,7 @@ object Allowed {
       // latter condition is verified in TransformDefs
       case Apply(term, args) =>
         validateBlocksTree(term)
+        args.foreach(validateBlocksTree(_))
 
       case asi: Assign =>
         Unsupported.Error.withTree(asi, Examples.AssignmentNotAllowed)

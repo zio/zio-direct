@@ -17,7 +17,7 @@ object ZioFacade {
     def attempt[T](any: T): zio.Task[T] = ???
   }
 
-  private trait Unk
+  private trait AnyToNothing
 
   def makeFacade(using q: Quotes)(tree: quotes.reflect.Tree): q.reflect.Tree =
     import quotes.reflect._
@@ -39,7 +39,7 @@ object ZioFacade {
             case tree: Applied =>
               Applied.copy(tree)(transformTypeTree(tree.tpt)(owner), transformTrees(tree.args)(owner))
 
-            case HasTypeBoundsType(_) => TypeTree.of[Unk]
+            case HasTypeBoundsType(_) => TypeTree.of[AnyToNothing]
             case TypeOfTypeTree(CanSimplifyZioType(tpe)) => TypeTree.of(using tpe.asType)
 
             case _: Tree => super.transformTypeTree(tree)(owner)
@@ -91,34 +91,8 @@ object ZioFacade {
 
 
         override def transformTree(tree: Tree)(owner: Symbol): Tree = {
-          val str = Printer.TreeShortCode.show(tree)
-          val isTypeBoundsTree = tree match { case TypeBoundsTree(_, _) => true; case _ => false }
-          val typeTreeOpt =
-            (tree match {
-              case typeTree: TypeBoundsTree => Some(typeTree.tpe)
-              case _ => None
-            })
-          val isTypeBounds =
-            typeTreeOpt.map { value =>
-              value match { case TypeBounds(_, _) => true; case _ => false }
-            }.getOrElse(false)
-
-          val isTypeBoundsTpe =
-          if (str.contains("_ >: Nothing <: Any"))
-            println(
-             s"""|========== (transformTree) Looking at type tree
-                 |(is type bounds tree: ${isTypeBoundsTree}):
-                 |(is type bounds type: ${isTypeBounds}):
-                 |(type: ${typeTreeOpt.map(Format.TypeRepr(_))})
-                 |(is type bounds: ${HasTypeBoundsType.unapply(tree)})
-                 |${Printer.TreeShortCode.show(tree)}"
-              """.stripMargin
-            )
-            //println(s"========== (transformTree) Expanded:\n${Printer.TreeStructure.show(tree)}")
           tree match {
-            case HasTypeBoundsType(_) =>
-              println("((((((((((((((((( HERE )))))))))))))))))")
-              TypeTree.of[Unk]
+            case HasTypeBoundsType(bounds) => TypeTree.of[AnyToNothing]
             case _ => super.transformTree(tree)(owner)
           }
         }

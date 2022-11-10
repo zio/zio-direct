@@ -299,7 +299,7 @@ object Example {
       async.verbose {
         var i = 10; //Ref.make(10).run
         //def foo(stuff: String) = stuff
-        (await(ZIO.succeed({ i = i - 1 })), await(ZIO.succeed({ i = i - 1 })))
+        (await(ZIO.succeed({ i = i - 1 })), await(ZIO.succeed({ i = i - 2 }))) // //
       }
 
 

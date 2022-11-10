@@ -265,7 +265,6 @@ trait ModelReconstructor {
       val IR.Parallel(unlifts, newTree) = value
       unlifts.toList match {
         case List() =>
-          //println("=========== No Unlifts ==========")
           '{ ZIO.succeed(${newTree.asExpr}) }
 
         /*
@@ -278,7 +277,6 @@ trait ModelReconstructor {
         { await(foo:t):Task[t].map[r](fooVal:t => (fooVal + bar):r) }
         */
         case List((monad, name)) =>
-          val out =
           (monad.tpe.asType, newTree.tpe.asType) match
             case ('[ZIO[x, y, t]], '[r]) =>
               val mtpe = MethodType(List("sm"))(_ => List(TypeRepr.of[t]), _ => TypeRepr.of[r])
@@ -291,8 +289,6 @@ trait ModelReconstructor {
                   }
                 )
               apply(IR.Monad('{ ${monad.asExprOf[ZIO[?, ?, t]]}.map[r](${lam.asExprOf[t => r]}) }.asTerm))
-          //println("=========== Single unlift: ==========\n" + Format.Term(out.get.code))
-          out
 
         case unlifts =>
           val unliftTriples =
@@ -331,10 +327,7 @@ trait ModelReconstructor {
                   }).asInstanceOf[ZIO[?, ?, t]]
                 }
 
-          val out = apply(IR.Monad(output.asTerm))
-          // println(s"============ Computed Output: ${Format.TypeRepr(output.asTerm.tpe)}")
-          // println("=========== Multiple unlift: ==========\n" + Format.Expr(output))
-          out
+          apply(IR.Monad(output.asTerm))
       }
 
   }
