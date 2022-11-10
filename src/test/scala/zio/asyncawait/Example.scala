@@ -298,17 +298,17 @@ object Example {
     val out =
       async.verbose {
         var i = 10; //Ref.make(10).run
-        while (i - 2 > 0) {
-          ZIO.succeed(i)
-          println("=========== Here ===========")
-          //await(await(ZIO.succeed(i.getAndUpdate(i => {println(s"Decrementing: $i"); i - 1}))))
-          await(ZIO.succeed({ i = i - 1 }))
-        }
+        //def foo(stuff: String) = stuff
+        (await(ZIO.succeed({ i = i - 1 })), await(ZIO.succeed({ i = i - 1 })))
       }
 
 
+// (TODO this should also give a warning)
+// emphasize "for effect systems"
+// lazy val supported?
 
-
+// zio-defer
+// make local declarations error if possible
 
 //////
       // async.verbose {

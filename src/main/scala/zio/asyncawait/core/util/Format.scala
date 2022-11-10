@@ -5,6 +5,7 @@ import scala.quoted._
 import io.getquill.util.ScalafmtFormat
 import zio.asyncawait.core.metaprog.Trees
 import zio.asyncawait.core.metaprog.Extractors.Seal
+import scala.meta.internal.javacp.BaseType.S
 
 /** Facade objects to make display of zio flatMap simpler */
 object ZioFacade {
@@ -23,29 +24,101 @@ object ZioFacade {
     (new TreeMap:
         // want to remove noise from ZIO[_ >: Nothing <: Any, _ >: Nothing <: Any, _ >: Nothing <: Any]
         // this doesn't seem to do it though
-        // override def transformTypeTree(tree: TypeTree)(owner: Symbol): TypeTree = {
-        //   val str = Printer.TreeShortCode.show(tree)
-        //   if (str.contains("_ >: Nothing <: Any"))
-        //     println(s"========== Looking at type tree:\n${Printer.TreeShortCode.show(tree)}")
-        //     println(s"========== Expanded:\n${Printer.TreeStructure.show(tree)}")
-        //   tree match
-        //     case tree: Applied =>
-        //       Applied.copy(tree)(transformTypeTree(tree.tpt)(owner), transformTrees(tree.args)(owner))
+        override def transformTypeTree(tree: TypeTree)(owner: Symbol): TypeTree = {
+          // val str = Printer.TreeShortCode.show(tree)
+          // val isTypeBoundsTpe =
+          // if (str.contains("_ >: Nothing <: Any"))
+          //   println(
+          //    s"""|========== (transformTypeTree) Looking at type tree
+          //        |(Is Zio Type: ${IsZioType.unapply(tree.tpe).map(Format.TypeRepr(_))})
+          //        |${Printer.TreeShortCode.show(tree)}"
+          //     """.stripMargin
+          //   )
 
-        //     case TypeBoundsTree(_, _) =>
-        //       println("((((((((((((((((( HERE )))))))))))))))))")
-        //       TypeTree.of[Any]
+          tree match
+            case tree: Applied =>
+              Applied.copy(tree)(transformTypeTree(tree.tpt)(owner), transformTrees(tree.args)(owner))
 
-        //     case _: Tree =>
-        //       super.transformTypeTree(tree)(owner)
-        // }
+            case HasTypeBoundsType(_) => TypeTree.of[Unk]
+            case TypeOfTypeTree(CanSimplifyZioType(tpe)) => TypeTree.of(using tpe.asType)
+
+            case _: Tree => super.transformTypeTree(tree)(owner)
+        }
+
+        // need to check for type-bounds trees in order to re-write them into a nicer syntax
+        // e.g. lots of `ZIO[_ >: Nothing <: Any, _ >: Nothing <: Any, _ >: Nothing <: Any]`
+        // gets very verbose. This will appear as a Tree object but not always as a TreeType.
+        // I can also appear inside a TypeBoundsTree object and potentially other Tree types
+        // so need to pull checking the .tpe of whatever type it is into here.
+        private object HasTypeBoundsType {
+          def unapply(tree: Tree) =
+            TypeOfTypeTree.unapply(tree) match {
+              case Some(b @ IsTypeBounds(_)) => Some(b)
+              case _ => None
+            }
+        }
+
+        object TypeOfTypeTree {
+          def unapply(tree: Tree) =
+            tree match {
+              case v: TypeTree => Some(v.tpe)
+              case v: TypeBoundsTree => Some(v.tpe)
+              case _ => None
+            }
+        }
+
+        object IsTypeBounds {
+          def unapply(tpe: TypeRepr) =
+            tpe match {
+              case b @ TypeBounds(_, _) => Some(b)
+              case _ => None
+            }
+        }
+
+        // Remove ZIO[_ >: Nothing <: Any, _ >: Nothing <: Any, _ >: Nothing <: Any] instances.
+        // For some reason, matching on TypeBoundsTree doesn't always work and we have to re-parse zios directly.
+        private object CanSimplifyZioType {
+          def unapply(tpe: TypeRepr) =
+            tpe.asType match {
+              case '[zio.ZIO[r, e, a]] =>
+                (TypeRepr.of[r].simplified.asType, TypeRepr.of[e].simplified.asType, TypeRepr.of[a].simplified.asType) match {
+                  case ('[r1], '[e1], '[a1]) =>
+                    Some(TypeRepr.of[zio.ZIO[r1, e1, a1]])
+                }
+              case _ => None
+            }
+        }
 
 
         override def transformTree(tree: Tree)(owner: Symbol): Tree = {
-          tree match {
-            case TypeBoundsTree(_, _) =>
-              TypeTree.of[Unk]
+          val str = Printer.TreeShortCode.show(tree)
+          val isTypeBoundsTree = tree match { case TypeBoundsTree(_, _) => true; case _ => false }
+          val typeTreeOpt =
+            (tree match {
+              case typeTree: TypeBoundsTree => Some(typeTree.tpe)
+              case _ => None
+            })
+          val isTypeBounds =
+            typeTreeOpt.map { value =>
+              value match { case TypeBounds(_, _) => true; case _ => false }
+            }.getOrElse(false)
 
+          val isTypeBoundsTpe =
+          if (str.contains("_ >: Nothing <: Any"))
+            println(
+             s"""|========== (transformTree) Looking at type tree
+                 |(is type bounds tree: ${isTypeBoundsTree}):
+                 |(is type bounds type: ${isTypeBounds}):
+                 |(type: ${typeTreeOpt.map(Format.TypeRepr(_))})
+                 |(is type bounds: ${HasTypeBoundsType.unapply(tree)})
+                 |${Printer.TreeShortCode.show(tree)}"
+              """.stripMargin
+            )
+            //println(s"========== (transformTree) Expanded:\n${Printer.TreeStructure.show(tree)}")
+          tree match {
+            case HasTypeBoundsType(_) =>
+              println("((((((((((((((((( HERE )))))))))))))))))")
+              TypeTree.of[Unk]
             case _ => super.transformTree(tree)(owner)
           }
         }
