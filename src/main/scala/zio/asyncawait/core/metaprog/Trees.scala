@@ -46,30 +46,7 @@ object Trees:
     import quotes.reflect._
     (new TreeTraverser:
       override def traverseTree(tree: Tree)(owner: Symbol): Unit = {
-        // val tree =
-        //   treeRaw match {
-        //     case treeRaw: Term => Untype(treeRaw)
-        //     case _ => treeRaw
-        //   }
-
-        if (Format.Tree(tree).startsWith("await"))
-          val matchesAwait =
-            tree match
-              case Extractors.Seal('{ zio.asyncawait.await[r, e, a]($content) }) => Some(true)
-              case _ => None
-          println(
-            s"---------- Traversing over (isExpr: ${tree.isExpr}, matches await: ${matchesAwait}):\n${Format.Tree(tree)}\n" +
-            s"----------\n${Format(Printer.TreeStructure.show(tree))}\n"
-          )
-        pf.applyOrElse(tree, tree =>
-          {
-            println(
-              ">>>>>>>>>>>> Super Call <<<<<<<<<<<<\n" +
-              s"\n${Format.Tree(tree)}\n"
-              )
-
-            super.traverseTree(tree)(owner)
-          })
+        pf.applyOrElse(tree, tree => super.traverseTree(tree)(owner))
       }
     ).traverseTree(tree)(owner)
 

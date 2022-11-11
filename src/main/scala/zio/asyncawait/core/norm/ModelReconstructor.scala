@@ -89,7 +89,7 @@ trait ModelReconstructor {
             case (a: IR.Monadic, IR.Pure(b)) =>
               '{ ${apply(a)}.map { case true => ${b.asExpr}; case false => ${ZioApply.False} } }
             case (IR.Pure(a), b: IR.Monadic) =>
-              '{ if (${a.asExprOf[Boolean]}) ${apply(b)} else ZIO.succeed(${ZioApply.False}) }
+              '{ if (${a.asExprOf[Boolean]}) ${apply(b)} else ${ZioApply.False} }
             // case Pure/Pure is taken care by in the transformer on a higher-level via the PureTree case. Still, handle them just in case
             case (IR.Pure(a), IR.Pure(b)) =>
               '{ ZIO.succeed(${a.asExprOf[Boolean]} && ${b.asExprOf[Boolean]}) }

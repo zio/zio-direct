@@ -46,7 +46,7 @@ Change it to:
 
 val AssignmentNotAllowed =
 """
-Assignment is not allowed anywhere inside of async calls. Please use a ZIO Ref instead.
+Assignment is generally not allowed inside of async calls. Please use a ZIO Ref instead.
 =========
 For example, instead of this:
 async {

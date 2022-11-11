@@ -257,10 +257,14 @@ class Transformer(inputQuotes: Quotes)
     // // Do a top-level transform to check that there are no invalid constructs
     Allowed.validateBlocksIn(value.asExpr)
     // // Do the main transformation
-    val transformed = Decompose.orPure(value)
+    val transformedRaw = Decompose.orPure(value)
 
     if (instructions.info.showDeconstructed)
-      println("============== Deconstructed Instructions ==============\n" + mprint(transformed))
+      println("============== Deconstructed Instructions ==============\n" + mprint(transformedRaw))
+
+    val transformed = MonadifyTries(transformedRaw)
+    if (instructions.info.showDeconstructed && transformed != transformedRaw)
+      println("============== Monadified Tries ==============\n" + mprint(transformed))
 
     val output = new Reconstruct(instructions)(transformed)
     if (instructions.info.showReconstructed)

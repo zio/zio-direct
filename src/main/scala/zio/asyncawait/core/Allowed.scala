@@ -27,26 +27,13 @@ object Allowed {
         Unsupported.Warn.withTree(asi, Examples.AwaitAssignmentNotRecommended)
     }
 
+  // TODO this way of traversing the tree is error prone not not very efficient. Re-write this
+  // using the TreeTraverser directly and make `traverse` private.
   private def validateBlocksTree(using Quotes)(expr: quotes.reflect.Tree): Unit =
     import quotes.reflect._
     Trees.traverse(expr, Symbol.spliceOwner) {
-      case _ if {
-        println(s"=========== Validate Blocks: ${Format.Tree(expr)}")
-        false
-      } => ???
-
       case tree @ Seal('{ zio.asyncawait.await[r, e, a]($content) }) =>
-        println(s"=========== Matched the await: ${Format.Tree(tree)}")
         validateAwaitClause(content.asTerm)
-
-      case other if {
-        if (Format.Tree(other).contains("await")) {
-          println("============== IN HERE ===========\n" + Format.Tree(other))
-          false
-        } else {
-          false
-        }
-      } => ???
 
       case Select(term, _) =>
         validateBlocksTree(term)
@@ -98,6 +85,9 @@ object Allowed {
 
       case Block(stmts, ret) =>
         (stmts :+ ret).foreach(validateBlocksTree(_))
+
+      case Typed(tree, _) =>
+        validateBlocksTree(tree)
 
       case otherTree =>
         Unsupported.Error.awaitUnsupported(otherTree)
