@@ -247,10 +247,8 @@ class Transformer(inputQuotes: Quotes)
 
   def symbolLineage(sym: Symbol): Unit =
     if (sym.isNoSymbol) {
-      println(s"------- NO SYMBOL")
       ()
     } else {
-      println(s"------- Symbol: ${sym}. Synthetic: ${sym.flags.is(Flags.Synthetic)}. Macro: ${sym.flags.is(Flags.Macro)}") //Flags: ${sym.flags.show}
       symbolLineage(sym.owner)
     }
 
@@ -258,7 +256,7 @@ class Transformer(inputQuotes: Quotes)
     val value = valueRaw.asTerm.underlyingArgument
 
     // // Do a top-level transform to check that there are no invalid constructs
-    Allowed.validateBlocksIn(value.asExpr)
+    Allowed.validateBlocksIn(value.asExpr, instructions)
     // // Do the main transformation
     val transformedRaw = Decompose.orPure(value)
 
@@ -305,7 +303,5 @@ class Transformer(inputQuotes: Quotes)
           }
         '{ $output.asInstanceOf[ZIO[r, e, a]] }
     }
-
-    //  '{ $output.asInstanceOf[ZIO[Any, Throwable, T]] }
   }
 }

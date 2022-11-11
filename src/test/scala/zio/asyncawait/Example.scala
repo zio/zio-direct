@@ -341,7 +341,7 @@ object Example {
 
 
   def main(args: Array[String]): Unit = {
-    //funH()
+
   }
 
   // def printPartialFuncExample(): Unit = {

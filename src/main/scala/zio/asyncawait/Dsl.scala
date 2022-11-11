@@ -8,19 +8,20 @@ import zio.asyncawait.core.metaprog.Instructions
 import zio.asyncawait.core.metaprog.InfoBehavior
 import zio.asyncawait.core.metaprog.Collect
 import zio.asyncawait.core.metaprog.Unliftables
+import zio.asyncawait.core.metaprog.Verify
 
 def await[R, E, A](value: ZIO[R, E, A]): A = ???
 
 object async {
-  transparent inline def apply[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.Silent}, '{Collect.Sequence}) }
-  transparent inline def info[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.Info}, '{Collect.Sequence}) }
-  transparent inline def verbose[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.Verbose}, '{Collect.Sequence}) }
-  transparent inline def verboseTree[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.VerboseTree}, '{Collect.Sequence}) }
+  transparent inline def apply[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.Silent}, '{Collect.Sequence}, '{Verify.Strict}) }
+  transparent inline def info[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.Info}, '{Collect.Sequence}, '{Verify.Strict}) }
+  transparent inline def verbose[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.Verbose}, '{Collect.Sequence}, '{Verify.Strict}) }
+  transparent inline def verboseTree[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.VerboseTree}, '{Collect.Sequence}, '{Verify.Strict}) }
 
-  transparent inline def apply[T](inline collect: Collect)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.Silent}, 'collect) }
-  transparent inline def info[T](inline collect: Collect)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.Info}, 'collect) }
-  transparent inline def verbose[T](inline collect: Collect)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.Verbose}, 'collect) }
-  transparent inline def verboseTree[T](inline collect: Collect)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.VerboseTree}, '{Collect.Sequence}) }
+  transparent inline def apply[T](inline collect: Collect = Collect.Sequence, inline verify: Verify = Verify.Strict)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.Silent}, 'collect, 'verify) }
+  transparent inline def info[T](inline collect: Collect = Collect.Sequence, inline verify: Verify = Verify.Strict)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.Info}, 'collect, 'verify) }
+  transparent inline def verbose[T](inline collect: Collect = Collect.Sequence, inline verify: Verify = Verify.Strict)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.Verbose}, 'collect, 'verify) }
+  transparent inline def verboseTree[T](inline collect: Collect = Collect.Sequence, inline verify: Verify = Verify.Strict)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.VerboseTree}, 'collect, 'verify) }
 }
 
 extension [R, E, A](inline value: ZIO[R, E, A])
@@ -30,9 +31,9 @@ extension [R, E, A](inline value: ZIO[R, E, A])
 object Dsl {
   import InfoBehavior._
 
-  def impl[T: Type](value: Expr[T], infoBehavior: Expr[InfoBehavior], col: Expr[Collect])(using q: Quotes): Expr[ZIO[?, ?, ?]] =
-    doTransform(value, Unliftables.unliftInfoBehavior(infoBehavior), Unliftables.unliftCollect(col))
+  def impl[T: Type](value: Expr[T], infoBehavior: Expr[InfoBehavior], col: Expr[Collect], verify: Expr[Verify])(using q: Quotes): Expr[ZIO[?, ?, ?]] =
+    doTransform(value, Unliftables.unliftInfoBehavior(infoBehavior), Unliftables.unliftCollect(col), Unliftables.unliftVerify(verify))
 
-  def doTransform[T: Type](value: Expr[T], infoBehavior: InfoBehavior, collect: Collect)(using q: Quotes): Expr[ZIO[?, ?, ?]] =
-    (new Transformer(q)).apply(value, Instructions(infoBehavior, collect))
+  def doTransform[T: Type](value: Expr[T], infoBehavior: InfoBehavior, collect: Collect, verify: Verify)(using q: Quotes): Expr[ZIO[?, ?, ?]] =
+    (new Transformer(q)).apply(value, Instructions(infoBehavior, collect, verify))
 }

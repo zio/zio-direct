@@ -3,7 +3,7 @@ package zio.asyncawait.core.metaprog
 import scala.quoted._
 import zio.asyncawait.core.util.Format
 
-case class Instructions(info: InfoBehavior, collect: Collect)
+case class Instructions(info: InfoBehavior, collect: Collect, verify: Verify)
 
 sealed trait InfoBehavior {
   def showComputedType: Boolean
@@ -38,6 +38,12 @@ object InfoBehavior {
   }
 }
 
+sealed trait Verify
+object Verify {
+  case object Strict extends Verify
+  case object Lenient extends Verify
+}
+
 sealed trait Collect
 object Collect {
   case object Sequence extends Collect
@@ -47,6 +53,9 @@ object Collect {
 object Unliftables {
   def unliftCollect(collect: Expr[Collect])(using Quotes) =
     Implicits.unliftCollect.unliftOrfail(collect)
+
+  def unliftVerify(verify: Expr[Verify])(using Quotes) =
+    Implicits.unliftVerify.unliftOrfail(verify)
 
   def unliftInfoBehavior(info: Expr[InfoBehavior])(using Quotes) =
     Implicits.unliftInfoBehavior.unliftOrfail(info)
@@ -71,6 +80,13 @@ object Unliftables {
       def unlift =
         case '{ Collect.Sequence } => Collect.Sequence
         case '{ Collect.Parallel } => Collect.Parallel
+    }
+
+    given unliftVerify: Unlifter[Verify] with {
+      def tpe = Type.of[Verify]
+      def unlift =
+        case '{ Verify.Strict } => Verify.Strict
+        case '{ Verify.Lenient } => Verify.Lenient
     }
 
     given unliftInfoBehavior: Unlifter[InfoBehavior] with {

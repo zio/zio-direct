@@ -107,8 +107,8 @@ trait ModelTypeComputation {
           // Ultimately the scrutinee will be used if it is pure or lifted, either way we can
           // treat it as a value that will be flatMapped (or Mapped) against the caseDef values.
           val scrutineeType = apply(scrutinee)
-          // TODO Maybe do the same thing as IR.Try and pass through the Match result tpe, then
-          //      then use that to figure out what the type should be
+          // NOTE: We can possibly do the same thing as IR.Try and pass through the Match result tpe, then
+          // then use that to figure out what the type should be
           val caseDefTypes = caseDefs.map(caseDef => apply(caseDef.rhs))
           val caseDefTotalType = ZioType.composeN(caseDefTypes)
           scrutineeType.flatMappedWith(caseDefTotalType)
@@ -126,6 +126,9 @@ trait ModelTypeComputation {
 
         case IR.Try(tryBlock, caseDefs, outputType, finallyBlock) =>
           val tryBlockType = apply(tryBlock)
+          // Could possibly try to delve into the case-def types and widen it from there
+          // but scala has already computed the total type from the output of the Try term
+          // so instead we can just use that.
           // val caseDefType =
           //   ZioType.composeN(
           //     caseDefs.map(caseDef => apply(caseDef.rhs))

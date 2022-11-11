@@ -8,6 +8,11 @@ implicit class StringExt(str: String) {
   def trimLeft = str.dropWhile(_.isWhitespace)
 }
 
+val DeclarationNotAllowedWithAwaits =
+"""
+In Lenient mode, Class, Function, and Mutable-Variable definitions are allowed but only so long as they do not direclty read awaits.
+"""
+
 val DeclarationNotAllowed =
 """
 Class, Function, and Mutable-Variable definitions (class X, def X, var X) are not allowed inside of async blocks.
