@@ -8,6 +8,12 @@ implicit class StringExt(str: String) {
   def trimLeft = str.dropWhile(_.isWhitespace)
 }
 
+val DeclarationNotAllowed =
+"""
+Class, Function, and Mutable-Variable definitions (class X, def X, var X) are not allowed inside of async blocks.
+Please move them outside of the async area. (They can be inside of an await)
+"""
+
 val AwaitAssignmentNotRecommended =
 """
 Using Assignment inside of await(...:ZIO) sections is permitted but not recommended,

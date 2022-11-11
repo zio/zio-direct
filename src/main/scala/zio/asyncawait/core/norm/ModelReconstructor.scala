@@ -179,6 +179,7 @@ trait ModelReconstructor {
                 case Some(ir) =>
                   val finallyExpr = apply(ir)
                   '{ $monadExpr.onExit(_ => ZioUtil.wrapWithThrowable($finallyExpr).orDie) }
+                  // try this with Ensuring
 
                 case None =>
                   monadExpr

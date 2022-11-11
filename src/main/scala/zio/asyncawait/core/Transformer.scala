@@ -61,6 +61,9 @@ class Transformer(inputQuotes: Quotes)
         case While(cond, body) =>
           Some(IR.While(Decompose.orPure(cond), Decompose.orPure(body)))
 
+        // case Do =>
+        //   Some(IR.While(Decompose.orPure(cond), Decompose.orPure(body)))
+
         case Seal('{ ($a: Boolean) && ($b: Boolean) }) =>
           // the actual case where they are both cure is handled by the PureTree case
           val (aTerm, bTerm) = Decompose.orPure2(a.asTerm, b.asTerm)

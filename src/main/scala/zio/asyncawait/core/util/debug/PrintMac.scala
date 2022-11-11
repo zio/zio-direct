@@ -5,6 +5,7 @@ import zio.asyncawait.core.util.Format
 
 import scala.quoted._
 import zio.asyncawait.core.util.ZioFacade
+import zio.asyncawait.core.metaprog.Trees
 
 object PrintMac {
 
@@ -24,6 +25,10 @@ object PrintMac {
 
     println("================= Detail =================")
     println(Format(Printer.TreeStructure.show(any.asTerm)))
+
+    Trees.traverse(any.asTerm, Symbol.spliceOwner) {
+      case v: ValDef => println(s"Flags: ${v.symbol.flags.is(Flags.Mutable)}")
+    }
 
     // println("================= Pretty Tree =================")
     // println(pprint.apply(Untype(any.asTerm)))

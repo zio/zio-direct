@@ -15,6 +15,7 @@ trait Model {
     sealed trait Monadic extends IR
 
     case class While(cond: IR, body: IR) extends Monadic
+    case class DoWhile(cond: IR, body: IR) extends Monadic
 
     case class Try(tryBlock: IR, cases: List[IR.Match.CaseDef], resultType: TypeRepr, finallyBlock: Option[IR]) extends Monadic
 
