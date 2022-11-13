@@ -359,11 +359,31 @@ object Example {
         // throw new RuntimeException("foo")
         // 456
 
+        // TODO add test for this
+        // val x = 123
+        // (await(ZIO.succeed(x)), {
+        //   val a = await(ZIO.succeed(888))
+        //   a
+        // }, await(ZIO.succeed(456)))
+
+        // TODO add test for this (should throw an exception that is not caught)
+        // val x = 123
+        // (await(ZIO.succeed(x)), {
+        //   val a = await(ZIO.succeed(888))
+        //   4/0
+        // }, await(ZIO.succeed(456)))
+
+        // TODO add test for this (should throw an exception that IS caught)
         val x = 123
-        (await(ZIO.succeed(x)), {
-          val a = await(ZIO.succeed(888))
-          a
-        }, await(ZIO.succeed(456)))
+        unsafe {
+          (await(ZIO.succeed(x)), {
+            val a = await(ZIO.succeed(888))
+            4/0
+          }, await(ZIO.succeed(456)))
+        }
+
+        // Note, before going further need to touch-up Format again to make sure output trees are palletable
+        // (maybe in future add an option to not hide tree complexity)
 
         // TODO Add a test for this
         // val a = await(ZIO.succeed(888))

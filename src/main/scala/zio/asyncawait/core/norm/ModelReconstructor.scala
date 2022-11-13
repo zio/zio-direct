@@ -360,19 +360,21 @@ trait ModelReconstructor {
                 }
             )
 
-          val totalType = ComputeTotalZioType.valueOf(terms: _*)
+          val totalType = ComputeType(newTree).toZioType
           val output =
             totalType.asType match
-              case '[t] =>
+              case '[ZIO[r, e, t]] =>
                 newTree match
                   case IR.Pure(newTree) =>
+                    println("-------------- Reconstruct parallel Pure")
                     '{
                       $collect.map(terms => {
                         val iter = terms.iterator
-                        ${ Block(makeVariables('iter), newTree).asExpr }.asInstanceOf[ZIO[?, ?, t]]
+                        ${ Block(makeVariables('iter), newTree).asExpr }.asInstanceOf[t]
                       }).asInstanceOf[ZIO[?, ?, t]]
                     }
                   case IR.Monad(newTree) =>
+                    println("-------------- Reconstruct parallel Monad")
                     '{
                       $collect.flatMap(terms => {
                         val iter = terms.iterator

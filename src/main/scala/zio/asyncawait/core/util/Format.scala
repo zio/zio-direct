@@ -77,6 +77,7 @@ object ZioFacade {
 
         // Remove ZIO[_ >: Nothing <: Any, _ >: Nothing <: Any, _ >: Nothing <: Any] instances.
         // For some reason, matching on TypeBoundsTree doesn't always work and we have to re-parse zios directly.
+        // TODO does some strainge things in certain cases, maybe not do .simplified? need to look into it
         private object CanSimplifyZioType {
           def unapply(tpe: TypeRepr) =
             tpe.asType match {

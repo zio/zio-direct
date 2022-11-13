@@ -155,10 +155,7 @@ trait ModelTypeComputation {
         case IR.Parallel(monadics, body) =>
           val monadTypes = monadics.map((monadic, _) => apply(monadic))
           val monadsType = ZioType.composeN(monadTypes)
-          val bodyType =
-            body match
-              case IR.Pure(body) => ZioType.fromPure(body)
-              case IR.Monad(body) => ZioType.fromZIO(body)
+          val bodyType = apply(body) // a IR.Leaf will either be a IR.Pure or an IR.Monad, both already have cases here
           monadsType.flatMappedWith(bodyType)
       }
   }
