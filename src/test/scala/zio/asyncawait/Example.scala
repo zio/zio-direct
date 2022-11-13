@@ -382,6 +382,8 @@ object Example {
           }, await(ZIO.succeed(456)))
         }
 
+        // TODO example like this with single await to test the other Parallel case
+
         // Note, before going further need to touch-up Format again to make sure output trees are palletable
         // (maybe in future add an option to not hide tree complexity)
 
