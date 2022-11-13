@@ -41,6 +41,11 @@ trait ModelReconstructor {
       ir match
         case IR.Pure(code) => ZioApply(code)
 
+        // IR.Unsafe is a construct used to modify the internal tree via the WrapUnsafes phase.
+        // As such, we don't need to anything special with it during tree-reconstruction.
+        case IR.Unsafe(body) =>
+          apply(body)
+
         case IR.FlatMap(monad, valSymbol, body) => {
           val monadExpr = apply(monad)
           val bodyExpr = apply(body)
@@ -49,13 +54,29 @@ trait ModelReconstructor {
           // should possibly introduce an asserition for that
           // Also:
           // TODO synthesize + eta-expand the lambda manually so it's ame is based on the previous symbol name
+
           symbolType match
             case '[t] =>
               '{ $monadExpr.asInstanceOf[ZIO[?, ?, t]].flatMap((v: t) =>
                 ${
                   replaceSymbolInBodyMaybe(using macroQuotes)(bodyExpr.asTerm)(valSymbol, ('v).asTerm).asExprOf[ZIO[?, ?, ?]]
                 }
-              ) } //.asInstanceOf[ZIO[?, ?, ?]]
+              ) }
+
+              // (monadExpr.asTerm.tpe.asType, bodyExpr.asTerm.tpe.asType) match
+              //   case ('[ZIO[r, e, a]], '[ZIO[r1, e1, a1]]) =>
+              //     println(s"----------- Computed type (symbol ${Format.TypeOf[t]}) ${Format.TypeRepr(monadExpr.asTerm.tpe)} -> ${Format.TypeRepr(bodyExpr.asTerm.tpe)}")
+              //     val out =
+              //     '{ ${monadExpr}.asInstanceOf[ZIO[?, ?, t]].flatMap((v: t) =>
+              //       ${
+              //         val funcOut = replaceSymbolInBodyMaybe(using macroQuotes)(bodyExpr.asTerm)(valSymbol, ('v).asTerm).asExprOf[ZIO[?, ?, a1]]
+              //         println(s"---------- Compute funcOut: ${Format.TypeRepr(funcOut.asTerm.tpe)}")
+              //         funcOut
+              //       } //.asInstanceOf[ZIO[Any, Nothing, a1]]
+              //     ) }
+              //     //.asInstanceOf[ZIO[?, ?, ?]]
+              //     println(s"---------- Compute: ${Format.Expr(out)}")
+              //     out
         }
 
         // Pull out the value from IR.Pure and use it directly in the mapping
@@ -139,52 +160,54 @@ trait ModelReconstructor {
 
 
         case tryIR @ IR.Try(tryBlock, cases, _, finallyBlock) =>
-          val newCaseDefs = reconstructCaseDefs(cases)
-          val resultType = ComputeType(tryIR).toZioType
-          val tryTerm = apply(tryBlock)
-          (tryTerm.asTerm.tpe.asType, resultType.asType) match
-            case ('[ZIO[r0, e0, a0]], '[ZIO[r, e, b]]) => {
-              // A normal lambda looks something like:
-              //   Block(List(
-              //     DefDef(newMethodSymbol, terms:List[List[Tree]] => Option(body))
-              //     Closure(Ref(newMethodSymbol), None)
-              //   ))
-              // A PartialFunction lambda looks looks something like:
-              //   Block(List(
-                //     DefDef(newMethodSymbol, terms:List[List[Tree]] => Option(body))
-              //     Closure(Ref(newMethodSymbol), TypeRepr.of[PartialFunction[input, output]])
-              //   ))
-              // So basically the only difference is in the typing of the closure
+          ComputeType(tryBlock).asTypeTuple match
+            case ('[rr], '[er], '[ar]) =>
+              val newCaseDefs = reconstructCaseDefs(cases)
+              val resultType = ComputeType(tryIR).toZioType
+              val tryTerm = apply(tryBlock)
+              (tryTerm.asTerm.tpe.asType, resultType.asType) match
+                case ('[ZIO[r0, e0, a0]], '[ZIO[r, e, b]]) => {
+                  // A normal lambda looks something like:
+                  //   Block(List(
+                  //     DefDef(newMethodSymbol, terms:List[List[Tree]] => Option(body))
+                  //     Closure(Ref(newMethodSymbol), None)
+                  //   ))
+                  // A PartialFunction lambda looks looks something like:
+                  //   Block(List(
+                    //     DefDef(newMethodSymbol, terms:List[List[Tree]] => Option(body))
+                  //     Closure(Ref(newMethodSymbol), TypeRepr.of[PartialFunction[input, output]])
+                  //   ))
+                  // So basically the only difference is in the typing of the closure
 
-              // Make the new symbol and method types. (Note the `e` parameter extracted from the ZIO above)
-              // Should look something like:
-              //   def tryLamParam(tryLam: e0): ZIO[r, e, a] = ...
-              // Note:
-              //   The `e` type can change because you can specify a ZIO in the response to the try
-              //   e.g: (x:ZIO[Any, Throwable, A]).catchSome { case io: IOException => y:ZIO[Any, OtherExcpetion, A] }
-              val methodType = MethodType(List("tryLamParam"))(_ => List(TypeRepr.of[e0]), _ => TypeRepr.of[ZIO[r, e, b]])
-              val methSym = Symbol.newMethod(Symbol.spliceOwner, "tryLam", methodType)
+                  // Make the new symbol and method types. (Note the `e` parameter extracted from the ZIO above)
+                  // Should look something like:
+                  //   def tryLamParam(tryLam: e0): ZIO[r, e, a] = ...
+                  // Note:
+                  //   The `e` type can change because you can specify a ZIO in the response to the try
+                  //   e.g: (x:ZIO[Any, Throwable, A]).catchSome { case io: IOException => y:ZIO[Any, OtherExcpetion, A] }
+                  val methodType = MethodType(List("tryLamParam"))(_ => List(TypeRepr.of[er]), _ => TypeRepr.of[ZIO[r, e, b]])
+                  val methSym = Symbol.newMethod(Symbol.spliceOwner, "tryLam", methodType)
 
-              // Now we actually make the method with the body:
-              //   def tryLamParam(tryLam: e) = { case ...exception => ... }
-              val method = DefDef(methSym, sm => Some(Match(sm(0)(0).asInstanceOf[Term], newCaseDefs.map(_.changeOwner(methSym)))))
-              val pfTree = TypeRepr.of[PartialFunction[e, ZIO[r, e, b]]]
+                  // Now we actually make the method with the body:
+                  //   def tryLamParam(tryLam: e) = { case ...exception => ... }
+                  val method = DefDef(methSym, sm => Some(Match(sm(0)(0).asInstanceOf[Term], newCaseDefs.map(_.changeOwner(methSym)))))
+                  val pfTree = TypeRepr.of[PartialFunction[e, ZIO[r, e, b]]]
 
-              // Assemble the peices together into a closure
-              val closure = Closure(Ref(methSym), Some(pfTree))
-              val functionBlock = Block(List(method), closure).asExprOf[PartialFunction[e0, ZIO[r, e, b]]]
-              val monadExpr = '{ ${tryTerm.asExprOf[ZIO[r0, e0, a0]]}.catchSome { ${functionBlock} } }
+                  // Assemble the peices together into a closure
+                  val closure = Closure(Ref(methSym), Some(pfTree))
+                  val functionBlock = '{ ${Block(List(method), closure).asExpr}.asInstanceOf[PartialFunction[er, ZIO[r, e, b]]] }
+                  val monadExpr = '{ ${tryTerm}.asInstanceOf[ZIO[rr, er, ar]].catchSome { ${functionBlock} } }
 
-              finallyBlock match {
-                case Some(ir) =>
-                  val finallyExpr = apply(ir)
-                  '{ $monadExpr.onExit(_ => ZioUtil.wrapWithThrowable($finallyExpr).orDie) }
-                  // try this with Ensuring
+                  finallyBlock match {
+                    case Some(ir) =>
+                      val finallyExpr = apply(ir)
+                      '{ $monadExpr.onExit(_ => ZioUtil.wrapWithThrowable($finallyExpr).orDie) }
+                      // try this with Ensuring
 
-                case None =>
-                  monadExpr
-              }
-            }
+                    case None =>
+                      monadExpr
+                  }
+                }
 
         case value: IR.Parallel =>
           reconstructParallel(value)
@@ -305,7 +328,11 @@ trait ModelReconstructor {
                 case IR.Monad(newTree) =>
                   newTree.tpe.asType match
                     case '[ZIO[x1, y1, r]] =>
+                      //println(s"----------- Computed type FlatMap: ${Format.TypeOf[ZIO[x1, y1, r]]}")
                       val lam = wrapWithLambda[t, ZIO[x1, y1, r]](newTree, oldSymbol)
+                      // back here
+                      // could also work like this?
+                      // apply(IR.Monad('{ ${monadExpr.asExprOf[ZIO[Any, Nothing, t]]}.flatMap[Any, Nothing, r](${lam.asExprOf[t => ZIO[Any, Nothing, r]]}) }.asTerm))
                       apply(IR.Monad('{ ${monadExpr.asExprOf[ZIO[?, ?, t]]}.flatMap(${lam.asExprOf[t => ZIO[x1, y1, r]]}) }.asTerm))
 
         case unlifts =>
@@ -342,14 +369,14 @@ trait ModelReconstructor {
                     '{
                       $collect.map(terms => {
                         val iter = terms.iterator
-                        ${ Block(makeVariables('iter), newTree).asExpr }
+                        ${ Block(makeVariables('iter), newTree).asExpr }.asInstanceOf[ZIO[?, ?, t]]
                       }).asInstanceOf[ZIO[?, ?, t]]
                     }
                   case IR.Monad(newTree) =>
                     '{
                       $collect.flatMap(terms => {
                         val iter = terms.iterator
-                        ${ Block(makeVariables('iter), newTree).asExprOf[ZIO[?, ?, t]] }
+                        ${ Block(makeVariables('iter), newTree).asExpr }.asInstanceOf[ZIO[?, ?, t]]
                       }).asInstanceOf[ZIO[?, ?, t]]
                     }
 

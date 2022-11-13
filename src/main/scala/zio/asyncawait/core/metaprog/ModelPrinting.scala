@@ -34,6 +34,10 @@ trait ModelPrinting {
           //      the whole thing afterward, can optimize by only doing it once
           Tree.Apply("SCALA", Iterator(Tree.Literal(s"{${Format.Tree(tree)}}")))
 
+        case tpeTree if (x.getClass().getName().contains("dotty.tools.dotc.core.Types")) =>
+          val tpe = tpeTree.asInstanceOf[reflect.TypeRepr]
+          Tree.Apply("SCALA_Type", Iterator(Tree.Literal(s"{${Format.TypeRepr(tpe)}}")))
+
         case someSymbol if (x.getClass().getName().contains("dotty.tools.dotc.core.Symbols")) =>
           val sym = someSymbol.asInstanceOf[reflect.Symbol]
           // Need to tell the formatter to ignore these things because formatting will fail if it doesn't

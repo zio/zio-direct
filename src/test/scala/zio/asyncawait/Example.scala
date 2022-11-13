@@ -329,27 +329,79 @@ object Example {
 //     println("====== RESULT: " + outRun)
 //   }
 
-  def funH() = { //
-      val out =
-      async {
+  // def funH() = { //
+  //     val out =
+  //     async.verbose {
+  //       val x = 123
+  //       (await(ZIO.succeed(x)), {
+  //         val a = await(ZIO.succeed(888))
+  //         a
+  //       }, await(ZIO.succeed(456)))
+  //     }
+
+
+  //     val outRun =
+  //       zio.Unsafe.unsafe { implicit unsafe =>
+  //         zio.Runtime.default.unsafe.run(out).getOrThrow()
+  //       }
+  //     println("====== RESULT: " + outRun)
+  // }
+
+
+    // TODO try without catch should not be allowed? what about finally?
+    // TODO test this, as well as the failure case of this
+  def funI() = { //
+    val out =
+    async.verbose {
+      try {
+        // unsafe {
+        // val x = 123
+        // throw new RuntimeException("foo")
+        // 456
+
         val x = 123
         (await(ZIO.succeed(x)), {
           val a = await(ZIO.succeed(888))
           a
         }, await(ZIO.succeed(456)))
+
+        // TODO Add a test for this
+        // val a = await(ZIO.succeed(888))
+        // await(ZIO.attempt(1/0))
+      } catch {
+        case _ => (999, 999, 999)
       }
+    }
+
+    // val out2 =
+    //   ZIO
+    //     .succeed[Int](888)
+    //     //.asInstanceOf[ZIO[_ >: Nothing <: Any, _ >: Nothing <: Any, Int]]
+    //     .flatMap(((v: Int) => {
+    //       val a: Int = v
+    //       ZIO.attempt[Int](1./(0))
+    //     }))
+    //     .catchSome[Nothing & Any, Any, Any](
+    //       (
+    //           (tryLamParam: Any) =>
+    //             tryLamParam match {
+    //               case _ =>
+    //                 ZIO.succeed[Int](999)
+    //             }
+    //       ).asInstanceOf[PartialFunction[Any, ZIO[Any, Throwable, Int]]]
+    //     )
 
 
-      val outRun =
-        zio.Unsafe.unsafe { implicit unsafe =>
-          zio.Runtime.default.unsafe.run(out).getOrThrow()
-        }
-      println("====== RESULT: " + outRun)
+    val outRun =
+      zio.Unsafe.unsafe { implicit unsafe =>
+        zio.Runtime.default.unsafe.run(out).getOrThrow()
+      }
+    println("====== RESULT: " + outRun)
   }
 
 
   def main(args: Array[String]): Unit = {
-    funH()
+    funI()
   }
 
   // def printPartialFuncExample(): Unit = {

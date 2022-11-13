@@ -9,8 +9,10 @@ import zio.asyncawait.core.metaprog.InfoBehavior
 import zio.asyncawait.core.metaprog.Collect
 import zio.asyncawait.core.metaprog.Unliftables
 import zio.asyncawait.core.metaprog.Verify
+import zio.asyncawait.core.NotDeferredException
 
-def await[R, E, A](value: ZIO[R, E, A]): A = ???
+def await[R, E, A](value: ZIO[R, E, A]): A = NotDeferredException.fromNamed("await")
+def unsafe[T](value: T): T = NotDeferredException.fromNamed("unsafe")
 
 object async {
   transparent inline def apply[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.Silent}, '{Collect.Sequence}, '{Verify.Strict}) }

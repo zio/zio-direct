@@ -103,6 +103,12 @@ trait ModelTypeComputation {
         case IR.Block(head, tail) =>
           apply(tail)
 
+        // Things inside Unsafe blocks that are not inside awaits will be wrapepd into ZIO.attempt
+        // which will make their lower-bound Throwable in the MonadifyTries phase.
+        // Do not need to do that manually here with the `e` type though.
+        case IR.Unsafe(body) =>
+          apply(body)
+
         case IR.Match(scrutinee, caseDefs) =>
           // Ultimately the scrutinee will be used if it is pure or lifted, either way we can
           // treat it as a value that will be flatMapped (or Mapped) against the caseDef values.

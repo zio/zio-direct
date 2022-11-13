@@ -34,7 +34,6 @@ class Transformer(inputQuotes: Quotes)
     def orPure2(termA: Term, termB: Term): (IR, IR) =
       (unapply(termA).getOrElse(IR.Pure(termA)), unapply(termB).getOrElse(IR.Pure(termB)))
 
-    // TODO really use underlyingArgument????
     def unapply(expr: Term): Option[IR.Monadic] = {
       val ret = expr match {
         case PureTree(tree) =>
@@ -61,8 +60,8 @@ class Transformer(inputQuotes: Quotes)
         case While(cond, body) =>
           Some(IR.While(Decompose.orPure(cond), Decompose.orPure(body)))
 
-        // case Do =>
-        //   Some(IR.While(Decompose.orPure(cond), Decompose.orPure(body)))
+        case Seal('{ unsafe($value) }) =>
+          Some(IR.Unsafe(Decompose.orPure(value.asTerm)))
 
         case Seal('{ ($a: Boolean) && ($b: Boolean) }) =>
           // the actual case where they are both cure is handled by the PureTree case
@@ -267,9 +266,15 @@ class Transformer(inputQuotes: Quotes)
     if (instructions.info.showDeconstructed)
       println("============== Deconstructed Instructions ==============\n" + mprint(transformedRaw))
 
-    val transformed = MonadifyTries(transformedRaw)
-    if (instructions.info.showDeconstructed && transformed != transformedRaw)
-      println("============== Monadified Tries ==============\n" + mprint(transformed))
+    val transformed = WrapUnsafes(transformedRaw)
+    val transformedSameAsRaw = transformed != transformedRaw
+    if (instructions.info.showDeconstructed) {
+      if (transformedSameAsRaw)
+        println("============== Monadified Tries ==============\n" + mprint(transformed))
+      else
+        println("============== Monadified Tries (No Changes) ==============")
+    }
+
 
     val output = new Reconstruct(instructions)(transformed)
     if (instructions.info.showReconstructed)

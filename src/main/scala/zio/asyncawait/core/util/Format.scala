@@ -36,11 +36,11 @@ object ZioFacade {
           //   )
 
           tree match
-            case tree: Applied =>
-              Applied.copy(tree)(transformTypeTree(tree.tpt)(owner), transformTrees(tree.args)(owner))
+            // case tree: Applied =>
+            //   Applied.copy(tree)(transformTypeTree(tree.tpt)(owner), transformTrees(tree.args)(owner))
 
-            case HasTypeBoundsType(_) => TypeTree.of[AnyToNothing]
-            case TypeOfTypeTree(CanSimplifyZioType(tpe)) => TypeTree.of(using tpe.asType)
+            //case HasTypeBoundsType(_) => TypeTree.of[AnyToNothing]
+            //case TypeOfTypeTree(CanSimplifyZioType(tpe)) => TypeTree.of(using tpe.asType)
 
             case _: Tree => super.transformTypeTree(tree)(owner)
         }
@@ -92,7 +92,7 @@ object ZioFacade {
 
         override def transformTree(tree: Tree)(owner: Symbol): Tree = {
           tree match {
-            case HasTypeBoundsType(bounds) => TypeTree.of[AnyToNothing]
+            //case HasTypeBoundsType(bounds) => TypeTree.of[AnyToNothing]
             case _ => super.transformTree(tree)(owner)
           }
         }

@@ -17,6 +17,8 @@ trait Model {
 
     case class While(cond: IR, body: IR) extends Monadic
 
+    case class Unsafe(body: IR) extends Monadic
+
     case class Try(tryBlock: IR, cases: List[IR.Match.CaseDef], resultType: TypeRepr, finallyBlock: Option[IR]) extends Monadic
 
     case class FlatMap(monad: Monadic, valSymbol: Option[Symbol], body: IR.Monadic) extends Monadic
@@ -54,12 +56,39 @@ trait Model {
     case class Parallel(monads: List[(IR.Monadic, Symbol)], body: IR.Leaf) extends Monadic
   }
 
-  object MonadifyTries extends StatelessTransformer {
-    override def apply(ir: IR): IR =
+  /**
+   * Wrap the IR.Pures/IR.Maps in the body of IR.Unsafe elements with ZIO.attempt.
+   * This is largely for the sake of tries working as expected, for example.
+   * (assume all the above examples are wrapped in `defer { ... }`)
+   *   try { 1/0 } catch { case e: DivideByZeroException => ... }
+   * Normally with zio-run this will not be caught because 1/0 will not be wrapped into a ZIO.attempt.
+   * This statement will become
+   *   succeed(1/0).catchSome { case e: ... }
+   * Instead we need it to become
+   *   attempt(1/0).catchSome { case e: ... }
+   * This phase will do that.
+   *
+   * Also in a statement like this
+   *  try { val x = run(foo); 1/0 } catch { case e: ... }
+   * It will become
+   *  run(foo).map(x => 1/0).catchSome { case e: ... }
+   * Instead we need it to become
+   *  run(foo).flatMap(x => attempt(1/0)).catchSome { case e: ... }
+   *
+   * Most interestingly, in a statement like this
+   *   try { unsafe { (run(foo), 4/0, run(bar)) } } catch { case: e...  }
+   * Normally it would turn into
+   *   { collect(Chunk(foo, bar)).map(iter => { val par1 = iter.next; var par2 = iter.next; (par1, 4/0, bar) }
+   * We need it to become
+   *   { collect(Chunk(foo, bar)).flatMap(iter => attempt { val par1 = iter.next; var par2 = iter.next; (par1, 4/0, bar) }
+   */
+  object WrapUnsafes extends StatelessTransformer {
+    override def apply(ir: IR.Monadic):IR.Monadic =
       ir match
-        case IR.Try(tryBlock, cases, resultType, finallyBlock) =>
-          val newTryBlock = makePuresIntoAttemps(tryBlock)
-          IR.Try(newTryBlock, cases, resultType, finallyBlock)
+        case IR.Unsafe(body) =>
+          // we can actually remove the IR.Unsafe at that point but it is still useful
+          // as a marker of where we did those operations.
+          IR.Unsafe(MakePuresIntoAttemps(body))
         case _ =>
           super.apply(ir)
 
@@ -70,19 +99,22 @@ trait Model {
       private def monadify(pure: IR.Pure) =
         IR.Monad('{ ZIO.attempt(${pure.code.asExpr}) }.asTerm)
 
+      // Monadify all top-level pure calls
       override def apply(ir: IR): IR =
         ir match
-          case v: IR.Pure =>
-            monadify(v)
-          case IR.Map(monad, valSymbol, pure) =>
-            IR.FlatMap(apply(monad), valSymbol, monadify(pure))
-          case _ =>
-            // recurse and modify all Pure's to become monadic
-            super.apply(ir)
+          case v: IR.Pure => monadify(v)
+          case _ => super.apply(ir)
 
-      // needed or the `apply(monad)` becomes ambigous?
+      // Monadify pure calls inside IR.Leaf instances (inside IR.Parallel)
+      override def apply(ir: IR.Leaf): IR.Leaf =
+        ir match
+          case v: IR.Pure => monadify(v)
+          case v: IR.Monad => v
+
       override def apply(ir: IR.Monadic): IR.Monadic =
-        super.apply(ir)
+        ir match
+          case IR.Map(monad, valSymbol, pure) => IR.FlatMap(apply(monad), valSymbol, monadify(pure))
+          case _ => super.apply(ir)
     }
   }
 
@@ -93,6 +125,10 @@ trait Model {
         case v: IR.Monadic => apply(v)
 
     def apply(ir: IR.Pure): IR.Pure = ir
+    def apply(ir: IR.Monad): IR.Monad = ir
+    // Specifically used in this like IR.Parallel that can have either a Pure or Monad element
+    // but either way it has to be a leaf node (i.e. can't have structures inside)
+    def apply(ir: IR.Leaf): IR.Leaf = ir
 
     def apply(ir: IR.Monadic): IR.Monadic =
       ir match
@@ -106,7 +142,7 @@ trait Model {
           IR.FlatMap(apply(monad), valSymbol, apply(body))
         case IR.Map(monad, valSymbol, body) =>
           IR.Map(apply(monad), valSymbol, apply(body))
-        case v: IR.Monad => v
+        case v: IR.Monad => apply(v)
         case IR.Block(head, tail) =>
           IR.Block(head, apply(tail))
         case IR.Match(scrutinee, caseDefs) =>
@@ -115,7 +151,12 @@ trait Model {
         case IR.If(cond, ifTrue, ifFalse) => IR.If(cond, apply(ifTrue), apply(ifFalse))
         case IR.And(left, right) => IR.And(apply(left), apply(right))
         case IR.Or(left, right) => IR.Or(apply(left), apply(right))
-        case v: IR.Parallel => v
+        case IR.Parallel(monads, body) =>
+          val newMonads = monads.map((monad, sym) => (apply(monad), sym))
+          val newBody = apply(body)
+          IR.Parallel(newMonads, newBody)
+        case IR.Unsafe(body) =>
+          IR.Unsafe(body)
 
     def apply(caseDef: IR.Match.CaseDef): IR.Match.CaseDef =
       val newRhs = apply(caseDef.rhs)
