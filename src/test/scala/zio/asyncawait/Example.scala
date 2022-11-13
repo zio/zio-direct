@@ -329,19 +329,27 @@ object Example {
 //     println("====== RESULT: " + outRun)
 //   }
 
-  // def funH() = {
-  //   val out =
-  //     async {
-  //       //class Foo {}
-  //       val x = ZIO.succeed("foo")
-  //     }
+  def funH() = { //
+      val out =
+      async {
+        val x = 123
+        (await(ZIO.succeed(x)), {
+          val a = await(ZIO.succeed(888))
+          a
+        }, await(ZIO.succeed(456)))
+      }
 
-  //   println(out)
-  // }
+
+      val outRun =
+        zio.Unsafe.unsafe { implicit unsafe =>
+          zio.Runtime.default.unsafe.run(out).getOrThrow()
+        }
+      println("====== RESULT: " + outRun)
+  }
 
 
   def main(args: Array[String]): Unit = {
-
+    funH()
   }
 
   // def printPartialFuncExample(): Unit = {

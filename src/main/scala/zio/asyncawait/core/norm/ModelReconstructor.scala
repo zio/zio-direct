@@ -262,11 +262,13 @@ trait ModelReconstructor {
       }
     end reconstructIf
 
-    def reconstructParallel(value: IR.Parallel) =
+    def reconstructParallel(value: IR.Parallel): Expr[ZIO[?, ?, ?]] =
       val IR.Parallel(unlifts, newTree) = value
       unlifts.toList match {
         case List() =>
-          '{ ZIO.succeed(${newTree.asExpr}) }
+          newTree match
+            case IR.Pure(newTree) => '{ ZIO.succeed(${newTree.asExpr}) }
+            case IR.Monad(newTree) => newTree.asExprOf[ZIO[?, ?, ?]]
 
         /*
         For a expression (in a single block-line) that has one await in the middle of things e.g.
@@ -277,28 +279,42 @@ trait ModelReconstructor {
         { (await(foo:Task[t]):t + bar):r }
         { await(foo:t):Task[t].map[r](fooVal:t => (fooVal + bar):r) }
         */
-        case List((monad, name)) =>
-          (monad.tpe.asType, newTree.tpe.asType) match
-            case ('[ZIO[x, y, t]], '[r]) =>
-              val mtpe = MethodType(List("sm"))(_ => List(TypeRepr.of[t]), _ => TypeRepr.of[r])
-              val lam =
-                Lambda(Symbol.spliceOwner, mtpe, {
-                    case (methSym, List(sm: Term)) =>
-                      replaceSymbolIn(newTree)(name, sm).changeOwner(methSym)
-                    case _ =>
-                      report.errorAndAbort(s"Invalid lambda created for: ${Format.Tree(monad)}.flatMap of ${Format.Tree(newTree)}. This should not be possible.")
-                  }
-                )
-              apply(IR.Monad('{ ${monad.asExprOf[ZIO[?, ?, t]]}.map[r](${lam.asExprOf[t => r]}) }.asTerm))
+        case List((monad, oldSymbol)) =>
+
+
+          // wrap a body of code that pointed to some identifier whose symbol is prevValSymbol
+          def wrapWithLambda[T: Type, R: Type](body: Term, prevValSymbol: Symbol) = {
+            val mtpe = MethodType(List("sm"))(_ => List(TypeRepr.of[T]), _ => TypeRepr.of[R])
+            Lambda(Symbol.spliceOwner, mtpe, {
+                case (methSym, List(sm: Term)) => replaceSymbolIn(body)(prevValSymbol, sm).changeOwner(methSym)
+                case _ => report.errorAndAbort("Not a possible state")
+              }
+            )
+          }
+
+          val monadExpr = apply(monad)
+          (monadExpr.asTerm.tpe.asType) match
+            case '[ZIO[x, y, t]] =>
+              newTree match
+                case IR.Pure(newTree) =>
+                  newTree.tpe.asType match
+                    case '[r] =>
+                      val lam = wrapWithLambda[t, r](newTree, oldSymbol)
+                      // TODO what if we do not directly specify 'r' here? what about the flatMap case?
+                      apply(IR.Monad('{ ${monadExpr.asExprOf[ZIO[?, ?, t]]}.map[r](${lam.asExprOf[t => r]}) }.asTerm))
+                case IR.Monad(newTree) =>
+                  newTree.tpe.asType match
+                    case '[ZIO[x1, y1, r]] =>
+                      val lam = wrapWithLambda[t, ZIO[x1, y1, r]](newTree, oldSymbol)
+                      apply(IR.Monad('{ ${monadExpr.asExprOf[ZIO[?, ?, t]]}.flatMap(${lam.asExprOf[t => ZIO[x1, y1, r]]}) }.asTerm))
 
         case unlifts =>
           val unliftTriples =
             unlifts.map(
-              (term, name) => {
-                val tpe =
-                  term.tpe.asType match
-                    case '[ZIO[x, y, t]] => TypeRepr.of[t]
-                (term, name, tpe)
+              (monad, monadSymbol) => {
+                val monadExpr = apply(monad)
+                val tpe = monadSymbol.termRef.widenTermRefByName
+                (monadExpr.asTerm, monadSymbol, tpe)
             })
           val (terms, names, types) = unliftTriples.unzip3
           val termsExpr = Expr.ofList(terms.map(_.asExprOf[ZIO[?, ?, ?]]))
@@ -321,12 +337,21 @@ trait ModelReconstructor {
           val output =
             totalType.asType match
               case '[t] =>
-                '{
-                  $collect.map(terms => {
-                    val iter = terms.iterator
-                    ${ Block(makeVariables('iter), newTree).asExpr }
-                  }).asInstanceOf[ZIO[?, ?, t]]
-                }
+                newTree match
+                  case IR.Pure(newTree) =>
+                    '{
+                      $collect.map(terms => {
+                        val iter = terms.iterator
+                        ${ Block(makeVariables('iter), newTree).asExpr }
+                      }).asInstanceOf[ZIO[?, ?, t]]
+                    }
+                  case IR.Monad(newTree) =>
+                    '{
+                      $collect.flatMap(terms => {
+                        val iter = terms.iterator
+                        ${ Block(makeVariables('iter), newTree).asExprOf[ZIO[?, ?, t]] }
+                      }).asInstanceOf[ZIO[?, ?, t]]
+                    }
 
           apply(IR.Monad(output.asTerm))
       }

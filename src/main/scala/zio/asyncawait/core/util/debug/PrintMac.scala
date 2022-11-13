@@ -23,8 +23,8 @@ object PrintMac {
     println("================= Tree =================")
     println(Format(Printer.TreeShortCode.show(deser)))
 
-    println("================= Detail =================")
-    println(Format(Printer.TreeStructure.show(any.asTerm)))
+    // println("================= Detail =================")
+    // println(Format(Printer.TreeStructure.show(any.asTerm)))
 
     Trees.traverse(any.asTerm, Symbol.spliceOwner) {
       case v: ValDef => println(s"Flags: ${v.symbol.flags.is(Flags.Mutable)}")

@@ -13,6 +13,7 @@ trait Model {
   protected sealed trait IR
   protected object IR {
     sealed trait Monadic extends IR
+    sealed trait Leaf extends IR
 
     case class While(cond: IR, body: IR) extends Monadic
 
@@ -28,7 +29,7 @@ trait Model {
       def apply(monad: Monadic, valSymbol: Symbol, body: IR.Pure) =
         new Map(monad, Some(valSymbol), body)
     }
-    case class Monad(code: Term) extends Monadic
+    case class Monad(code: Term) extends Monadic with Leaf
     // TODO Function to collapse inner blocks into one block because you can have Block(term, Block(term, Block(monad)))
     case class Block(head: Statement, tail: Monadic) extends Monadic
 
@@ -42,7 +43,7 @@ trait Model {
     // Since we ultimately transform If statements into Task[Boolean] segments, they are monadic
     // TODO during transformation, decided cases based on if ifTrue/ifFalse is monadic or not
     case class If(cond: IR, ifTrue: IR, ifFalse: IR) extends Monadic
-    case class Pure(code: Term) extends IR
+    case class Pure(code: Term) extends IR with Leaf
 
     // Note that And/Or expressions ultimately need to have both of their sides lifted,
     // if one either side is not actually a monad we need to lift it. Therefore
@@ -50,7 +51,7 @@ trait Model {
     case class And(left: IR, right: IR) extends Monadic
     case class Or(left: IR, right: IR) extends Monadic
 
-    case class Parallel(monads: List[(Term, Symbol)], body: Term) extends Monadic
+    case class Parallel(monads: List[(IR.Monadic, Symbol)], body: IR.Leaf) extends Monadic
   }
 
   object MonadifyTries extends StatelessTransformer {

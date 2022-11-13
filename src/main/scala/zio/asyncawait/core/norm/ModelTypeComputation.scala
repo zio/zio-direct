@@ -146,9 +146,13 @@ trait ModelTypeComputation {
           println(s"----------- Type: ${condTpe.show}.flatMap(${bodyTpe.show}).map(Unit) => ${out.show}")
           out
 
-        case IR.Parallel(monads, body) =>
-          val monadsType = ZioType.composeN(monads.map((term, _) => ZioType.fromZIO(term)))
-          val bodyType = ZioType.fromPure(body)
+        case IR.Parallel(monadics, body) =>
+          val monadTypes = monadics.map((monadic, _) => apply(monadic))
+          val monadsType = ZioType.composeN(monadTypes)
+          val bodyType =
+            body match
+              case IR.Pure(body) => ZioType.fromPure(body)
+              case IR.Monad(body) => ZioType.fromZIO(body)
           monadsType.flatMappedWith(bodyType)
       }
   }

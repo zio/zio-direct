@@ -125,19 +125,23 @@ class Transformer(inputQuotes: Quotes)
         case term => // @ Allowed.ParallelExpression()
           //println(s"========== GENERIC CONSTRUCT: ${Format.Tree(term)}\n==============\n${Format(Printer.TreeStructure.show(term))}")
 
-          val unlifts = mutable.ArrayBuffer.empty[(Term, Symbol)]
+          val unlifts = mutable.ArrayBuffer.empty[(IR.Monadic, Symbol)]
           val newTree: Term =
             Trees.Transform(term, Symbol.spliceOwner) {
-              case Seal('{ await[r, e, a]($task) }) =>
-                // TODO Maybe should store this type in the ulifts after-all to not have to compute it multiple times?
-                val tpe =
-                  task.asTerm.tpe.asType match
-                    case '[ZIO[x, y, t]] => TypeRepr.of[t]
+              case originalTerm @ Seal('{ await[r, e, a]($task) }) =>
+                val tpe = originalTerm.tpe
                 val sym = Symbol.newVal(Symbol.spliceOwner, "par", tpe, Flags.EmptyFlags, Symbol.noSymbol)
-                unlifts += ((task.asTerm, sym))
+                unlifts += ((IR.Monad(task.asTerm), sym))
+                Ref(sym)
+
+              case originalTerm @ DecomposeBlock(monad) =>
+                // Take the type from the originalTerm (i.e. the result of the await call since it could be a block etc...)
+                val tpe = originalTerm.tpe
+                val sym = Symbol.newVal(Symbol.spliceOwner, "par", tpe, Flags.EmptyFlags, Symbol.noSymbol)
+                unlifts += ((monad, sym))
                 Ref(sym)
             }
-          Some(IR.Parallel(unlifts.toList, newTree))
+          Some(IR.Parallel(unlifts.toList, IR.Pure(newTree)))
       }
       ret
     }
