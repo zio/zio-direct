@@ -14,34 +14,34 @@ trait AsyncAwaitSpec extends ZIOSpecDefault {
     "Detected an `await` call inside of an unsupported structure"
 
   inline def runLiftTest[T](expected: T)(inline body: T) = {
-    val asyncBody = async(body)
+    val deferBody = defer(body)
     // Not sure why but If I don't cast to .asInstanceOf[ZIO[Any, Nothing, ?]]
     // zio says it expects a layer of scala.Nothing
-    assertZIO(asyncBody.asInstanceOf[ZIO[Any, ?, ?]])(Assertion.equalTo(expected))
+    assertZIO(deferBody.asInstanceOf[ZIO[Any, ?, ?]])(Assertion.equalTo(expected))
   }
 
   inline def runLiftTestLenient[T](expected: T)(inline body: T) = {
-    val asyncBody = async(Collect.Sequence, Verify.Lenient)(body)
+    val deferBody = defer(Collect.Sequence, Verify.Lenient)(body)
     // Not sure why but If I don't cast to .asInstanceOf[ZIO[Any, Nothing, ?]]
     // zio says it expects a layer of scala.Nothing
-    assertZIO(asyncBody.asInstanceOf[ZIO[Any, ?, ?]])(Assertion.equalTo(expected))
+    assertZIO(deferBody.asInstanceOf[ZIO[Any, ?, ?]])(Assertion.equalTo(expected))
   }
 
   transparent inline def runLiftFailLenientMsg(errorStringContains: String)(body: String) = {
     val errors =
-      typeCheckErrors("async(zio.run.core.metaprog.Collect.Sequence, zio.run.core.metaprog.Verify.Lenient) {" + body + "}").map(_.message)
+      typeCheckErrors("defer(zio.run.core.metaprog.Collect.Sequence, zio.run.core.metaprog.Verify.Lenient) {" + body + "}").map(_.message)
     assert(errors)(exists(containsString(errorStringContains)))
   }
 
   transparent inline def runLiftFailMsg(errorStringContains: String)(body: String) = {
     val errors =
-      typeCheckErrors("async({" + body + "})").map(_.message)
+      typeCheckErrors("defer({" + body + "})").map(_.message)
     assert(errors)(exists(containsString(errorStringContains)))
   }
 
   transparent inline def runLiftFail(body: String) = {
     val errors =
-      typeCheckErrors("async {" + body + "}").map(_.message)
+      typeCheckErrors("defer {" + body + "}").map(_.message)
     assert(errors)(isNonEmpty)
   }
 }

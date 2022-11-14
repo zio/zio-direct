@@ -29,7 +29,7 @@
 //           runLiftTest(1) {
 //             try 1
 //             catch {
-//               case `e` => await(async(2))
+//               case `e` => await(defer(2))
 //             }
 //           }
 //         }
@@ -38,7 +38,7 @@
 //             try 1
 //             catch {
 //               case `e`          => 2
-//               case _: Throwable => await(async(3))
+//               case _: Throwable => await(defer(3))
 //             }
 //           }
 //         }
@@ -63,7 +63,7 @@
 //             try {
 //               throw e
 //             } catch {
-//               case `e`         => await(async(2))
+//               case `e`         => await(defer(2))
 //             }
 //           }
 //         }
@@ -74,7 +74,7 @@
 //               throw e
 //             } catch {
 //               case `e`          => 1
-//               case _: Throwable => await(async(2))
+//               case _: Throwable => await(defer(2))
 //             }
 //           }
 //         }
@@ -88,7 +88,7 @@
 //       runLiftTest(true) {
 //         val _ =
 //           try {
-//             await(async(1))
+//             await(defer(1))
 //           }
 //           finally {
 //             c()
@@ -101,7 +101,7 @@
 //       def c() = called = true
 //       runLiftTest(true) {
 //         try
-//           await(async(1))
+//           await(defer(1))
 //         finally {
 //           c()
 //         }

@@ -14,7 +14,7 @@ import zio.run.core.NotDeferredException
 def await[R, E, A](value: ZIO[R, E, A]): A = NotDeferredException.fromNamed("await")
 def unsafe[T](value: T): T = NotDeferredException.fromNamed("unsafe")
 
-object async {
+object defer {
   transparent inline def apply[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Silent }, '{ Collect.Sequence }, '{ Verify.Strict }) }
   transparent inline def info[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Info }, '{ Collect.Sequence }, '{ Verify.Strict }) }
   transparent inline def verbose[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Verbose }, '{ Collect.Sequence }, '{ Verify.Strict }) }

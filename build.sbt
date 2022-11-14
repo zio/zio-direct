@@ -80,13 +80,13 @@ lazy val releaseSettings = ReleasePlugin.extraReleaseCommands ++ Seq(
     //doOnPush(releaseStepCommand("sonatypeReleaseAll")) ++
     doOnPush   (pushChanges)
   },
-  homepage := Some(url("http://github.com/zio/zio-async-await")),
+  homepage := Some(url("http://github.com/zio/zio-defer-await")),
   licenses := List(("Apache License 2.0", url("https://raw.githubusercontent.com/getquill/protoquill/master/LICENSE.txt"))),
   developers := List(
     Developer("deusaquilus", "Alexander Ioffe", "", url("https://github.com/deusaquilus"))
   ),
   scmInfo := Some(
-    ScmInfo(url("https://github.com/zio/zio-async-await"), "git@github.com:zio/zio-async-await.git")
+    ScmInfo(url("https://github.com/zio/zio-defer-await"), "git@github.com:zio/zio-defer-await.git")
   )
 )
 

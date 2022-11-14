@@ -11,14 +11,14 @@
 //         test("no params") {
 //           runLiftTestLenient(3) {
 //             def a = 2
-//             await(async(1)) + a
+//             await(defer(1)) + a
 //           }
 //         }
 //         test("no awaits in functions, even in lenient mode") {
 //           runLiftFailLenientMsg("In Lenient mode") {
 //             """
 //             def a = await(ZIO.succeed(2))
-//             await(async(1)) + a
+//             await(defer(1)) + a
 //             """
 //           }
 //         }
@@ -26,7 +26,7 @@
 //           runLiftFailLenientMsg("In Lenient mode") {
 //             """
 //             trait A {
-//               def a(i: Int) = await(async(i + 1))
+//               def a(i: Int) = await(defer(i + 1))
 //             }
 //             (new A {}).a(1) + 1
 //             """
@@ -35,19 +35,19 @@
 //         test("one param") {
 //           runLiftTestLenient(3) {
 //             def a(i: Int) = i + 1
-//             await(async(a(1))) + 1
+//             await(defer(a(1))) + 1
 //           }
 //         }
 //         test("multiple params") {
 //           runLiftTestLenient(4) {
 //             def a(i: Int, s: String) = i + s.toInt
-//             await(async(a(1, "2"))) + a(0, "1")
+//             await(defer(a(1, "2"))) + a(0, "1")
 //           }
 //         }
 //         test("multiple param groups") {
 //           runLiftTestLenient(4) {
 //             def a(i: Int)(s: String) = i + s.toInt
-//             await(async(a(1)("2"))) + a(0)("1")
+//             await(defer(a(1)("2"))) + a(0)("1")
 //           }
 //         }
 //         test("nested") {
@@ -67,9 +67,9 @@
 //             foo + 1
 //           }
 //         }
-//         test("nested class - pure - with nested async") {
+//         test("nested class - pure - with nested defer") {
 //           runLiftTestLenient(4) {
-//             def getInt(i: Int) = async(i + 1)
+//             def getInt(i: Int) = defer(i + 1)
 //             class A {
 //               def a(i: Int) = getInt(i)
 //             }
@@ -81,12 +81,12 @@
 //       }
 //     },
 //     suite("unlifted") {
-//       val errorMsgContains = "not allowed inside of async blocks"
+//       val errorMsgContains = "not allowed inside of defer blocks"
 //       test("def not allowed") {
 //         runLiftFailMsg(errorMsgContains) {
 //           """
 //           def a = 2
-//           await(async(1)) + a
+//           await(defer(1)) + a
 //           """
 //         }
 //       }
@@ -113,12 +113,12 @@
 //         }
 //       }
 //       +
-//       test("nested class - pure but using async - not allowed") {
+//       test("nested class - pure but using defer - not allowed") {
 //         runLiftFailMsg(errorMsgContains) {
 //           """
-//           def awaitInt(i: Int) = await(async(i + 1))
+//           def awaitInt(i: Int) = await(defer(i + 1))
 //           class A {
-//             def a(i: Int) = async(awaitInt(i))
+//             def a(i: Int) = defer(awaitInt(i))
 //           }
 //           await((new A).a(1)) + "blah"
 //           """

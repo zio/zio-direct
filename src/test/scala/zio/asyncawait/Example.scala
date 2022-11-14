@@ -24,7 +24,7 @@ object Example {
   //   class Blah(input: Int) {
   //     def value: Int = input
   //   }
-  //   // PrintMac(async {
+  //   // PrintMac(defer {
   //   //   val (a, a1) = await(ZIO.succeed((123, 456)))
   //   //   val blah = new Blah(2)
   //   //   import blah._
@@ -33,7 +33,7 @@ object Example {
   //   // })
 
   //   val out =
-  //     async {
+  //     defer {
   //       val (a, a1) = await(ZIO.succeed((123, 456)))
   //       val blah = new Blah(2)
   //       import blah._
@@ -58,7 +58,7 @@ object Example {
   //     def value1: Int = input
 
   //   val out =
-  //     async {
+  //     defer {
   //       val blah0 = new Blah0(123)
   //       import blah0._
   //       val blah1 = new Blah1(456)
@@ -79,8 +79,8 @@ object Example {
 
   // def funC(): Unit = {
   //   val out =
-  //     PrintMac.passthrough(async {
-  //       val (a, b) = (await(async(1)), await(async(2)))
+  //     PrintMac.passthrough(defer {
+  //       val (a, b) = (await(defer(1)), await(defer(2)))
   //       a + b
   //     })
 
@@ -92,16 +92,16 @@ object Example {
   // }
 
   // def funD(): Unit = {
-  //   val i = async(1)
-  //   val j = async(2)
+  //   val i = defer(1)
+  //   val j = defer(2)
 
-  //   PrintMac(async {
+  //   PrintMac(defer {
   //       val v = await(i)
   //       v + await(j)
   //     })
 
   //   val out =
-  //     async {
+  //     defer {
   //       val v = await(i)
   //       v + await(j)
   //     }
@@ -115,9 +115,9 @@ object Example {
 
   // def funE(): Unit = {
   //   val out =
-  //     async {
+  //     defer {
   //       def a(i: Int, s: String) = i + s.toInt
-  //       await(async(a(1, "2"))) + a(0, "1")
+  //       await(defer(a(1, "2"))) + a(0, "1")
   //     }
 
   //   val outRun =
@@ -128,8 +128,8 @@ object Example {
   // }
 
   // def funF(): Unit = {
-  //   val out = (async {
-  //     def a = async("foo")
+  //   val out = (defer {
+  //     def a = defer("foo")
   //     await(a) + "bar"
   //   })
 
@@ -141,13 +141,13 @@ object Example {
   // }
 
   // def funG(): Unit = {
-  //   // PrintMac(async {
-  //   //   def blah(b: String) = await(async(b))
+  //   // PrintMac(defer {
+  //   //   def blah(b: String) = await(defer(b))
   //   //   blah("foo") + "bar"
   //   // })
 
-  //   val out = (async {
-  //     def blah(b: String)(c: String) = await(async(b + c))
+  //   val out = (defer {
+  //     def blah(b: String)(c: String) = await(defer(b + c))
   //     blah("foo")("bar") + "baz"
   //   })
 
@@ -165,7 +165,7 @@ object Example {
   // def funH(): Unit = {
 
   //   // Correct issue but error is misleading
-  //   // val out = (async {
+  //   // val out = (defer {
   //   //   if (await({
   //   //     for {
   //   //       env <- ZIO.service[Config]
@@ -178,7 +178,7 @@ object Example {
   //   // })
 
   //   // val out =
-  //   //   async.info {
+  //   //   defer.info {
   //   //     val (x, y) = (await(ZIO.succeed("foo")), await(ZIO.succeed("bar")))
   //   //     val (x1, y1) = (await(ZIO.succeed("foo2" + x)), await(ZIO.succeed("bar2" + y)))
   //   //     x + x1 + y + y1
@@ -186,7 +186,7 @@ object Example {
 
   //   // Make a test for this
   //   // val out =
-  //   //   async.verbose {
+  //   //   defer.verbose {
   //   //     val (x, y) = (await(ZIO.succeed("foo")), await(ZIO.succeed("bar")))
   //   //     val config = await(ZIO.service[Config])
   //   //     x + config.value + y
@@ -194,7 +194,7 @@ object Example {
 
   //   // Noisy exception
   //   // val out =
-  //   //   async.info {
+  //   //   defer.info {
   //   //     val tup = (await(ZIO.succeed("foo")), await(ZIO.succeed("bar")))
   //   //     val configValue =
   //   //       await(ZIO.service[Config]) match {
@@ -204,7 +204,7 @@ object Example {
   //   //   }
 
   //   // val out =
-  //   //   async.info {
+  //   //   defer.info {
   //   //     val tup = (await(ZIO.succeed("foo")), await(ZIO.succeed("bar")))
   //   //     val configValue =
   //   //       await(ZIO.service[Config]) match {
@@ -214,9 +214,9 @@ object Example {
   //   //   }
 
   //   val out =
-  //     async {
-  //       def a(i: Int, s: String) = await(async(i)) + s.toInt
-  //       a(1, "2") + await(async(1))
+  //     defer {
+  //       def a(i: Int, s: String) = await(defer(i)) + s.toInt
+  //       a(1, "2") + await(defer(1))
   //     }
 
   //   val provided = out //.provide(ZLayer.succeed(Config("x")))
@@ -230,9 +230,9 @@ object Example {
 
   // def funH(): Unit = { //
   //   val out =
-  //     async.verbose {
+  //     defer.verbose {
   //       val msg =
-  //         async(
+  //         defer(
   //           try {
   //             //await(ZIO.attempt("foo"))
   //             await(ZIO.attempt { throw new IOException("blah") })
@@ -252,7 +252,7 @@ object Example {
   //   def currTime(): Double = java.lang.System.currentTimeMillis() //
 
   //   // val out =
-  //   //   async.verbose {
+  //   //   defer.verbose {
   //   //     val a = ZIO.sleep(10.seconds).fork.run
   //   //     val b = ZIO.sleep(2.seconds).fork.run
   //   //     lazy val startTime = currTime()
@@ -267,7 +267,7 @@ object Example {
 
   //   // def currTime(): Double = java.lang.System.currentTimeMillis()
   //   // val out =
-  //   //   async.verbose {
+  //   //   defer.verbose {
   //   //     val startTime = currTime()
   //   //     val a = await(ZIO.collectAllPar(Chunk(ZIO.sleep(10.seconds), ZIO.sleep(2.seconds))))
   //   //     await(zio.Console.printLine(s"Completed in: ${(currTime() - startTime)/1000d}"))
@@ -275,7 +275,7 @@ object Example {
   //   //   }
 
   //   // val out =
-  //   //   async.info {
+  //   //   defer.info {
   //   //     (await(ZIO.sleep(5.seconds)), await(ZIO.sleep(10.seconds)))
   //   //   }
 
@@ -291,7 +291,7 @@ object Example {
 //   def funJ() = {
 
 //     val out =
-//       async.verbose {
+//       defer.verbose {
 //         var i = 10
 //         (await(ZIO.succeed({ i = i - 1 })), await(ZIO.succeed({ i = i - 2 })))
 //       }
@@ -300,7 +300,7 @@ object Example {
 // // emphasize "for effect systems"
 // // lazy val supported?
 
-//       // async.verbose {
+//       // defer.verbose {
 //       //   var i = await(ZIO.succeed(10))
 //       //   while (await(ZIO.succeed(i - 2)) >= 0) {
 //       //     println(s"Currently: $i")
@@ -308,7 +308,7 @@ object Example {
 //       //   }
 //       // }
 //       //
-//       // async.verbose {
+//       // defer.verbose {
 //       //   var i = Ref.make(10).run
 //       //   while (i.get.run - 2 >= 0) {
 //       //     println(s"======= Currently: ${i.get.run} ===========")
@@ -325,7 +325,7 @@ object Example {
 
   // def funH() = { //
   //     val out =
-  //     async.verbose {
+  //     defer.verbose {
   //       val x = 123
   //       (await(ZIO.succeed(x)), {
   //         val a = await(ZIO.succeed(888))
@@ -344,7 +344,7 @@ object Example {
   // TODO test this, as well as the failure case of this
   def funI() = { //
     val out =
-      async.verbose {
+      defer.verbose {
         try {
           // unsafe {
           // val x = 123
