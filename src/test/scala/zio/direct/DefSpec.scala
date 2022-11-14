@@ -11,14 +11,14 @@
 //         test("no params") {
 //           runLiftTestLenient(3) {
 //             def a = 2
-//             await(defer(1)) + a
+//             run(defer(1)) + a
 //           }
 //         }
 //         test("no awaits in functions, even in lenient mode") {
 //           runLiftFailLenientMsg("In Lenient mode") {
 //             """
-//             def a = await(ZIO.succeed(2))
-//             await(defer(1)) + a
+//             def a = run(ZIO.succeed(2))
+//             run(defer(1)) + a
 //             """
 //           }
 //         }
@@ -26,7 +26,7 @@
 //           runLiftFailLenientMsg("In Lenient mode") {
 //             """
 //             trait A {
-//               def a(i: Int) = await(defer(i + 1))
+//               def a(i: Int) = run(defer(i + 1))
 //             }
 //             (new A {}).a(1) + 1
 //             """
@@ -35,19 +35,19 @@
 //         test("one param") {
 //           runLiftTestLenient(3) {
 //             def a(i: Int) = i + 1
-//             await(defer(a(1))) + 1
+//             run(defer(a(1))) + 1
 //           }
 //         }
 //         test("multiple params") {
 //           runLiftTestLenient(4) {
 //             def a(i: Int, s: String) = i + s.toInt
-//             await(defer(a(1, "2"))) + a(0, "1")
+//             run(defer(a(1, "2"))) + a(0, "1")
 //           }
 //         }
 //         test("multiple param groups") {
 //           runLiftTestLenient(4) {
 //             def a(i: Int)(s: String) = i + s.toInt
-//             await(defer(a(1)("2"))) + a(0)("1")
+//             run(defer(a(1)("2"))) + a(0)("1")
 //           }
 //         }
 //         test("nested") {
@@ -63,7 +63,7 @@
 //             class A {
 //               def a(i: Int) = getInt(i)
 //             }
-//             val foo = await(ZIO.succeed((new A).a(1))) + 1
+//             val foo = run(ZIO.succeed((new A).a(1))) + 1
 //             foo + 1
 //           }
 //         }
@@ -74,7 +74,7 @@
 //               def a(i: Int) = getInt(i)
 //             }
 //             // TODO test that should fail if foo is a def
-//             val foo = await((new A).a(1)) + 1
+//             val foo = run((new A).a(1)) + 1
 //             foo + 1
 //           }
 //         }
@@ -86,7 +86,7 @@
 //         runLiftFailMsg(errorMsgContains) {
 //           """
 //           def a = 2
-//           await(defer(1)) + a
+//           run(defer(1)) + a
 //           """
 //         }
 //       }
@@ -116,11 +116,11 @@
 //       test("nested class - pure but using defer - not allowed") {
 //         runLiftFailMsg(errorMsgContains) {
 //           """
-//           def awaitInt(i: Int) = await(defer(i + 1))
+//           def awaitInt(i: Int) = run(defer(i + 1))
 //           class A {
 //             def a(i: Int) = defer(awaitInt(i))
 //           }
-//           await((new A).a(1)) + "blah"
+//           run((new A).a(1)) + "blah"
 //           """
 //         }
 //       }

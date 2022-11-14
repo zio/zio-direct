@@ -47,14 +47,14 @@ class Transformer(inputQuotes: Quotes)
           Some(IR.If(condIR, ifTrueIR, ifFalseIR))
 
         // For example, this:
-        //   while (foo) { await(bar:ZIO) }
+        //   while (foo) { run(bar:ZIO) }
         // will be translated into:
         //   def whileFunc() { if (foo) { bar; whileFunc() } }
         // the actual function will be synthesized in the Reconstructor. Ultimately the following code will be spliced:
         //   { def whileFunc() { if (foo) { bar; whileFunc() } } }
         //
         // in the case that `if` is a monad, i.e. something like this
-        //   while (await(foo)) { await(bar) }
+        //   while (run(foo)) { run(bar) }
         // then something like this will happen:
         //   def whileFunc() { foo.flatMap(fooVal => { if (foo) { bar; whileFunc() } })) }
         case While(cond, body) =>
@@ -110,7 +110,7 @@ class Transformer(inputQuotes: Quotes)
         case m @ Match(value, DecomposeCases(cases)) =>
           Some(IR.Match(IR.Pure(value), cases))
 
-        case Seal('{ await[r, e, a]($task) }) =>
+        case Seal('{ run[r, e, a]($task) }) =>
           Some(IR.Monad(task.asTerm))
 
         case Typed(tree, _) =>
@@ -126,7 +126,7 @@ class Transformer(inputQuotes: Quotes)
           val unlifts = mutable.ArrayBuffer.empty[(IR.Monadic, Symbol)]
           val newTree: Term =
             Trees.Transform(term, Symbol.spliceOwner) {
-              case originalTerm @ Seal('{ await[r, e, a]($task) }) =>
+              case originalTerm @ Seal('{ run[r, e, a]($task) }) =>
                 val tpe = originalTerm.tpe
                 val sym = Symbol.newVal(Symbol.spliceOwner, "par", tpe, Flags.EmptyFlags, Symbol.noSymbol)
                 unlifts += ((IR.Monad(task.asTerm), sym))
@@ -214,7 +214,7 @@ class Transformer(inputQuotes: Quotes)
                 case '[ZIO[r, e, a]] =>
                   report.warning(
                     s"Found a ZIO term that is not being awaited. Non-awaited ZIO terms inside of `{ ... }` blocks will never be executed i.e. they will be discarded. " +
-                      s"To execute this term add `.run` at the end or wrap it into an `await(...)` statement." +
+                      s"To execute this term add `.run` at the end or wrap it into an `run(...)` statement." +
                       s"\n========\n" +
                       Format.Term(term),
                     term.asExpr

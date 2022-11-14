@@ -25,19 +25,19 @@ object Example {
   //     def value: Int = input
   //   }
   //   // PrintMac(defer {
-  //   //   val (a, a1) = await(ZIO.succeed((123, 456)))
+  //   //   val (a, a1) = run(ZIO.succeed((123, 456)))
   //   //   val blah = new Blah(2)
   //   //   import blah._
-  //   //   val b = await(ZIO.succeed(value))
+  //   //   val b = run(ZIO.succeed(value))
   //   //   a + b
   //   // })
 
   //   val out =
   //     defer {
-  //       val (a, a1) = await(ZIO.succeed((123, 456)))
+  //       val (a, a1) = run(ZIO.succeed((123, 456)))
   //       val blah = new Blah(2)
   //       import blah._
-  //       val b = await(ZIO.succeed(value))
+  //       val b = run(ZIO.succeed(value))
   //       a + b
   //     }
 
@@ -63,10 +63,10 @@ object Example {
   //       import blah0._
   //       val blah1 = new Blah1(456)
   //       import blah1._
-  //       val (a, a1) = await(ZIO.succeed((blah0.value0, blah1.value1)))
+  //       val (a, a1) = run(ZIO.succeed((blah0.value0, blah1.value1)))
   //       val blah = new Blah(2)
   //       import blah._
-  //       val b = await(ZIO.succeed(value))
+  //       val b = run(ZIO.succeed(value))
   //       a + a1 + b
   //     }
 
@@ -80,7 +80,7 @@ object Example {
   // def funC(): Unit = {
   //   val out =
   //     PrintMac.passthrough(defer {
-  //       val (a, b) = (await(defer(1)), await(defer(2)))
+  //       val (a, b) = (run(defer(1)), run(defer(2)))
   //       a + b
   //     })
 
@@ -96,14 +96,14 @@ object Example {
   //   val j = defer(2)
 
   //   PrintMac(defer {
-  //       val v = await(i)
-  //       v + await(j)
+  //       val v = run(i)
+  //       v + run(j)
   //     })
 
   //   val out =
   //     defer {
-  //       val v = await(i)
-  //       v + await(j)
+  //       val v = run(i)
+  //       v + run(j)
   //     }
 
   //   val outRun =
@@ -117,7 +117,7 @@ object Example {
   //   val out =
   //     defer {
   //       def a(i: Int, s: String) = i + s.toInt
-  //       await(defer(a(1, "2"))) + a(0, "1")
+  //       run(defer(a(1, "2"))) + a(0, "1")
   //     }
 
   //   val outRun =
@@ -130,7 +130,7 @@ object Example {
   // def funF(): Unit = {
   //   val out = (defer {
   //     def a = defer("foo")
-  //     await(a) + "bar"
+  //     run(a) + "bar"
   //   })
 
   //   val outRun =
@@ -142,12 +142,12 @@ object Example {
 
   // def funG(): Unit = {
   //   // PrintMac(defer {
-  //   //   def blah(b: String) = await(defer(b))
+  //   //   def blah(b: String) = run(defer(b))
   //   //   blah("foo") + "bar"
   //   // })
 
   //   val out = (defer {
-  //     def blah(b: String)(c: String) = await(defer(b + c))
+  //     def blah(b: String)(c: String) = run(defer(b + c))
   //     blah("foo")("bar") + "baz"
   //   })
 
@@ -166,7 +166,7 @@ object Example {
 
   //   // Correct issue but error is misleading
   //   // val out = (defer {
-  //   //   if (await({
+  //   //   if (run({
   //   //     for {
   //   //       env <- ZIO.service[Config]
   //   //       value <- ZIO.succeed(env.value)
@@ -179,25 +179,25 @@ object Example {
 
   //   // val out =
   //   //   defer.info {
-  //   //     val (x, y) = (await(ZIO.succeed("foo")), await(ZIO.succeed("bar")))
-  //   //     val (x1, y1) = (await(ZIO.succeed("foo2" + x)), await(ZIO.succeed("bar2" + y)))
+  //   //     val (x, y) = (run(ZIO.succeed("foo")), run(ZIO.succeed("bar")))
+  //   //     val (x1, y1) = (run(ZIO.succeed("foo2" + x)), run(ZIO.succeed("bar2" + y)))
   //   //     x + x1 + y + y1
   //   //   }
 
   //   // Make a test for this
   //   // val out =
   //   //   defer.verbose {
-  //   //     val (x, y) = (await(ZIO.succeed("foo")), await(ZIO.succeed("bar")))
-  //   //     val config = await(ZIO.service[Config])
+  //   //     val (x, y) = (run(ZIO.succeed("foo")), run(ZIO.succeed("bar")))
+  //   //     val config = run(ZIO.service[Config])
   //   //     x + config.value + y
   //   //   }
 
   //   // Noisy exception
   //   // val out =
   //   //   defer.info {
-  //   //     val tup = (await(ZIO.succeed("foo")), await(ZIO.succeed("bar")))
+  //   //     val tup = (run(ZIO.succeed("foo")), run(ZIO.succeed("bar")))
   //   //     val configValue =
-  //   //       await(ZIO.service[Config]) match {
+  //   //       run(ZIO.service[Config]) match {
   //   //         case Config(value) => value
   //   //       }
   //   //     tup._1 + config.value + tup._2
@@ -205,18 +205,18 @@ object Example {
 
   //   // val out =
   //   //   defer.info {
-  //   //     val tup = (await(ZIO.succeed("foo")), await(ZIO.succeed("bar")))
+  //   //     val tup = (run(ZIO.succeed("foo")), run(ZIO.succeed("bar")))
   //   //     val configValue =
-  //   //       await(ZIO.service[Config]) match {
-  //   //         case Config(value) => await(ZIO.succeed(value))
+  //   //       run(ZIO.service[Config]) match {
+  //   //         case Config(value) => run(ZIO.succeed(value))
   //   //       }
   //   //     tup._1 + configValue + tup._2
   //   //   }
 
   //   val out =
   //     defer {
-  //       def a(i: Int, s: String) = await(defer(i)) + s.toInt
-  //       a(1, "2") + await(defer(1))
+  //       def a(i: Int, s: String) = run(defer(i)) + s.toInt
+  //       a(1, "2") + run(defer(1))
   //     }
 
   //   val provided = out //.provide(ZLayer.succeed(Config("x")))
@@ -234,17 +234,17 @@ object Example {
   //       val msg =
   //         defer(
   //           try {
-  //             //await(ZIO.attempt("foo"))
-  //             await(ZIO.attempt { throw new IOException("blah") })
+  //             //run(ZIO.attempt("foo"))
+  //             run(ZIO.attempt { throw new IOException("blah") })
   //           } catch {
   //             case e: IOException => e.getMessage()
   //           } finally {
   //             println("============ Recovering ========")
   //           }
   //         )
-  //       val msgResult = await(msg)
+  //       val msgResult = run(msg)
 
-  //       await(ZIO.succeed(msgResult))
+  //       run(ZIO.succeed(msgResult))
   //     }
 
   //   // Bug: moving currTime right before starTime makes a "forward reference"
@@ -258,9 +258,9 @@ object Example {
   //   //     lazy val startTime = currTime()
   //   //     ZIO.sleep(4.seconds)
   //   //     zio.Console.printLine(s"Started waiting: ${(currTime() - startTime)/1000d}").run
-  //   //     val aResult = await(a.join)
+  //   //     val aResult = run(a.join)
   //   //     zio.Console.printLine(s"A completed: ${(currTime() - startTime)/1000d}").run
-  //   //     val bResult = await(b.join)
+  //   //     val bResult = run(b.join)
   //   //     zio.Console.printLine(s"B completed: ${(currTime() - startTime)/1000d}").run
   //   //     (aResult, bResult)
   //   //   }
@@ -269,14 +269,14 @@ object Example {
   //   // val out =
   //   //   defer.verbose {
   //   //     val startTime = currTime()
-  //   //     val a = await(ZIO.collectAllPar(Chunk(ZIO.sleep(10.seconds), ZIO.sleep(2.seconds))))
-  //   //     await(zio.Console.printLine(s"Completed in: ${(currTime() - startTime)/1000d}"))
+  //   //     val a = run(ZIO.collectAllPar(Chunk(ZIO.sleep(10.seconds), ZIO.sleep(2.seconds))))
+  //   //     run(zio.Console.printLine(s"Completed in: ${(currTime() - startTime)/1000d}"))
   //   //     a
   //   //   }
 
   //   // val out =
   //   //   defer.info {
-  //   //     (await(ZIO.sleep(5.seconds)), await(ZIO.sleep(10.seconds)))
+  //   //     (run(ZIO.sleep(5.seconds)), run(ZIO.sleep(10.seconds)))
   //   //   }
 
   //   val outRun =
@@ -286,14 +286,14 @@ object Example {
   //   println("====== RESULT: " + outRun)
   // }
 
-  // while ({ val v = await(i.get) - 2; println(v); v } > 0) { /
+  // while ({ val v = run(i.get) - 2; println(v); v } > 0) { /
 
 //   def funJ() = {
 
 //     val out =
 //       defer.verbose {
 //         var i = 10
-//         (await(ZIO.succeed({ i = i - 1 })), await(ZIO.succeed({ i = i - 2 })))
+//         (run(ZIO.succeed({ i = i - 1 })), run(ZIO.succeed({ i = i - 2 })))
 //       }
 
 // // (TODO this should also give a warning)
@@ -301,10 +301,10 @@ object Example {
 // // lazy val supported?
 
 //       // defer.verbose {
-//       //   var i = await(ZIO.succeed(10))
-//       //   while (await(ZIO.succeed(i - 2)) >= 0) {
+//       //   var i = run(ZIO.succeed(10))
+//       //   while (run(ZIO.succeed(i - 2)) >= 0) {
 //       //     println(s"Currently: $i")
-//       //     await(ZIO.succeed { i = i -1 } )
+//       //     run(ZIO.succeed { i = i -1 } )
 //       //   }
 //       // }
 //       //
@@ -327,10 +327,10 @@ object Example {
   //     val out =
   //     defer.verbose {
   //       val x = 123
-  //       (await(ZIO.succeed(x)), {
-  //         val a = await(ZIO.succeed(888))
+  //       (run(ZIO.succeed(x)), {
+  //         val a = run(ZIO.succeed(888))
   //         a
-  //       }, await(ZIO.succeed(456)))
+  //       }, run(ZIO.succeed(456)))
   //     }
 
   //     val outRun =
@@ -353,27 +353,27 @@ object Example {
 
           // TODO add test for this
           // val x = 123
-          // (await(ZIO.succeed(x)), {
-          //   val a = await(ZIO.succeed(888))
+          // (run(ZIO.succeed(x)), {
+          //   val a = run(ZIO.succeed(888))
           //   a
-          // }, await(ZIO.succeed(456)))
+          // }, run(ZIO.succeed(456)))
 
           // TODO add test for this (should throw an exception that is not caught)
           // val x = 123
-          // (await(ZIO.succeed(x)), {
-          //   val a = await(ZIO.succeed(888))
+          // (run(ZIO.succeed(x)), {
+          //   val a = run(ZIO.succeed(888))
           //   4/0
-          // }, await(ZIO.succeed(456)))
+          // }, run(ZIO.succeed(456)))
 
           // TODO add test for this (should throw an exception that IS caught)
           val x = 123
           unsafe {
             (
-              await(ZIO.succeed(x)), {
-                val a = await(ZIO.succeed(888))
+              run(ZIO.succeed(x)), {
+                val a = run(ZIO.succeed(888))
                 4 / 0
               },
-              await(ZIO.succeed(456))
+              run(ZIO.succeed(456))
             )
           }
 
@@ -383,8 +383,8 @@ object Example {
           // (maybe in future add an option to not hide tree complexity)
 
           // TODO Add a test for this
-          // val a = await(ZIO.succeed(888))
-          // await(ZIO.attempt(1/0))
+          // val a = run(ZIO.succeed(888))
+          // run(ZIO.attempt(1/0))
         } catch {
           case _ => (999, 999, 999)
         }

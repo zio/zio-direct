@@ -11,7 +11,7 @@ import zio.direct.core.metaprog.Unliftables
 import zio.direct.core.metaprog.Verify
 import zio.direct.core.NotDeferredException
 
-def await[R, E, A](value: ZIO[R, E, A]): A = NotDeferredException.fromNamed("await")
+//def await[R, E, A](value: ZIO[R, E, A]): A = NotDeferredException.fromNamed("await")
 def unsafe[T](value: T): T = NotDeferredException.fromNamed("unsafe")
 
 object defer {
@@ -26,8 +26,8 @@ object defer {
   transparent inline def verboseTree[T](inline collect: Collect = Collect.Sequence, inline verify: Verify = Verify.Strict)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.VerboseTree }, 'collect, 'verify) }
 }
 
-extension [R, E, A](inline value: ZIO[R, E, A])
-  transparent inline def run = await(value)
+extension [R, E, A](value: ZIO[R, E, A])
+  def run: A = NotDeferredException.fromNamed("await")
 
 object Dsl {
   import InfoBehavior._

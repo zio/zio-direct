@@ -10,7 +10,7 @@
 //         test("only") {
 //           val i = defer(1)
 //           runLiftTest(1) {
-//             val v = await(i)
+//             val v = run(i)
 //             v
 //           }
 //         }
@@ -18,7 +18,7 @@
 //         test("followed by pure expression") {
 //           val i = defer(1)
 //           runLiftTest(2) {
-//             val v = await(i)
+//             val v = run(i)
 //             v + 1
 //           }
 //         }
@@ -27,8 +27,8 @@
 //           val i = defer(1)
 //           val j = defer(2)
 //           runLiftTest(3) {
-//             val v = await(i)
-//             v + await(j)
+//             val v = run(i)
+//             v + run(j)
 //           }
 //         }
 //         +
@@ -36,7 +36,7 @@
 //           val i = defer(1)
 //           runLiftTest(3) {
 //             val v = {
-//               val r = await(i)
+//               val r = run(i)
 //               r + 1
 //             }
 //             v + 1
@@ -47,14 +47,14 @@
 //         test("only") {
 //           val i = defer(1)
 //           runLiftTest(1) {
-//             await(i)
+//             run(i)
 //           }
 //         }
 //         +
 //         test("followed by pure expression") {
 //           val i = defer(1)
 //           runLiftTest(2) {
-//             await(i)
+//             run(i)
 //             2
 //           }
 //         }
@@ -63,8 +63,8 @@
 //           val i = defer(1)
 //           val j = defer(2)
 //           runLiftTest(2) {
-//             await(i)
-//             await(j)
+//             run(i)
+//             run(j)
 //           }
 //         }
 //       },
@@ -88,7 +88,7 @@
 //           def a = 2
 //           runLiftTest(1) {
 //             a
-//             await(i)
+//             run(i)
 //           }
 //         }
 //       },
@@ -96,7 +96,7 @@
 //         // test is not working
 //         test("tuple val pattern") {
 //           runLiftTest(3) {
-//             val (a, b) = (await(defer(1)), await(defer(2)))
+//             val (a, b) = (run(defer(1)), run(defer(2)))
 //             a + b
 //           }
 //         }
@@ -107,7 +107,7 @@
 //             """
 //             var x = 0
 //             x += {
-//               val v = await(i) + 2
+//               val v = run(i) + 2
 //               v + 1
 //             }
 //             x

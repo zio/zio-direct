@@ -268,14 +268,14 @@ trait ModelReconstructor {
         case m: IR.Monadic => {
           val sym = Symbol.newVal(Symbol.spliceOwner, "ifVar", TypeRepr.of[Boolean], Flags.EmptyFlags, Symbol.noSymbol)
           conditionState match {
-            // For example: if(await(something)) await(foo) else await(bar)
+            // For example: if(run(something)) run(foo) else run(bar)
             // => something.map(ifVar => (foo, bar) /*replace-to-ifVar*/)
             // Note that in this case we embed foo, bar into the if-statement. They are ZIO-values which is why we need a flatMap
             case ConditionState.BothMonadic(ifTrue, ifFalse) =>
               val ifTrueTerm = apply(ifTrue).asTerm
               val ifFalseTerm = apply(ifFalse).asTerm
               apply(IR.FlatMap(m, sym, IR.Monad(If(Ref(sym), ifTrueTerm, ifFalseTerm))))
-            // For example: if(await(something)) "foo" else "bar"
+            // For example: if(run(something)) "foo" else "bar"
             case ConditionState.BothPure(ifTrue, ifFalse) =>
               apply(IR.Map(m, sym, IR.Pure(If(Ref(sym), ifTrue, ifFalse))))
           }
@@ -304,12 +304,12 @@ trait ModelReconstructor {
 
         /*
         For a expression (in a single block-line) that has one await in the middle of things e.g.
-        { await(foo) + bar }
+        { run(foo) + bar }
         Needs to turn into something like:
-        { await(foo).map(fooVal => fooVal + bar) }
+        { run(foo).map(fooVal => fooVal + bar) }
         When thinking about types, it looks something like:
-        { (await(foo:Task[t]):t + bar):r }
-        { await(foo:t):Task[t].map[r](fooVal:t => (fooVal + bar):r) }
+        { (run(foo:Task[t]):t + bar):r }
+        { run(foo:t):Task[t].map[r](fooVal:t => (fooVal + bar):r) }
          */
         case List((monad, oldSymbol)) =>
           // wrap a body of code that pointed to some identifier whose symbol is prevValSymbol

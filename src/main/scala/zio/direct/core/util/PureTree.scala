@@ -3,7 +3,7 @@ package zio.direct.core.util
 import scala.quoted._
 import zio.direct.core.metaprog.Trees
 import zio.direct.core.metaprog.Extractors._
-import zio.direct.await
+import zio.direct.run
 
 object PureTree:
   object All:
@@ -13,7 +13,7 @@ object PureTree:
   def unapply(using Quotes)(tree: quotes.reflect.Tree): Option[quotes.reflect.Tree] =
     import quotes.reflect._
     Trees.exists(tree, Symbol.spliceOwner) {
-      case Seal('{ await[r, e, a]($v) }) => true
+      case Seal('{ run[r, e, a]($v) }) => true
     } match {
       case true  => None
       case false => Some(tree)

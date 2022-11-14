@@ -21,7 +21,7 @@ Please move them outside of the defer area. (They can be inside of an await)
 
   val AwaitAssignmentNotRecommended =
     """
-Using Assignment inside of await(...:ZIO) sections is permitted but not recommended,
+Using Assignment inside of run(...:ZIO) sections is permitted but not recommended,
 (outside of an `await` call they are forbidden entirely). Consider using ZIO Refs.
 =========
 Instead of doing somethiing like this:
@@ -49,10 +49,10 @@ An await cannot be inside an await. In order to do this,
 write the content of the outer await into a variable first.
 =========
 For example:
-  await(await(ZIO.succeed  { if (foo) ZIO.succeed(x) else ZIO.succeed(y) }))
+  run(run(ZIO.succeed  { if (foo) ZIO.succeed(x) else ZIO.succeed(y) }))
 Change it to:
-  val a = await(ZIO.succeed  { if (foo) ZIO.succeed(x) else ZIO.succeed(y) })
-  await(a)
+  val a = run(ZIO.succeed  { if (foo) ZIO.succeed(x) else ZIO.succeed(y) })
+  run(a)
 """.trimLeft
 
   val AssignmentNotAllowed =
@@ -61,7 +61,7 @@ Assignment is generally not allowed inside of defer calls. Please use a ZIO Ref 
 =========
 For example, instead of this:
 defer {
-	val i = await(numCalls)
+	val i = run(numCalls)
 	while (i > 0) {
 		println("Value:" + i)
 		i = i - 1
@@ -69,10 +69,10 @@ defer {
 }
 Do this:
 defer.verbose {
-  var i = await(Ref.make(10))
-  while (await(i.get) - 2) > 0) {
-    println("Value:" + await(i.get))
-    await(i.getAndUpdate(i => i - 1))
+  var i = run(Ref.make(10))
+  while (run(i.get) - 2) > 0) {
+    println("Value:" + run(i.get))
+    run(i.getAndUpdate(i => i - 1))
   }
 }
 """
@@ -83,12 +83,12 @@ Move the `await` call outside of this structure in order to use it.
 =========
 For example, change this:
   defer {
-    def getUrl = await(httpGet(someUrl))
+    def getUrl = run(httpGet(someUrl))
     service.lookup(getUrl)
   }
 To this:
   defer {
-    val result = await(httpGet(someUrl))
+    val result = run(httpGet(someUrl))
     def getUrl = result
     service.lookup(getUrl)
   }
@@ -96,13 +96,13 @@ To this:
 In some cases you should move the object out of the defer block entirely.
 For example, change this:
   defer {
-    def getUrl(url: String) = await(httpGet(url))
+    def getUrl(url: String) = run(httpGet(url))
     service.lookup(getUrl(someStr))
   }
 To this:
   def getUrl(url: String) = httpGet(url)
   defer {
-    val result = await(getUrl(someUrl))
+    val result = run(getUrl(someUrl))
     service.lookup(result)
   }
 """.trimLeft
