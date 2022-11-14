@@ -85,16 +85,16 @@ object Unliftables {
     given unliftVerify: Unlifter[Verify] with {
       def tpe = Type.of[Verify]
       def unlift =
-        case '{ Verify.Strict } => Verify.Strict
+        case '{ Verify.Strict }  => Verify.Strict
         case '{ Verify.Lenient } => Verify.Lenient
     }
 
     given unliftInfoBehavior: Unlifter[InfoBehavior] with {
       def tpe = Type.of[InfoBehavior]
       def unlift =
-        case '{ InfoBehavior.Info } => InfoBehavior.Info
-        case '{ InfoBehavior.Silent } => InfoBehavior.Silent
-        case '{ InfoBehavior.Verbose } => InfoBehavior.Verbose
+        case '{ InfoBehavior.Info }        => InfoBehavior.Info
+        case '{ InfoBehavior.Silent }      => InfoBehavior.Silent
+        case '{ InfoBehavior.Verbose }     => InfoBehavior.Verbose
         case '{ InfoBehavior.VerboseTree } => InfoBehavior.VerboseTree
     }
   }

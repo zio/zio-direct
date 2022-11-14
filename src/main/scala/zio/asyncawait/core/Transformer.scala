@@ -19,10 +19,10 @@ import zio.asyncawait.core.norm.ModelReconstructor
 // TODO replace all instances of ZIO.succeed with ZIO.attempt?
 //      need to look through cases to see which ones expect errors
 class Transformer(inputQuotes: Quotes)
-  extends Model
-  with ModelTypeComputation
-  with ModelPrinting
-  with ModelReconstructor {
+    extends Model
+    with ModelTypeComputation
+    with ModelPrinting
+    with ModelReconstructor {
 
   implicit val macroQuotes = inputQuotes
   import quotes.reflect._
@@ -116,13 +116,12 @@ class Transformer(inputQuotes: Quotes)
         case Typed(tree, _) =>
           unapply(tree)
 
-
         // This is perhaps the most powerful component of the monadless-paradigm. It changes something that looks like this:
         // { (unlift(foo), unlift(bar)) }
         // To something that looks like:
         // { ZIO.collect(foo, bar).map(iter => val a = iter.next(); val b = iter.next(); (a, b)) }
         case term => // @ Allowed.ParallelExpression()
-          //println(s"========== GENERIC CONSTRUCT: ${Format.Tree(term)}\n==============\n${Format(Printer.TreeStructure.show(term))}")
+          // println(s"========== GENERIC CONSTRUCT: ${Format.Tree(term)}\n==============\n${Format(Printer.TreeStructure.show(term))}")
 
           val unlifts = mutable.ArrayBuffer.empty[(IR.Monadic, Symbol)]
           val newTree: Term =
@@ -147,10 +146,10 @@ class Transformer(inputQuotes: Quotes)
   }
 
   /**
-    * Decompose a sequence of steps
-    * a; b = unlift(zio); c
-    * Into a.flatMap()
-    */
+   * Decompose a sequence of steps
+   * a; b = unlift(zio); c
+   * Into a.flatMap()
+   */
   private object DecomposeBlock {
     def unapply(block: Block): Option[IR.Monadic] =
       val Block(head, tail) = block
@@ -168,7 +167,7 @@ class Transformer(inputQuotes: Quotes)
         // (e.g. it can actually be stuff.flatMap(v => val x = v; stuff-that-uses-x))
         // TODO A zero-args DefDef (i.e. a ByName can essentially be treated as a ValDef so we can use that too)
 
-        case ValDefStatement(symbol , Decompose(monad)) :: tail =>
+        case ValDefStatement(symbol, Decompose(monad)) :: tail =>
           val out =
             BlockN(tail) match
               case Decompose(monadBody) =>
@@ -215,9 +214,9 @@ class Transformer(inputQuotes: Quotes)
                 case '[ZIO[r, e, a]] =>
                   report.warning(
                     s"Found a ZIO term that is not being awaited. Non-awaited ZIO terms inside of `{ ... }` blocks will never be executed i.e. they will be discarded. " +
-                    s"To execute this term add `.run` at the end or wrap it into an `await(...)` statement." +
-                    s"\n========\n" +
-                    Format.Term(term),
+                      s"To execute this term add `.run` at the end or wrap it into an `await(...)` statement." +
+                      s"\n========\n" +
+                      Format.Term(term),
                     term.asExpr
                   )
                 case _ =>
@@ -229,7 +228,6 @@ class Transformer(inputQuotes: Quotes)
           None
       }
   }
-
 
   private object DecomposeCases {
     def apply(cases: List[CaseDef]): List[IR.Match.CaseDef] =
@@ -274,7 +272,6 @@ class Transformer(inputQuotes: Quotes)
       else
         println("============== Monadified Tries (No Changes) ==============")
     }
-
 
     val output = new Reconstruct(instructions)(transformed)
     if (instructions.info.showReconstructed)

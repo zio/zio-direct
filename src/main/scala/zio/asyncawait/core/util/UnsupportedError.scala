@@ -20,9 +20,9 @@ object Unsupported {
         s"""|Detected an `await` call inside of an unsupported structure:
             |${unsupportedConstruct}
             |""".stripMargin
-            + lineIfAnyDefined("============")(additionalMsg, example)
-            + lineIfDefined(additionalMsg)
-            + lineIfDefined(example)
+          + lineIfAnyDefined("============")(additionalMsg, example)
+          + lineIfDefined(additionalMsg)
+          + lineIfDefined(example)
     }
 
     private def lineIfAnyDefined(strToShow: String)(ifDefined: String*) =
@@ -42,14 +42,14 @@ object Unsupported {
       val text = Msg.AwaitUnsupportedTree(tree, additionalMessage).render
       tree match
         case t: Term if (t.isExpr) => report.errorAndAbort(text, t.asExpr)
-        case _ => report.errorAndAbort(text, tree.pos)
+        case _                     => report.errorAndAbort(text, tree.pos)
 
     def withTree(using Quotes)(tree: quotes.reflect.Tree, message: String) =
       import quotes.reflect._
       val text = message
       tree match
         case t: Term if (t.isExpr) => report.errorAndAbort(text, t.asExpr)
-        case _ => report.errorAndAbort(text, tree.pos)
+        case _                     => report.errorAndAbort(text, tree.pos)
   }
 
   object Warn {
@@ -58,6 +58,6 @@ object Unsupported {
       val text = message
       tree match
         case t: Term if (t.isExpr) => report.warning(text, t.asExpr)
-        case _ => report.warning(text, tree.pos)
+        case _                     => report.warning(text, tree.pos)
   }
 }

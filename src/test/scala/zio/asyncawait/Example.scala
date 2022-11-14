@@ -21,7 +21,6 @@ object Example {
   //   //   a
   //   // })
 
-
   //   class Blah(input: Int) {
   //     def value: Int = input
   //   }
@@ -107,8 +106,6 @@ object Example {
   //       v + await(j)
   //     }
 
-
-
   //   val outRun =
   //     zio.Unsafe.unsafe { implicit unsafe =>
   //       zio.Runtime.default.unsafe.run(out).getOrThrow()
@@ -163,7 +160,7 @@ object Example {
   //
   //
 
-   // // // // // // // ..
+  // // // // // // // ..
 
   // def funH(): Unit = {
 
@@ -250,7 +247,6 @@ object Example {
   //       await(ZIO.succeed(msgResult))
   //     }
 
-
   //   // Bug: moving currTime right before starTime makes a "forward reference"
 
   //   def currTime(): Double = java.lang.System.currentTimeMillis() //
@@ -294,13 +290,11 @@ object Example {
 
 //   def funJ() = {
 
-
 //     val out =
 //       async.verbose {
 //         var i = 10
 //         (await(ZIO.succeed({ i = i - 1 })), await(ZIO.succeed({ i = i - 2 })))
 //       }
-
 
 // // (TODO this should also give a warning)
 // // emphasize "for effect systems"
@@ -339,7 +333,6 @@ object Example {
   //       }, await(ZIO.succeed(456)))
   //     }
 
-
   //     val outRun =
   //       zio.Unsafe.unsafe { implicit unsafe =>
   //         zio.Runtime.default.unsafe.run(out).getOrThrow()
@@ -347,53 +340,55 @@ object Example {
   //     println("====== RESULT: " + outRun)
   // }
 
-
-    // TODO try without catch should not be allowed? what about finally?
-    // TODO test this, as well as the failure case of this
+  // TODO try without catch should not be allowed? what about finally?
+  // TODO test this, as well as the failure case of this
   def funI() = { //
     val out =
-    async.verbose {
-      try {
-        // unsafe {
-        // val x = 123
-        // throw new RuntimeException("foo")
-        // 456
+      async.verbose {
+        try {
+          // unsafe {
+          // val x = 123
+          // throw new RuntimeException("foo")
+          // 456
 
-        // TODO add test for this
-        // val x = 123
-        // (await(ZIO.succeed(x)), {
-        //   val a = await(ZIO.succeed(888))
-        //   a
-        // }, await(ZIO.succeed(456)))
+          // TODO add test for this
+          // val x = 123
+          // (await(ZIO.succeed(x)), {
+          //   val a = await(ZIO.succeed(888))
+          //   a
+          // }, await(ZIO.succeed(456)))
 
-        // TODO add test for this (should throw an exception that is not caught)
-        // val x = 123
-        // (await(ZIO.succeed(x)), {
-        //   val a = await(ZIO.succeed(888))
-        //   4/0
-        // }, await(ZIO.succeed(456)))
+          // TODO add test for this (should throw an exception that is not caught)
+          // val x = 123
+          // (await(ZIO.succeed(x)), {
+          //   val a = await(ZIO.succeed(888))
+          //   4/0
+          // }, await(ZIO.succeed(456)))
 
-        // TODO add test for this (should throw an exception that IS caught)
-        val x = 123
-        unsafe {
-          (await(ZIO.succeed(x)), {
-            val a = await(ZIO.succeed(888))
-            4/0
-          }, await(ZIO.succeed(456)))
+          // TODO add test for this (should throw an exception that IS caught)
+          val x = 123
+          unsafe {
+            (
+              await(ZIO.succeed(x)), {
+                val a = await(ZIO.succeed(888))
+                4 / 0
+              },
+              await(ZIO.succeed(456))
+            )
+          }
+
+          // TODO example like this with single await to test the other Parallel case
+
+          // Note, before going further need to touch-up Format again to make sure output trees are palletable
+          // (maybe in future add an option to not hide tree complexity)
+
+          // TODO Add a test for this
+          // val a = await(ZIO.succeed(888))
+          // await(ZIO.attempt(1/0))
+        } catch {
+          case _ => (999, 999, 999)
         }
-
-        // TODO example like this with single await to test the other Parallel case
-
-        // Note, before going further need to touch-up Format again to make sure output trees are palletable
-        // (maybe in future add an option to not hide tree complexity)
-
-        // TODO Add a test for this
-        // val a = await(ZIO.succeed(888))
-        // await(ZIO.attempt(1/0))
-      } catch {
-        case _ => (999, 999, 999)
       }
-    }
 
     // val out2 =
     //   ZIO
@@ -413,14 +408,12 @@ object Example {
     //       ).asInstanceOf[PartialFunction[Any, ZIO[Any, Throwable, Int]]]
     //     )
 
-
     val outRun =
       zio.Unsafe.unsafe { implicit unsafe =>
         zio.Runtime.default.unsafe.run(out).getOrThrow()
       }
     println("====== RESULT: " + outRun)
   }
-
 
   def main(args: Array[String]): Unit = {
     funI()

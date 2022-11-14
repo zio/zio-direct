@@ -85,7 +85,7 @@ trait Model {
    *   { collect(Chunk(foo, bar)).flatMap(iter => attempt { val par1 = iter.next; var par2 = iter.next; (par1, 4/0, bar) }
    */
   object WrapUnsafes extends StatelessTransformer {
-    override def apply(ir: IR.Monadic):IR.Monadic =
+    override def apply(ir: IR.Monadic): IR.Monadic =
       ir match
         case IR.Unsafe(body) =>
           // we can actually remove the IR.Unsafe at that point but it is still useful
@@ -99,33 +99,33 @@ trait Model {
 
     private object MakePuresIntoAttemps extends StatelessTransformer {
       private def monadify(pure: IR.Pure) =
-        IR.Monad('{ ZIO.attempt(${pure.code.asExpr}) }.asTerm)
+        IR.Monad('{ ZIO.attempt(${ pure.code.asExpr }) }.asTerm)
 
       // Monadify all top-level pure calls
       override def apply(ir: IR): IR =
         println(s"----------- Monadify IR: ${ir}")
         ir match
           case v: IR.Pure => monadify(v)
-          case _ => super.apply(ir)
+          case _          => super.apply(ir)
 
       // Monadify pure calls inside IR.Leaf instances (inside IR.Parallel)
       override def apply(ir: IR.Leaf): IR.Leaf =
         println(s"----------- Monadify Leaf: ${Format.Term(ir.code)}")
         ir match
-          case v: IR.Pure => monadify(v)
+          case v: IR.Pure  => monadify(v)
           case v: IR.Monad => v
 
       override def apply(ir: IR.Monadic): IR.Monadic =
         ir match
           case IR.Map(monad, valSymbol, pure) => IR.FlatMap(apply(monad), valSymbol, monadify(pure))
-          case _ => super.apply(ir)
+          case _                              => super.apply(ir)
     }
   }
 
   trait StatelessTransformer {
     def apply(ir: IR): IR =
       ir match
-        case v: IR.Pure => apply(v)
+        case v: IR.Pure    => apply(v)
         case v: IR.Monadic => apply(v)
 
     def apply(ir: IR.Pure): IR.Pure = ir
@@ -153,8 +153,8 @@ trait Model {
           val newCaseDefs = caseDefs.map(apply(_))
           IR.Match(scrutinee, newCaseDefs)
         case IR.If(cond, ifTrue, ifFalse) => IR.If(cond, apply(ifTrue), apply(ifFalse))
-        case IR.And(left, right) => IR.And(apply(left), apply(right))
-        case IR.Or(left, right) => IR.Or(apply(left), apply(right))
+        case IR.And(left, right)          => IR.And(apply(left), apply(right))
+        case IR.Or(left, right)           => IR.Or(apply(left), apply(right))
         case IR.Parallel(monads, body) =>
           val newMonads = monads.map((monad, sym) => (apply(monad), sym))
           val newBody = apply(body)

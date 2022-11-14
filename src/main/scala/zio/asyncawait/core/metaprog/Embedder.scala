@@ -17,7 +17,7 @@ object Embedder {
       import quotes.reflect._
       term.tpe.widen.asType match
         case '[t] =>
-          '{ zio.ZIO.succeed[t](${term.asExprOf[t]}) }
+          '{ zio.ZIO.succeed[t](${ term.asExprOf[t] }) }
 
     def True(using Quotes) =
       import quotes.reflect._
@@ -28,7 +28,6 @@ object Embedder {
       apply(Expr(false).asTerm).asExprOf[zio.ZIO[Any, Nothing, Boolean]]
   }
 
-
   private def findOwner(using Quotes)(owner: quotes.reflect.Symbol, skipSymbol: quotes.reflect.Symbol => Boolean): quotes.reflect.Symbol =
     var topOwner = owner
     while (skipSymbol(topOwner)) topOwner = topOwner.owner
@@ -37,18 +36,18 @@ object Embedder {
   // TODO Maybe a better name? Alternative we can actually search for the old symbol and replace
   // it but that is much worse for performance
   /**
-    * In a case where we have:
-    *  val a = unlift(foobar)
-    *  otherStuff
-    *
-    * We can either lift that into:
-    *  unlift(foobar).flatMap { v => (otherStuff /*with replaced a -> v*/) }
-    *
-    * Or we can just do
-    *  unlift(foobar).flatMap { v => { val a = v; otherStuff /* with the original a variable*/ } }
-    *
-    * I think the 2nd variant more performant but keeping 1st one (Trees.replaceIdent(...)) around for now.
-    */
+   * In a case where we have:
+   *  val a = unlift(foobar)
+   *  otherStuff
+   *
+   * We can either lift that into:
+   *  unlift(foobar).flatMap { v => (otherStuff /*with replaced a -> v*/) }
+   *
+   * Or we can just do
+   *  unlift(foobar).flatMap { v => { val a = v; otherStuff /* with the original a variable*/ } }
+   *
+   * I think the 2nd variant more performant but keeping 1st one (Trees.replaceIdent(...)) around for now.
+   */
   def replaceSymbolIn(using Quotes)(in: quotes.reflect.Term)(oldSymbol: quotes.reflect.Symbol, newSymbolTerm: quotes.reflect.Term) =
     // alt: Trees.replaceIdent(using macroQuotes)(body)(oldSymbol, newSymbolTerm.symbol)
     import quotes.reflect._
@@ -62,7 +61,7 @@ object Embedder {
     oldSymbolTerm match
       case Some(oldSymbol) =>
         val out = replaceSymbolIn(body)(oldSymbol, newSymbolTerm)
-        //println(s"============+ Creating $oldSymbol:${Printer.TypeReprShortCode.show(oldSymbol.termRef.widen)} -> ${newSymbolTerm.show}:${Printer.TypeReprShortCode.show(newSymbolTerm.tpe.widen)} replacement let:\n${Format(Printer.TreeShortCode.show(out))}")
+        // println(s"============+ Creating $oldSymbol:${Printer.TypeReprShortCode.show(oldSymbol.termRef.widen)} -> ${newSymbolTerm.show}:${Printer.TypeReprShortCode.show(newSymbolTerm.tpe.widen)} replacement let:\n${Format(Printer.TreeShortCode.show(out))}")
         out
       case None =>
         body
@@ -74,11 +73,11 @@ object Embedder {
       tpe.asType match
         case '[t] =>
           // TODO get rid of underlyingArgument. Should only need one top-level Uninline
-          '{ val m: t = ???; ${useSymbol(('m).asTerm).asExpr} }.asTerm.underlyingArgument match
+          '{ val m: t = ???; ${ useSymbol(('m).asTerm).asExpr } }.asTerm.underlyingArgument match
             case Block(
-              (valdef @ ValDef(_, _, _)) :: Nil,
-              body
-            ) =>
+                  (valdef @ ValDef(_, _, _)) :: Nil,
+                  body
+                ) =>
               (valdef.symbol, body)
 
     (symbol, body)

@@ -4,23 +4,23 @@ package zio.asyncawait.core.util
 // where example code can be put
 object Examples {
 
-implicit class StringExt(str: String) {
-  def trimLeft = str.dropWhile(_.isWhitespace)
-}
+  implicit class StringExt(str: String) {
+    def trimLeft = str.dropWhile(_.isWhitespace)
+  }
 
-val DeclarationNotAllowedWithAwaits =
-"""
+  val DeclarationNotAllowedWithAwaits =
+    """
 In Lenient mode, Class, Function, and Mutable-Variable definitions are allowed but only so long as they do not direclty read awaits.
 """
 
-val DeclarationNotAllowed =
-"""
+  val DeclarationNotAllowed =
+    """
 Class, Function, and Mutable-Variable definitions (class X, def X, var X) are not allowed inside of async blocks.
 Please move them outside of the async area. (They can be inside of an await)
 """
 
-val AwaitAssignmentNotRecommended =
-"""
+  val AwaitAssignmentNotRecommended =
+    """
 Using Assignment inside of await(...:ZIO) sections is permitted but not recommended,
 (outside of an `await` call they are forbidden entirely). Consider using ZIO Refs.
 =========
@@ -43,8 +43,8 @@ Consider doing something like this:
 """.trimLeft
 
 // TODO need to test
-val AwaitInAwaitError =
-"""
+  val AwaitInAwaitError =
+    """
 An await cannot be inside an await. In order to do this,
 write the content of the outer await into a variable first.
 =========
@@ -55,8 +55,8 @@ Change it to:
   await(a)
 """.trimLeft
 
-val AssignmentNotAllowed =
-"""
+  val AssignmentNotAllowed =
+    """
 Assignment is generally not allowed inside of async calls. Please use a ZIO Ref instead.
 =========
 For example, instead of this:
@@ -77,8 +77,8 @@ async.verbose {
 }
 """
 
-val MoveAwaitOut =
-"""
+  val MoveAwaitOut =
+    """
 Move the `await` call outside of this structure in order to use it.
 =========
 For example, change this:
@@ -106,6 +106,5 @@ To this:
     service.lookup(result)
   }
 """.trimLeft
-
 
 }

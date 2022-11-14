@@ -7,6 +7,8 @@ import scala.sys.process.Process
 import java.io.{File => JFile}
 import Dependencies._
 
+addCommandAlias("fmt", "all scalafmt test:scalafmt")
+
 lazy val `zio-asyncawait` =
   (project in file("."))
     .settings(releaseSettings: _*)

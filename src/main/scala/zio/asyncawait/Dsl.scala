@@ -15,20 +15,19 @@ def await[R, E, A](value: ZIO[R, E, A]): A = NotDeferredException.fromNamed("awa
 def unsafe[T](value: T): T = NotDeferredException.fromNamed("unsafe")
 
 object async {
-  transparent inline def apply[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.Silent}, '{Collect.Sequence}, '{Verify.Strict}) }
-  transparent inline def info[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.Info}, '{Collect.Sequence}, '{Verify.Strict}) }
-  transparent inline def verbose[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.Verbose}, '{Collect.Sequence}, '{Verify.Strict}) }
-  transparent inline def verboseTree[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.VerboseTree}, '{Collect.Sequence}, '{Verify.Strict}) }
+  transparent inline def apply[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Silent }, '{ Collect.Sequence }, '{ Verify.Strict }) }
+  transparent inline def info[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Info }, '{ Collect.Sequence }, '{ Verify.Strict }) }
+  transparent inline def verbose[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Verbose }, '{ Collect.Sequence }, '{ Verify.Strict }) }
+  transparent inline def verboseTree[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.VerboseTree }, '{ Collect.Sequence }, '{ Verify.Strict }) }
 
-  transparent inline def apply[T](inline collect: Collect = Collect.Sequence, inline verify: Verify = Verify.Strict)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.Silent}, 'collect, 'verify) }
-  transparent inline def info[T](inline collect: Collect = Collect.Sequence, inline verify: Verify = Verify.Strict)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.Info}, 'collect, 'verify) }
-  transparent inline def verbose[T](inline collect: Collect = Collect.Sequence, inline verify: Verify = Verify.Strict)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.Verbose}, 'collect, 'verify) }
-  transparent inline def verboseTree[T](inline collect: Collect = Collect.Sequence, inline verify: Verify = Verify.Strict)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{InfoBehavior.VerboseTree}, 'collect, 'verify) }
+  transparent inline def apply[T](inline collect: Collect = Collect.Sequence, inline verify: Verify = Verify.Strict)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Silent }, 'collect, 'verify) }
+  transparent inline def info[T](inline collect: Collect = Collect.Sequence, inline verify: Verify = Verify.Strict)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Info }, 'collect, 'verify) }
+  transparent inline def verbose[T](inline collect: Collect = Collect.Sequence, inline verify: Verify = Verify.Strict)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Verbose }, 'collect, 'verify) }
+  transparent inline def verboseTree[T](inline collect: Collect = Collect.Sequence, inline verify: Verify = Verify.Strict)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.VerboseTree }, 'collect, 'verify) }
 }
 
 extension [R, E, A](inline value: ZIO[R, E, A])
   transparent inline def run = await(value)
-
 
 object Dsl {
   import InfoBehavior._

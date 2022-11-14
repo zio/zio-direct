@@ -16,8 +16,8 @@ object Trees:
           val lifted =
             pf.lift(stmt) match {
               case Some(term: Statement) => Some(term)
-              case Some(other) => report.errorAndAbort(s"Transformed the term ${Format.Tree(other)} into something that is not a Statement: ${Format.Tree(other)}")
-              case None => None
+              case Some(other)           => report.errorAndAbort(s"Transformed the term ${Format.Tree(other)} into something that is not a Statement: ${Format.Tree(other)}")
+              case None                  => None
             }
           lifted.getOrElse(super.transformStatement(stmt)(owner))
         }
@@ -26,8 +26,8 @@ object Trees:
           val lifted =
             pf.lift(stmt) match {
               case Some(term: Term) => Some(term)
-              case Some(other) => report.errorAndAbort(s"Transformed the term ${Format.Tree(other)} into something that is not a Term: ${Format.Tree(other)}")
-              case None => None
+              case Some(other)      => report.errorAndAbort(s"Transformed the term ${Format.Tree(other)} into something that is not a Term: ${Format.Tree(other)}")
+              case None             => None
             }
           lifted.getOrElse(super.transformTerm(stmt)(owner))
         }

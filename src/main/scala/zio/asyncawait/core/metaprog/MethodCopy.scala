@@ -26,20 +26,17 @@ object DefDefCopy {
       case clause: TermParamClause => methodTypeMaker(clause)
       case clause: TypeParamClause => polyTypeMaker(clause)
 
-
-
   def computeNewSymbol(using Quotes)(defdef: quotes.reflect.DefDef, functionOutputType: quotes.reflect.TypeRepr): quotes.reflect.Symbol = {
     import quotes.reflect._
     def handleParamClause(clause: ParamClause, rest: List[ParamClause]): TypeRepr =
       rest match
-        case Nil => outputTypeMaker(clause)(functionOutputType)
+        case Nil          => outputTypeMaker(clause)(functionOutputType)
         case head :: tail => outputTypeMaker(clause)(handleParamClause(head, tail))
 
     val methodType =
       defdef.paramss match
-        case Nil => ByNameType(functionOutputType)
+        case Nil          => ByNameType(functionOutputType)
         case head :: tail => handleParamClause(head, tail)
-
 
     val allSymbols = defdef.paramss.flatMap(symbolsOfTerms(_))
 
@@ -51,10 +48,11 @@ object DefDefCopy {
     Symbol.newMethod(defdef.symbol.owner, defdef.name, methodType)
   }
 
-
   // TODO check for a given-params clause and error that given-params clauses with awaits are not supported
   // TODO Also, how to do you create methods with parameters with default values?
-  def of(using q: Quotes)(methodSymbol: quotes.reflect.Symbol, defdef: quotes.reflect.DefDef, functionOutputType: quotes.reflect.TypeRepr)(prepareBody: (List[List[quotes.reflect.Tree]], quotes.reflect.Term) => quotes.reflect.Term): quotes.reflect.DefDef = {
+  def of(using
+      q: Quotes
+  )(methodSymbol: quotes.reflect.Symbol, defdef: quotes.reflect.DefDef, functionOutputType: quotes.reflect.TypeRepr)(prepareBody: (List[List[quotes.reflect.Tree]], quotes.reflect.Term) => quotes.reflect.Term): quotes.reflect.DefDef = {
     import quotes.reflect._
 
     val allSymbols = defdef.paramss.flatMap(symbolsOfTerms(_))
@@ -65,17 +63,17 @@ object DefDefCopy {
         val argsAsTerms =
           args.flatMap(t => t).map {
             case term: Term => term
-            case other => report.errorAndAbort(s"The input-argument: `$other` is not a Term.")
+            case other      => report.errorAndAbort(s"The input-argument: `$other` is not a Term.")
           }
         if (argsAsTerms.length != allSymbols.length)
           report.errorAndAbort(s"Different number of new-function-arguments (${argsAsTerms}) and old-function-arguments (${allSymbols}) detected.")
 
         val mappings = allSymbols.zip(argsAsTerms)
-        //val mappings = allSymbols.zip(List('{ ??? }.asTerm))
+        // val mappings = allSymbols.zip(List('{ ??? }.asTerm))
 
         // Note: assuming at this point that the right-hand-side exists hence rhs.get. Need to replace the Idents to the old function with idents pointing to the new one.
         val originalBody = defdef.rhs.get
-        val originalArgsReplaced = Trees.replaceIdents(originalBody, defdef.symbol.owner)(mappings:_*)
+        val originalArgsReplaced = Trees.replaceIdents(originalBody, defdef.symbol.owner)(mappings: _*)
         // Once we have corrected all the identifiers on the new body, pass it to downstream processing
         Some(prepareBody(args, originalArgsReplaced))
       }

@@ -47,7 +47,7 @@ trait ModelTypeComputation {
     def composeN(zioTypes: List[ZioType]): ZioType =
       val (rs, es, as) = zioTypes.map(zt => (zt.r, zt.e, zt.a)).unzip3
       val out = ZioType(andN(rs), orN(es), andN(as))
-      //println(s"composeN Inputs: ${zioTypes.map(_.show)}. Output: ${out.show}")
+      // println(s"composeN Inputs: ${zioTypes.map(_.show)}. Output: ${out.show}")
       out
 
     def andN(types: List[TypeRepr]) =
@@ -73,17 +73,17 @@ trait ModelTypeComputation {
     def and(a: TypeRepr, b: TypeRepr) =
       // if either type is Any, specialize to the thing that is narrower
       val out =
-      (a.widen.asType, b.widen.asType) match
-        case ('[at], '[bt]) =>
-          if (a =:= TypeRepr.of[Any] && b =:= TypeRepr.of[Any])
-            TypeRepr.of[Any]
-          else if (a =:= TypeRepr.of[Any])
-            TypeRepr.of[bt]
-          else if (b =:= TypeRepr.of[Any])
-            TypeRepr.of[at]
-          else
-            TypeRepr.of[at with bt]
-      //println(s"<<<<<<<<<<<< Union of (${Format.TypeRepr(a.widen)}, ${Format.TypeRepr(b.widen)}) = ${Format.TypeRepr(out)}")
+        (a.widen.asType, b.widen.asType) match
+          case ('[at], '[bt]) =>
+            if (a =:= TypeRepr.of[Any] && b =:= TypeRepr.of[Any])
+              TypeRepr.of[Any]
+            else if (a =:= TypeRepr.of[Any])
+              TypeRepr.of[bt]
+            else if (b =:= TypeRepr.of[Any])
+              TypeRepr.of[at]
+            else
+              TypeRepr.of[at with bt]
+      // println(s"<<<<<<<<<<<< Union of (${Format.TypeRepr(a.widen)}, ${Format.TypeRepr(b.widen)}) = ${Format.TypeRepr(out)}")
       out
   }
   protected object ComputeType {
@@ -142,7 +142,7 @@ trait ModelTypeComputation {
           val caseDefType =
             outputType.asType match
               case '[ZIO[r, e, a]] => ZioType(TypeRepr.of[r].widen, TypeRepr.of[e].widen, TypeRepr.of[a].widen)
-              case '[t] => ZioType(TypeRepr.of[Any].widen, TypeRepr.of[Throwable].widen, TypeRepr.of[t].widen)
+              case '[t]            => ZioType(TypeRepr.of[Any].widen, TypeRepr.of[Throwable].widen, TypeRepr.of[t].widen)
           tryBlockType.flatMappedWith(caseDefType)
 
         case IR.While(cond, body) =>

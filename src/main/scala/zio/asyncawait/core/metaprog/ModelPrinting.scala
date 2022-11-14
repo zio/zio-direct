@@ -48,7 +48,7 @@ trait ModelPrinting {
             Tree.Apply("SCALA_SYM", Iterator(Tree.Literal(s"/*${sym}*/")))
 
         case _ =>
-          //println(s"CLASS OF: ${x.getClass()}")
+          // println(s"CLASS OF: ${x.getClass()}")
           super.treeify(x)
       }
 

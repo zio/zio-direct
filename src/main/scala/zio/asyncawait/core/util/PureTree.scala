@@ -15,6 +15,6 @@ object PureTree:
     Trees.exists(tree, Symbol.spliceOwner) {
       case Seal('{ await[r, e, a]($v) }) => true
     } match {
-      case true => None
+      case true  => None
       case false => Some(tree)
     }

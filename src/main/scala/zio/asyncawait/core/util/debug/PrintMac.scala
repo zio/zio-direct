@@ -12,7 +12,7 @@ object PrintMac {
   inline def apply(inline any: Any, inline showDetail: Boolean = false, inline deserializeAst: Boolean = false): Unit = ${ printMacImpl('any, 'showDetail, 'deserializeAst) }
   inline def passthrough[T](inline any: T, inline showDetail: Boolean = false, inline deserializeAst: Boolean = false): T = ${ printMacImpl('any, 'showDetail, 'deserializeAst) }
 
-  def printMacImpl[T:Type](anyRaw: Expr[T], showDetailRaw: Expr[Boolean], deserializeAstRaw: Expr[Boolean])(using Quotes): Expr[T] = {
+  def printMacImpl[T: Type](anyRaw: Expr[T], showDetailRaw: Expr[Boolean], deserializeAstRaw: Expr[Boolean])(using Quotes): Expr[T] = {
     import quotes.reflect._
     val showDetail = Expr.unapply(deserializeAstRaw).getOrElse { report.throwError("showDetail must be a constant value true/false") }
     val deserializeAst = Expr.unapply(deserializeAstRaw).getOrElse { report.throwError("deserializeAst must be a constant value true/false") }

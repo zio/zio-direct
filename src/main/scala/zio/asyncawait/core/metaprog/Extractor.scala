@@ -60,7 +60,7 @@ object Extractors {
       import quotes.reflect._
       value match {
         case term: Term => None
-        case other => Some(other)
+        case other      => Some(other)
       }
 
   object IsTerm:
@@ -68,9 +68,8 @@ object Extractors {
       import quotes.reflect._
       value match {
         case term: Term => Some(term)
-        case other => None
+        case other      => None
       }
-
 
   /**
    * Matches predicate(bar) or predicate[T](bar)
@@ -161,16 +160,16 @@ object Extractors {
         import quotes.reflect._
         innerTerm match
           case invokeTerm @ Ident(_) if invokeTerm.symbol.flags.is(Flags.Method) => Some(invokeTerm)
-          case Apply(innerTree, _) => IdentInside.unapply(innerTree)
-          case _               => None
+          case Apply(innerTree, _)                                               => IdentInside.unapply(innerTree)
+          case _                                                                 => None
 
     def unapply(using Quotes)(term: quotes.reflect.Term): Option[(quotes.reflect.Term, quotes.reflect.Ident)] =
       import quotes.reflect._
       term match
         // If it's a by-name then there will only be an identifier and nothing else.
         case invokeTerm @ Ident(_) if invokeTerm.symbol.flags.is(Flags.Method) => Some((term, invokeTerm))
-        case Apply(IdentInside(invokeTerm), _) => Some((term, invokeTerm))
-        case other => None
+        case Apply(IdentInside(invokeTerm), _)                                 => Some((term, invokeTerm))
+        case other                                                             => None
   }
 
   object TypedMatroshkaTerm {
@@ -202,7 +201,6 @@ object Extractors {
       }
   }
 
-
   object BlockN {
     def unapply(using Quotes)(trees: List[quotes.reflect.Statement]) =
       import quotes.reflect._
@@ -220,7 +218,7 @@ object Extractors {
       import quotes.reflect._
       BlockN.unapply(trees) match {
         case Some(value) => value
-        case None => report.errorAndAbort(s"Invalid trees list: ${trees.map(_.show)}")
+        case None        => report.errorAndAbort(s"Invalid trees list: ${trees.map(_.show)}")
       }
   }
 
@@ -337,7 +335,7 @@ object Extractors {
         // Some terms coming from tree-expressions actual cannot be converted to Exprs
         // use t.isExpr to check that
         case t: Term if (t.isExpr) => Some(t.asExpr)
-        case _ => None
+        case _                     => None
     }
   }
 
@@ -667,7 +665,7 @@ object Extractors {
         any match
           //
           case i @ Inlined(_, pv, v) => v.underlyingArgument
-          case _ => any
+          case _                     => any
   }
 
   object ConstExpr {
