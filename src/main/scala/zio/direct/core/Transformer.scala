@@ -15,6 +15,7 @@ import zio.direct.core.metaprog.ModelPrinting
 import zio.direct.core.metaprog.Embedder._
 import zio.direct.core.norm.ModelTypeComputation
 import zio.direct.core.norm.ModelReconstructor
+import zio.direct.core.util.ShowDetails
 
 // TODO replace all instances of ZIO.succeed with ZIO.attempt?
 //      need to look through cases to see which ones expect errors
@@ -275,7 +276,13 @@ class Transformer(inputQuotes: Quotes)
 
     val output = new Reconstruct(instructions)(transformed)
     if (instructions.info.showReconstructed)
-      println("============== Reconstituted Code ==============\n" + Format.Expr(output))
+      val showDetailsMode =
+        instructions.info match {
+          case InfoBehavior.VerboseTree => ShowDetails.Verbose
+          case InfoBehavior.Verbose     => ShowDetails.Standard
+          case _                        => ShowDetails.Compact
+        }
+      println("============== Reconstituted Code ==============\n" + Format.Expr(output, Format.Mode.DottyColor(showDetailsMode)))
 
     if (instructions.info.showReconstructedTree)
       println("============== Reconstituted Code Raw ==============\n" + Format(Printer.TreeStructure.show(output.asTerm)))
@@ -284,7 +291,7 @@ class Transformer(inputQuotes: Quotes)
 
     val zioType = computedType.toZioType
 
-    if (instructions.info.showReconstructed)
+    if (instructions.info.showComputedType)
       println(
         s"""-------------
         |Computed-Type: ${Format.TypeRepr(zioType)}

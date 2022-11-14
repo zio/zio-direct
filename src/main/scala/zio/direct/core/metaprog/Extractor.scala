@@ -327,13 +327,6 @@ object Extractors {
       RawLambdaN.unapply(term.asTerm).map((strAndTpe, term) => (strAndTpe, term.asExpr))
   }
 
-  // object Lambda2 {
-  //   def unapply(using Quotes)(term: Expr[_]): Option[(String, String, quoted.Expr[_])] = term match {
-  //     case Unseal(Lambda(List(ValDef(ident, _, _), ValDef(ident2, _, _)), Seal(methodBody))) => Some((ident, ident2, methodBody))
-  //     case _ => None
-  //   }
-  // }
-
   object Unseal {
     def unapply(using Quotes)(t: Expr[Any]): Option[quotes.reflect.Term] =
       import quotes.reflect._

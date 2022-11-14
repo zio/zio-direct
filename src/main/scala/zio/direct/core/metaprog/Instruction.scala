@@ -19,9 +19,9 @@ object InfoBehavior {
     val showReconstructedTree = false
   }
   case object Info extends InfoBehavior {
-    val showComputedType = true
-    val showDeconstructed = true
-    val showReconstructed = false
+    val showComputedType = false
+    val showDeconstructed = false
+    val showReconstructed = true
     val showReconstructedTree = false
   }
   case object Verbose extends InfoBehavior {

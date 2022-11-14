@@ -6,111 +6,15 @@ import io.getquill.util.ScalafmtFormat
 import zio.direct.core.metaprog.Trees
 import zio.direct.core.metaprog.Extractors.Seal
 
-/** Facade objects to make display of zio flatMap simpler */
-object ZioFacade {
-  type Bounds
-
-  object ZIO {
-    def succeed[T](any: T): zio.ZIO[Any, Throwable, T] = ???
-    def service[T]: zio.URIO[T, T] = ???
-    def attempt[T](any: T): zio.Task[T] = ???
+object Format {
+  sealed trait Mode
+  object Mode {
+    case class DottyColor(showDetails: ShowDetails = ShowDetails.Compact) extends Mode
+    case class DottyPlain(showDetails: ShowDetails = ShowDetails.Compact) extends Mode
+    case class ScalaFmt(showDetails: ShowDetails = ShowDetails.Compact) extends Mode
+    case class None(showDetails: ShowDetails = ShowDetails.Compact) extends Mode
   }
 
-  private trait AnyToNothing
-
-  def makeFacade(using q: Quotes)(tree: quotes.reflect.Tree): q.reflect.Tree =
-    import quotes.reflect._
-    (new TreeMap:
-      // want to remove noise from ZIO[_ >: Nothing <: Any, _ >: Nothing <: Any, _ >: Nothing <: Any]
-      // this doesn't seem to do it though
-      override def transformTypeTree(tree: TypeTree)(owner: Symbol): TypeTree = {
-        // val str = Printer.TreeShortCode.show(tree)
-        // val isTypeBoundsTpe =
-        // if (str.contains("_ >: Nothing <: Any"))
-        //   println(
-        //    s"""|========== (transformTypeTree) Looking at type tree
-        //        |(Is Zio Type: ${IsZioType.unapply(tree.tpe).map(Format.TypeRepr(_))})
-        //        |${Printer.TreeShortCode.show(tree)}"
-        //     """.stripMargin
-        //   )
-
-        tree match
-          // case tree: Applied =>
-          //   Applied.copy(tree)(transformTypeTree(tree.tpt)(owner), transformTrees(tree.args)(owner))
-
-          // case HasTypeBoundsType(_) => TypeTree.of[AnyToNothing]
-          // case TypeOfTypeTree(CanSimplifyZioType(tpe)) => TypeTree.of(using tpe.asType)
-
-          case _: Tree => super.transformTypeTree(tree)(owner)
-      }
-
-      // need to check for type-bounds trees in order to re-write them into a nicer syntax
-      // e.g. lots of `ZIO[_ >: Nothing <: Any, _ >: Nothing <: Any, _ >: Nothing <: Any]`
-      // gets very verbose. This will appear as a Tree object but not always as a TreeType.
-      // I can also appear inside a TypeBoundsTree object and potentially other Tree types
-      // so need to pull checking the .tpe of whatever type it is into here.
-      private object HasTypeBoundsType {
-        def unapply(tree: Tree) =
-          TypeOfTypeTree.unapply(tree) match {
-            case Some(b @ IsTypeBounds(_)) => Some(b)
-            case _                         => None
-          }
-      }
-
-      object TypeOfTypeTree {
-        def unapply(tree: Tree) =
-          tree match {
-            case v: TypeTree       => Some(v.tpe)
-            case v: TypeBoundsTree => Some(v.tpe)
-            case _                 => None
-          }
-      }
-
-      object IsTypeBounds {
-        def unapply(tpe: TypeRepr) =
-          tpe match {
-            case b @ TypeBounds(_, _) => Some(b)
-            case _                    => None
-          }
-      }
-
-      // Remove ZIO[_ >: Nothing <: Any, _ >: Nothing <: Any, _ >: Nothing <: Any] instances.
-      // For some reason, matching on TypeBoundsTree doesn't always work and we have to re-parse zios directly.
-      // TODO does some strainge things in certain cases, maybe not do .simplified? need to look into it
-      private object CanSimplifyZioType {
-        def unapply(tpe: TypeRepr) =
-          tpe.asType match {
-            case '[zio.ZIO[r, e, a]] =>
-              (TypeRepr.of[r].simplified.asType, TypeRepr.of[e].simplified.asType, TypeRepr.of[a].simplified.asType) match {
-                case ('[r1], '[e1], '[a1]) =>
-                  Some(TypeRepr.of[zio.ZIO[r1, e1, a1]])
-              }
-            case _ => None
-          }
-      }
-
-      override def transformTree(tree: Tree)(owner: Symbol): Tree = {
-        tree match {
-          // case HasTypeBoundsType(bounds) => TypeTree.of[AnyToNothing]
-          case _ => super.transformTree(tree)(owner)
-        }
-      }
-
-      override def transformTerm(tree: Term)(owner: Symbol): Term = {
-        tree match
-          case Seal('{ zio.ZIO.succeed[t]($tt)($impl) }) =>
-            '{ ZIO.succeed[t](${ transformTerm(tt.asTerm)(owner).asExprOf[t] }) }.asTerm
-          case Seal('{ zio.ZIO.attempt[t]($tt)($impl) }) =>
-            '{ ZIO.attempt[t](${ transformTerm(tt.asTerm)(owner).asExprOf[t] }) }.asTerm
-          case Seal('{ zio.ZIO.service[t]($impl, $impl2) }) =>
-            '{ ZIO.service[t] }.asTerm
-          case _: Term =>
-            super.transformTerm(tree)(owner)
-      }
-    ).transformTree(tree)(Symbol.spliceOwner)
-}
-
-object Format {
   // import org.scalafmt.interfaces.Scalafmt
   // import org.scalafmt.cli.Scalafmt210
   object TypeOf {
@@ -130,14 +34,14 @@ object Format {
   }
 
   object Term:
-    def apply(term: Quotes#reflectModule#Term)(using qctx: Quotes) =
+    def apply(term: Quotes#reflectModule#Term, mode: Mode = Mode.ScalaFmt())(using qctx: Quotes) =
       import qctx.reflect._
-      printShortCode(term.asInstanceOf[qctx.reflect.Term])
+      printShortCode(using qctx)(term.asInstanceOf[qctx.reflect.Term], mode)
 
   object Tree:
-    def apply(term: Quotes#reflectModule#Tree)(using qctx: Quotes) =
+    def apply(term: Quotes#reflectModule#Tree, mode: Mode = Mode.ScalaFmt())(using qctx: Quotes) =
       import qctx.reflect._
-      printShortCode(term.asInstanceOf[qctx.reflect.Tree])
+      printShortCode(using qctx)(term.asInstanceOf[qctx.reflect.Tree], mode)
 
   object TermRaw:
     def apply(term: Quotes#reflectModule#Term)(using qctx: Quotes) =
@@ -160,21 +64,29 @@ object Format {
   }
 
   object Expr {
-    def apply(expr: Expr[_], showErrorTrace: Boolean = false)(using Quotes) =
+    def apply(expr: Expr[_], mode: Mode = Mode.ScalaFmt(), showErrorTrace: Boolean = false)(using q: Quotes) =
       import quotes.reflect._
-      Format(printShortCode(expr.asTerm), showErrorTrace)
+      Format(printShortCode(using q)(expr.asTerm, mode), showErrorTrace)
   }
 
-  private def printShortCode(using Quotes)(code: quotes.reflect.Tree): String =
+  private def printShortCode(using Quotes)(code: quotes.reflect.Tree, mode: Mode): String =
     import quotes.reflect._
-    // Printer.TreeShortCode.show(ZioFacade.makeFacade(code))
-    Format(SourceCode.showTree(code)(SyntaxHighlight.ANSI, false))
+    mode match {
+      case Mode.DottyColor(details) =>
+        SourceCode.showTree(code)(details, SyntaxHighlight.ANSI, false)
+      case Mode.DottyPlain(details) =>
+        SourceCode.showTree(code)(details, SyntaxHighlight.plain, false)
+      case Mode.ScalaFmt(details) =>
+        Format(SourceCode.showTree(code)(details, SyntaxHighlight.plain, false))
+      case Mode.None(details) =>
+        SourceCode.showTree(code)(details, SyntaxHighlight.plain, false)
+    }
 
-  private def printShortCode(using Quotes)(expr: Expr[_]): String =
+  private def printShortCode(using q: Quotes)(expr: Expr[_], mode: Mode): String =
     import quotes.reflect._
-    printShortCode(expr.asTerm)
+    printShortCode(using q)(expr.asTerm, mode)
 
-  def apply(code: String, showErrorTrace: Boolean = true) = {
+  def apply(code: String, formatCode: Boolean = true, showErrorTrace: Boolean = true) = {
     val encosedCode =
       s"""|object DummyEnclosure {
             |  ${code}
@@ -185,7 +97,8 @@ object Format {
     def unEnclose(enclosedCode: String) =
       val lines =
         enclosedCode
-          .replaceFirst("^object DummyEnclosure \\{", "")
+          .replaceFirst("^object DummyEnclosure[\\s\\t]*", "")
+          .replaceFirst("[\\s\\t]*\\{[\\s\\t]*", "")
           .reverse
           .replaceFirst("\\}", "")
           .reverse
@@ -201,23 +114,18 @@ object Format {
 
     val formatted =
       Try {
-        // val formatCls = classOf[ScalafmtFormat.type]
-        // val result = formatCls.getMethod("apply").invoke(null, encosedCode)
-        // println("============ GOT HERE ===========")
-        // val resultStr = s"${result}"
-        // resultStr
-        // ScalafmtFormat(
-        //   // Various other cleanup needed to make the formatter happy
-        //   encosedCode
-        //     .replace("_*", "_")
-        //     .replace("_==", "==")
-        //     .replace("_!=", "!=")
-        //   // .replaceAll("\\(evidence\\$([0-9]+): (zio\\.)?Unsafe\\) \\?=> ", "")
-        //   ,
-        //   showErrorTrace
-        // )
-
-        encosedCode
+        if (formatCode) {
+          ScalafmtFormat(
+            // Various other cleanup needed to make the formatter happy
+            encosedCode
+              .replace("_*", "_")
+              .replace("_==", "==")
+              .replace("_!=", "!="),
+            showErrorTrace
+          )
+        } else {
+          encosedCode
+        }
       }.getOrElse {
         println("====== WARNING: Scalafmt Not Detected ====")
         encosedCode

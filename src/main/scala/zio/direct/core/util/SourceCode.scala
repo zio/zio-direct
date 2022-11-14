@@ -49,17 +49,49 @@ object SyntaxHighlight {
   }
 }
 
+trait ShowDetails {
+  def showImplicitFunctionParams: Boolean
+  def showImplicitClauses: Boolean
+  def showBoundsTypes: Boolean
+  def showTypeParams: Boolean
+  def showAsInstanceOf: Boolean
+}
+
+object ShowDetails {
+  object Compact extends ShowDetails {
+    def showImplicitFunctionParams: Boolean = false
+    def showImplicitClauses: Boolean = false
+    def showBoundsTypes: Boolean = false
+    def showTypeParams: Boolean = false
+    def showAsInstanceOf: Boolean = false
+  }
+  object Standard extends ShowDetails {
+    def showImplicitFunctionParams: Boolean = false
+    def showImplicitClauses: Boolean = false
+    def showBoundsTypes: Boolean = false
+    def showTypeParams: Boolean = false
+    def showAsInstanceOf: Boolean = true
+  }
+  object Verbose extends ShowDetails {
+    def showImplicitFunctionParams: Boolean = true
+    def showImplicitClauses: Boolean = true
+    def showBoundsTypes: Boolean = true
+    def showTypeParams: Boolean = true
+    def showAsInstanceOf: Boolean = true
+  }
+}
+
 /** Printer for fully elaborated representation of the source code */
 object SourceCode {
 
-  def showTree(using Quotes)(tree: quotes.reflect.Tree)(syntaxHighlight: SyntaxHighlight, fullNames: Boolean): String =
-    new SourceCodePrinter[quotes.type](syntaxHighlight, fullNames).printTree(tree).result()
+  def showTree(using Quotes)(tree: quotes.reflect.Tree)(showDetails: ShowDetails, syntaxHighlight: SyntaxHighlight, fullNames: Boolean): String =
+    new SourceCodePrinter[quotes.type](showDetails, syntaxHighlight, fullNames).printTree(tree).result()
 
-  def showType(using Quotes)(tpe: quotes.reflect.TypeRepr)(syntaxHighlight: SyntaxHighlight, fullNames: Boolean): String =
-    new SourceCodePrinter[quotes.type](syntaxHighlight, fullNames).printType(tpe)(using None).result()
+  def showType(using Quotes)(tpe: quotes.reflect.TypeRepr)(showDetails: ShowDetails, syntaxHighlight: SyntaxHighlight, fullNames: Boolean): String =
+    new SourceCodePrinter[quotes.type](showDetails, syntaxHighlight, fullNames).printType(tpe)(using None).result()
 
-  def showConstant(using Quotes)(const: quotes.reflect.Constant)(syntaxHighlight: SyntaxHighlight, fullNames: Boolean): String =
-    new SourceCodePrinter[quotes.type](syntaxHighlight, fullNames).printConstant(const).result()
+  def showConstant(using Quotes)(const: quotes.reflect.Constant)(showDetails: ShowDetails, syntaxHighlight: SyntaxHighlight, fullNames: Boolean): String =
+    new SourceCodePrinter[quotes.type](showDetails, syntaxHighlight, fullNames).printConstant(const).result()
 
   def showSymbol(using Quotes)(symbol: quotes.reflect.Symbol)(syntaxHighlight: SyntaxHighlight): String =
     symbol.fullName
@@ -110,7 +142,7 @@ object SourceCode {
     flagList.result().mkString("/*", " ", "*/")
   }
 
-  private class SourceCodePrinter[Q <: Quotes & Singleton](syntaxHighlight: SyntaxHighlight, fullNames: Boolean)(using val quotes: Q) {
+  private class SourceCodePrinter[Q <: Quotes & Singleton](showDetails: ShowDetails, syntaxHighlight: SyntaxHighlight, fullNames: Boolean)(using val quotes: Q) {
     import syntaxHighlight._
     import quotes.reflect._
 
@@ -220,7 +252,7 @@ object SourceCode {
         if (!flags.is(Flags.Module)) {
           for paramClause <- paramss do
             paramClause match
-              case TermParamClause(params) =>
+              case clause @ TermParamClause(params) =>
                 printArgsDefs(params)
               case TypeParamClause(params) =>
                 printTargsDefs(stats.collect { case targ: TypeDef => targ }.filter(_.symbol.isTypeParam).zip(params))
@@ -376,8 +408,10 @@ object SourceCode {
         this += highlightKeyword("def ") += highlightValDef(name1)
         for clause <- paramss do
           clause match
-            case TermParamClause(params) => printArgsDefs(params)
-            case TypeParamClause(params) => printTargsDefs(params.zip(params))
+            case clause @ TermParamClause(params) if (!clause.isImplicit && !clause.isGiven) =>
+              if ((clause.isImplicit || clause.isGiven) && showDetails.showImplicitClauses)
+                printArgsDefs(params)
+            case clase @ TypeParamClause(params) => printTargsDefs(params.zip(params))
         if (!isConstructor) {
           this += ": "
           printTypeTree(tpt)
@@ -400,10 +434,13 @@ object SourceCode {
         }
 
       case Select(qual, name) =>
-        printQualTree(qual)
-        if (name != "<init>" && name != "package")
-          this += "." += name
-        this
+        if (name != "asInstanceOf" || showDetails.showAsInstanceOf)
+          printQualTree(qual)
+          if (name != "<init>" && name != "package")
+            this += "." += name
+          this
+        else
+          printQualTree(qual)
 
       case Literal(const) =>
         printConstant(const)
@@ -448,7 +485,13 @@ object SourceCode {
         printTree(arg)
         this += "}"
 
-      case Apply(fn, args) =>
+      case Apply(fn, argsRaw) =>
+        val args =
+          argsRaw.filter(arg => {
+            val isImplict = arg.symbol.flags.is(Flags.Given) || arg.symbol.flags.is(Flags.Implicit)
+            !isImplict || showDetails.showImplicitClauses
+          })
+
         var argsPrefix = ""
         fn match {
           case Select(This(_), "<init>") => this += "this" // call to constructor inside a constructor
@@ -464,11 +507,13 @@ object SourceCode {
           case init :+ Typed(Repeated(Nil, _), _) => init // drop empty var args at the end
           case _                                  => args
         }
-
-        inParens {
+        if (!args.isEmpty)
+          inParens {
+            this += argsPrefix
+            printTrees(args1, ", ")
+          }
+        else
           this += argsPrefix
-          printTrees(args1, ", ")
-        }
 
       case TypeApply(fn, args) =>
         printQualTree(fn)
@@ -477,7 +522,10 @@ object SourceCode {
             // type bounds already printed in `fn`
             this
           case _ =>
-            inSquare(printTrees(args, ", "))
+            val isAsInstanceOfAndShow = fn.show.endsWith("asInstanceOf") && showDetails.showAsInstanceOf
+            if (showDetails.showTypeParams || isAsInstanceOfAndShow)
+              inSquare(printTrees(args, ", "))
+            this
         }
 
       case Super(qual, idOpt) =>
@@ -522,11 +570,14 @@ object SourceCode {
         printTree(rhs)
 
       case tree @ Lambda(params, body) => // must come before `Block`
-        inParens {
-          printArgsDefs(params)
-          this += (if tree.tpe.isContextFunctionType then " ?=> " else " => ")
+        if (!tree.tpe.isContextFunctionType || showDetails.showImplicitFunctionParams)
+          inParens {
+            printArgsDefs(params)
+            this += (if tree.tpe.isContextFunctionType then " ?=> " else " => ")
+            printTree(body)
+          }
+        else
           printTree(body)
-        }
 
       case Block(stats0, expr) =>
         val stats = stats0.filter {
@@ -578,10 +629,13 @@ object SourceCode {
         printTrees(elems, ", ")
 
       case TypeBoundsTree(lo, hi) =>
-        this += "_ >: "
-        printTypeTree(lo)
-        this += " <: "
-        printTypeTree(hi)
+        if (showDetails.showBoundsTypes)
+          this += "_ >: "
+          printTypeTree(lo)
+          this += " <: "
+          printTypeTree(hi)
+        else
+          this += "_"
 
       case tpt: WildcardTypeTree =>
         printType(tpt.tpe)
@@ -867,6 +921,13 @@ object SourceCode {
     }
 
     private def printArgsDefs(args: List[ValDef])(using elideThis: Option[Symbol]): Unit = {
+      // val args =
+      //   argsRaw.filter(arg => {
+      //     val isImplicit = arg.symbol.flags.is(Flags.Given) || arg.symbol.flags.is(Flags.Implicit)
+      //     // only show implicit parameters if that is enabled
+      //     !isImplicit || showDetails.showImplicitClauses
+      //   })
+
       val argFlags = args match {
         case Nil      => Flags.EmptyFlags
         case arg :: _ => arg.symbol.flags
@@ -1030,10 +1091,13 @@ object SourceCode {
 
     private def printTypeOrBoundsTree(tpt: Tree)(using elideThis: Option[Symbol] = None): this.type = tpt match {
       case TypeBoundsTree(lo, hi) =>
-        this += "_ >: "
-        printTypeTree(lo)
-        this += " <: "
-        printTypeTree(hi)
+        if (showDetails.showBoundsTypes)
+          this += "_ >: "
+          printTypeTree(lo)
+          this += " <: "
+          printTypeTree(hi)
+        else
+          this += "_"
       case tpt: WildcardTypeTree =>
         printType(tpt.tpe)
       case tpt: TypeTree =>
@@ -1287,10 +1351,13 @@ object SourceCode {
         printType(tpe.resType)
 
       case tpe @ TypeBounds(lo, hi) =>
-        this += "_ >: "
-        printType(lo)
-        this += " <: "
-        printType(hi)
+        if (showDetails.showBoundsTypes)
+          this += "_ >: "
+          printType(lo)
+          this += " <: "
+          printType(hi)
+        else
+          this += "_"
 
       case MatchCase(pat, rhs) =>
         this += "case "

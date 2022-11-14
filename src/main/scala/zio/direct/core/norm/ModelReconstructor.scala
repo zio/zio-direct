@@ -375,7 +375,6 @@ trait ModelReconstructor {
               case '[ZIO[r, e, t]] =>
                 newTree match
                   case IR.Pure(newTree) =>
-                    println("-------------- Reconstruct parallel Pure")
                     '{
                       $collect.map(terms => {
                         val iter = terms.iterator
@@ -383,7 +382,6 @@ trait ModelReconstructor {
                       }).asInstanceOf[ZIO[?, ?, t]]
                     }
                   case IR.Monad(newTree) =>
-                    println("-------------- Reconstruct parallel Monad")
                     '{
                       $collect.flatMap(terms => {
                         val iter = terms.iterator
