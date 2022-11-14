@@ -344,7 +344,7 @@ object Example {
   // TODO test this, as well as the failure case of this
   def funI() = { //
     val out =
-      defer.verbose {
+      defer {
         try {
           // unsafe {
           // val x = 123
@@ -354,7 +354,7 @@ object Example {
           // TODO add test for this
           // val x = 123
           // (run(ZIO.succeed(x)), {
-          //   val a = run(ZIO.succeed(888))
+          //   val a = run(ZIO.succeed(888)) //
           //   a
           // }, run(ZIO.succeed(456)))
 
@@ -386,7 +386,7 @@ object Example {
           // val a = run(ZIO.succeed(888))
           // run(ZIO.attempt(1/0))
         } catch {
-          case _ => (999, 999, 999)
+          case _ => (999, 999, 888)
         }
       }
 

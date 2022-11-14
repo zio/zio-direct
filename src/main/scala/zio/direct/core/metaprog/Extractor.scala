@@ -3,6 +3,7 @@ package zio.direct.core.metaprog
 import scala.quoted._
 import scala.quoted.Varargs
 import zio.direct.core.util.Format
+import zio.ZIO
 
 class Is[T: Type]:
   def unapply(expr: Expr[Any])(using Quotes) =
@@ -13,6 +14,16 @@ class Is[T: Type]:
       None
 
 object Extractors {
+  import zio.direct._
+  object RunCall {
+    def unapply(using Quotes)(tree: quotes.reflect.Tree): Option[Expr[ZIO[?, ?, ?]]] =
+      import quotes.reflect._
+      tree match
+        case Seal('{ run[r, e, a]($task) })       => Some(task)
+        case Seal('{ ($task: ZIO[r, e, a]).run }) => Some(task)
+        case _                                    => None
+  }
+
   inline def typeName[T]: String = ${ typeNameImpl[T] }
   def typeNameImpl[T: Type](using Quotes): Expr[String] =
     import quotes.reflect._

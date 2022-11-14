@@ -4,7 +4,6 @@ import scala.quoted._
 import zio.direct.core.util.Format
 import zio.direct.core.metaprog.Trees
 import zio.direct.core.metaprog.Extractors._
-import zio.direct.run
 import zio.direct.core.util.PureTree
 import zio.direct.core.util.Unsupported
 import zio.direct.core.util.Examples
@@ -21,7 +20,7 @@ object Allowed {
     import quotes.reflect._
     Trees.traverse(expr, Symbol.spliceOwner) {
       // Cannot have nested awaits:
-      case tree @ Seal('{ run[r, e, a]($content) }) =>
+      case tree @ RunCall(_) =>
         Unsupported.Error.withTree(tree, Examples.AwaitInAwaitError)
 
       // Assignment in an await allowed by not recommenteded
@@ -76,7 +75,7 @@ object Allowed {
     def validateTerm(expr: Term): Unit =
       expr match {
         // should be handled by the tree traverser but put here just in case
-        case tree @ Seal('{ zio.direct.run[r, e, a]($content) }) =>
+        case tree @ RunCall(content) =>
           validateAwaitClause(content.asTerm, instructions)
 
         // special error for assignment
@@ -113,7 +112,7 @@ object Allowed {
     (new TreeTraverser:
       override def traverseTree(tree: Tree)(owner: Symbol): Unit = {
         tree match {
-          case tree @ Seal('{ zio.direct.run[r, e, a]($content) }) =>
+          case tree @ RunCall(content) =>
             validateAwaitClause(content.asTerm, instructions)
           case _ =>
         }

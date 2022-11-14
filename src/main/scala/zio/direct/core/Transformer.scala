@@ -110,7 +110,7 @@ class Transformer(inputQuotes: Quotes)
         case m @ Match(value, DecomposeCases(cases)) =>
           Some(IR.Match(IR.Pure(value), cases))
 
-        case Seal('{ run[r, e, a]($task) }) =>
+        case RunCall(task) =>
           Some(IR.Monad(task.asTerm))
 
         case Typed(tree, _) =>
@@ -126,7 +126,7 @@ class Transformer(inputQuotes: Quotes)
           val unlifts = mutable.ArrayBuffer.empty[(IR.Monadic, Symbol)]
           val newTree: Term =
             Trees.Transform(term, Symbol.spliceOwner) {
-              case originalTerm @ Seal('{ run[r, e, a]($task) }) =>
+              case originalTerm @ RunCall(task) =>
                 val tpe = originalTerm.tpe
                 val sym = Symbol.newVal(Symbol.spliceOwner, "par", tpe, Flags.EmptyFlags, Symbol.noSymbol)
                 unlifts += ((IR.Monad(task.asTerm), sym))
