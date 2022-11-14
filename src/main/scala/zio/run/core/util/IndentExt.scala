@@ -1,4 +1,4 @@
-package zio.asyncawait.core.util
+package zio.run.core.util
 
 object IndentExt {
   implicit class StringOpsExt(str: String) {

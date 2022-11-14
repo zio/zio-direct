@@ -1,15 +1,15 @@
-package zio.asyncawait.core
+package zio.run.core
 
 import scala.quoted._
-import zio.asyncawait.core.util.Format
-import zio.asyncawait.core.metaprog.Trees
-import zio.asyncawait.core.metaprog.Extractors._
-import zio.asyncawait.await
-import zio.asyncawait.core.util.PureTree
-import zio.asyncawait.core.util.Unsupported
-import zio.asyncawait.core.util.Examples
-import zio.asyncawait.core.metaprog.Instructions
-import zio.asyncawait.core.metaprog.Verify
+import zio.run.core.util.Format
+import zio.run.core.metaprog.Trees
+import zio.run.core.metaprog.Extractors._
+import zio.run.await
+import zio.run.core.util.PureTree
+import zio.run.core.util.Unsupported
+import zio.run.core.util.Examples
+import zio.run.core.metaprog.Instructions
+import zio.run.core.metaprog.Verify
 
 object Allowed {
 
@@ -76,7 +76,7 @@ object Allowed {
     def validateTerm(expr: Term): Unit =
       expr match {
         // should be handled by the tree traverser but put here just in case
-        case tree @ Seal('{ zio.asyncawait.await[r, e, a]($content) }) =>
+        case tree @ Seal('{ zio.run.await[r, e, a]($content) }) =>
           validateAwaitClause(content.asTerm, instructions)
 
         // special error for assignment
@@ -113,7 +113,7 @@ object Allowed {
     (new TreeTraverser:
       override def traverseTree(tree: Tree)(owner: Symbol): Unit = {
         tree match {
-          case tree @ Seal('{ zio.asyncawait.await[r, e, a]($content) }) =>
+          case tree @ Seal('{ zio.run.await[r, e, a]($content) }) =>
             validateAwaitClause(content.asTerm, instructions)
           case _ =>
         }

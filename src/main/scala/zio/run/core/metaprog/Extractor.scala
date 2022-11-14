@@ -1,8 +1,8 @@
-package zio.asyncawait.core.metaprog
+package zio.run.core.metaprog
 
 import scala.quoted._
 import scala.quoted.Varargs
-import zio.asyncawait.core.util.Format
+import zio.run.core.util.Format
 
 class Is[T: Type]:
   def unapply(expr: Expr[Any])(using Quotes) =

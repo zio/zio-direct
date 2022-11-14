@@ -1,13 +1,13 @@
-package zio.asyncawait
+package zio.run
 
 import scala.quoted._
 import zio._
 import zio.test._
 import zio.test.Assertion._
-import zio.asyncawait._
+import zio.run._
 import scala.compiletime.testing.typeCheckErrors
-import zio.asyncawait.core.metaprog.Verify
-import zio.asyncawait.core.metaprog.Collect
+import zio.run.core.metaprog.Verify
+import zio.run.core.metaprog.Collect
 
 trait AsyncAwaitSpec extends ZIOSpecDefault {
   val errorMsg =
@@ -29,7 +29,7 @@ trait AsyncAwaitSpec extends ZIOSpecDefault {
 
   transparent inline def runLiftFailLenientMsg(errorStringContains: String)(body: String) = {
     val errors =
-      typeCheckErrors("async(zio.asyncawait.core.metaprog.Collect.Sequence, zio.asyncawait.core.metaprog.Verify.Lenient) {" + body + "}").map(_.message)
+      typeCheckErrors("async(zio.run.core.metaprog.Collect.Sequence, zio.run.core.metaprog.Verify.Lenient) {" + body + "}").map(_.message)
     assert(errors)(exists(containsString(errorStringContains)))
   }
 

@@ -1,8 +1,8 @@
-package zio.asyncawait.core.norm
+package zio.run.core.norm
 
-import zio.asyncawait.core.metaprog.Model
+import zio.run.core.metaprog.Model
 import scala.quoted._
-import zio.asyncawait.core.util.Format
+import zio.run.core.util.Format
 import zio.ZIO
 
 trait ModelTypeComputation {

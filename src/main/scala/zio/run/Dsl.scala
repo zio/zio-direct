@@ -1,15 +1,15 @@
-package zio.asyncawait
+package zio.run
 
 import zio.Task
 import scala.quoted._
-import zio.asyncawait.core.Transformer
+import zio.run.core.Transformer
 import zio.ZIO
-import zio.asyncawait.core.metaprog.Instructions
-import zio.asyncawait.core.metaprog.InfoBehavior
-import zio.asyncawait.core.metaprog.Collect
-import zio.asyncawait.core.metaprog.Unliftables
-import zio.asyncawait.core.metaprog.Verify
-import zio.asyncawait.core.NotDeferredException
+import zio.run.core.metaprog.Instructions
+import zio.run.core.metaprog.InfoBehavior
+import zio.run.core.metaprog.Collect
+import zio.run.core.metaprog.Unliftables
+import zio.run.core.metaprog.Verify
+import zio.run.core.NotDeferredException
 
 def await[R, E, A](value: ZIO[R, E, A]): A = NotDeferredException.fromNamed("await")
 def unsafe[T](value: T): T = NotDeferredException.fromNamed("unsafe")

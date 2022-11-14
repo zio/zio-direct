@@ -1,7 +1,7 @@
-package zio.asyncawait
+package zio.run
 
 import zio._
-import zio.asyncawait.core.util.debug.PrintMac
+import zio.run.core.util.debug.PrintMac
 import java.sql.SQLException
 import java.io.IOException
 

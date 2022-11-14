@@ -1,8 +1,8 @@
-package zio.asyncawait.core.metaprog
+package zio.run.core.metaprog
 
 import scala.quoted._
-import zio.asyncawait.core.metaprog.Extractors.Lambda1
-import zio.asyncawait.core.util.Format
+import zio.run.core.metaprog.Extractors.Lambda1
+import zio.run.core.util.Format
 
 object ValDefStatement:
   def unapply(using Quotes)(stmt: quotes.reflect.Statement): Option[(quotes.reflect.Symbol, quotes.reflect.Term)] =

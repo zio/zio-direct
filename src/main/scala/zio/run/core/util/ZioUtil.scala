@@ -1,4 +1,4 @@
-package zio.asyncawait.core.util
+package zio.run.core.util
 
 import zio.ZIO
 

@@ -1,4 +1,4 @@
-package zio.asyncawait.core
+package zio.run.core
 
 class NotDeferredException(msg: String) extends Exception(msg)
 

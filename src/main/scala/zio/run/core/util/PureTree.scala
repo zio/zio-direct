@@ -1,9 +1,9 @@
-package zio.asyncawait.core.util
+package zio.run.core.util
 
 import scala.quoted._
-import zio.asyncawait.core.metaprog.Trees
-import zio.asyncawait.core.metaprog.Extractors._
-import zio.asyncawait.await
+import zio.run.core.metaprog.Trees
+import zio.run.core.metaprog.Extractors._
+import zio.run.await
 
 object PureTree:
   object All:

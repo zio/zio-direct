@@ -1,4 +1,4 @@
-package zio.asyncawait.core.util
+package zio.run.core.util
 
 // Intentionally put all comments in 1st line. Want this to be a place
 // where example code can be put

@@ -1,9 +1,9 @@
-package zio.asyncawait.core.metaprog
+package zio.run.core.metaprog
 
 import scala.quoted._
-import zio.asyncawait.core.metaprog.Extractors.Lambda1
-import zio.asyncawait.core.util.Format
-import zio.asyncawait.core.metaprog.Extractors.Untype
+import zio.run.core.metaprog.Extractors.Lambda1
+import zio.run.core.util.Format
+import zio.run.core.metaprog.Extractors.Untype
 
 object Trees:
   object TransformTree:

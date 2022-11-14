@@ -1,20 +1,20 @@
-package zio.asyncawait.core
+package zio.run.core
 
 import scala.quoted._
 import zio.Task
-import zio.asyncawait.core.metaprog.Extractors._
-import zio.asyncawait.core.metaprog._
-import zio.asyncawait._
-import zio.asyncawait.core.util.Format
+import zio.run.core.metaprog.Extractors._
+import zio.run.core.metaprog._
+import zio.run._
+import zio.run.core.util.Format
 import zio.ZIO
 import scala.collection.mutable
 import zio.Chunk
-import zio.asyncawait.core.util.PureTree
-import zio.asyncawait.core.util.ComputeTotalZioType
-import zio.asyncawait.core.metaprog.ModelPrinting
-import zio.asyncawait.core.metaprog.Embedder._
-import zio.asyncawait.core.norm.ModelTypeComputation
-import zio.asyncawait.core.norm.ModelReconstructor
+import zio.run.core.util.PureTree
+import zio.run.core.util.ComputeTotalZioType
+import zio.run.core.metaprog.ModelPrinting
+import zio.run.core.metaprog.Embedder._
+import zio.run.core.norm.ModelTypeComputation
+import zio.run.core.norm.ModelReconstructor
 
 // TODO replace all instances of ZIO.succeed with ZIO.attempt?
 //      need to look through cases to see which ones expect errors

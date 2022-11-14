@@ -1,4 +1,4 @@
-package zio.asyncawait.core.util
+package zio.run.core.util
 
 import scala.quoted._
 import zio.ZIO

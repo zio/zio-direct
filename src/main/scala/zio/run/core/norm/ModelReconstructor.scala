@@ -1,18 +1,18 @@
-package zio.asyncawait.core.norm
+package zio.run.core.norm
 
-import zio.asyncawait.core.metaprog.Model
+import zio.run.core.metaprog.Model
 import scala.quoted._
-import zio.asyncawait.core.metaprog.Embedder._
+import zio.run.core.metaprog.Embedder._
 import zio.ZIO
-import zio.asyncawait.core.metaprog.ModelPrinting
+import zio.run.core.metaprog.ModelPrinting
 import zio.Chunk
-import zio.asyncawait.core.util.ComputeTotalZioType
-import zio.asyncawait.core.util.Format
+import zio.run.core.util.ComputeTotalZioType
+import zio.run.core.util.Format
 import zio.Exit.Success
 import zio.Exit.Failure
-import zio.asyncawait.core.metaprog.Instructions
-import zio.asyncawait.core.metaprog.Collect
-import zio.asyncawait.core.util.ZioUtil
+import zio.run.core.metaprog.Instructions
+import zio.run.core.metaprog.Collect
+import zio.run.core.util.ZioUtil
 
 trait ModelReconstructor {
   self: Model with ModelTypeComputation with ModelPrinting =>

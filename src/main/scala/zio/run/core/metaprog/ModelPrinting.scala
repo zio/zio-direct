@@ -1,9 +1,9 @@
-package zio.asyncawait.core.metaprog
+package zio.run.core.metaprog
 
 import scala.quoted._
 import pprint._
 import fansi.Str
-import zio.asyncawait.core.util.Format
+import zio.run.core.util.Format
 
 trait ModelPrinting {
   self: Model =>

@@ -1,11 +1,11 @@
-package zio.asyncawait.core.util.debug
+package zio.run.core.util.debug
 
-import zio.asyncawait.core.metaprog.Extractors._
-import zio.asyncawait.core.util.Format
+import zio.run.core.metaprog.Extractors._
+import zio.run.core.util.Format
 
 import scala.quoted._
-import zio.asyncawait.core.util.ZioFacade
-import zio.asyncawait.core.metaprog.Trees
+import zio.run.core.util.ZioFacade
+import zio.run.core.metaprog.Trees
 
 object PrintMac {
 

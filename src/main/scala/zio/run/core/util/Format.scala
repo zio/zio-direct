@@ -1,10 +1,10 @@
-package zio.asyncawait.core.util
+package zio.run.core.util
 
 import scala.util.{Try, Success, Failure}
 import scala.quoted._
 import io.getquill.util.ScalafmtFormat
-import zio.asyncawait.core.metaprog.Trees
-import zio.asyncawait.core.metaprog.Extractors.Seal
+import zio.run.core.metaprog.Trees
+import zio.run.core.metaprog.Extractors.Seal
 import scala.meta.internal.javacp.BaseType.S
 
 /** Facade objects to make display of zio flatMap simpler */

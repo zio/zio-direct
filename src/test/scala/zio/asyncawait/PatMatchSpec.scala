@@ -1,7 +1,7 @@
-// package zio.asyncawait
+// package zio.run
 
 // import zio.test._
-// import zio.asyncawait.core.util.debug.PrintMac
+// import zio.run.core.util.debug.PrintMac
 // import zio._
 
 // object PatMatchSpec extends AsyncAwaitSpec {

@@ -9,7 +9,7 @@ import Dependencies._
 
 addCommandAlias("fmt", "all scalafmt test:scalafmt")
 
-lazy val `zio-asyncawait` =
+lazy val `zio-run` =
   (project in file("."))
     .settings(releaseSettings: _*)
     .settings(basicSettings: _*)

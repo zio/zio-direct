@@ -1,7 +1,7 @@
-package zio.asyncawait.core.metaprog
+package zio.run.core.metaprog
 
 import scala.quoted._
-import zio.asyncawait.core.util.Format
+import zio.run.core.util.Format
 
 case class Instructions(info: InfoBehavior, collect: Collect, verify: Verify)
 
