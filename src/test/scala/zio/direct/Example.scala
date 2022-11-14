@@ -344,7 +344,7 @@ object Example {
   // TODO test this, as well as the failure case of this
   def funI() = { //
     val out =
-      defer {
+      defer.verbose {
         try {
           // unsafe {
           // val x = 123

@@ -5,7 +5,6 @@ import scala.quoted._
 import io.getquill.util.ScalafmtFormat
 import zio.direct.core.metaprog.Trees
 import zio.direct.core.metaprog.Extractors.Seal
-import scala.meta.internal.javacp.BaseType.S
 
 /** Facade objects to make display of zio flatMap simpler */
 object ZioFacade {
@@ -164,26 +163,12 @@ object Format {
     def apply(expr: Expr[_], showErrorTrace: Boolean = false)(using Quotes) =
       import quotes.reflect._
       Format(printShortCode(expr.asTerm), showErrorTrace)
-
-    def Detail(expr: Expr[_])(using Quotes) =
-      import quotes.reflect._
-      val term = expr.asTerm
-      // if (ProtoMessages.errorDetail) {
-      //   s"""|
-      //       |s"==== Expression ====
-      //       |  ${Format(Printer.TreeShortCode.show(term))}
-      //       |==== Extractors ===
-      //       |  ${Format(Printer.TreeStructure.show(term))}
-      //       |""".stripMargin
-      // } else {
-      //   Format(Printer.TreeShortCode.show(term))
-      // }
-      Format(Printer.TreeShortCode.show(term))
   }
 
   private def printShortCode(using Quotes)(code: quotes.reflect.Tree): String =
     import quotes.reflect._
-    Printer.TreeShortCode.show(ZioFacade.makeFacade(code))
+    // Printer.TreeShortCode.show(ZioFacade.makeFacade(code))
+    Format(SourceCode.showTree(code)(SyntaxHighlight.ANSI, false))
 
   private def printShortCode(using Quotes)(expr: Expr[_]): String =
     import quotes.reflect._
@@ -221,16 +206,18 @@ object Format {
         // println("============ GOT HERE ===========")
         // val resultStr = s"${result}"
         // resultStr
-        ScalafmtFormat(
-          // Various other cleanup needed to make the formatter happy
-          encosedCode
-            .replace("_*", "_")
-            .replace("_==", "==")
-            .replace("_!=", "!=")
-          // .replaceAll("\\(evidence\\$([0-9]+): (zio\\.)?Unsafe\\) \\?=> ", "")
-          ,
-          showErrorTrace
-        )
+        // ScalafmtFormat(
+        //   // Various other cleanup needed to make the formatter happy
+        //   encosedCode
+        //     .replace("_*", "_")
+        //     .replace("_==", "==")
+        //     .replace("_!=", "!=")
+        //   // .replaceAll("\\(evidence\\$([0-9]+): (zio\\.)?Unsafe\\) \\?=> ", "")
+        //   ,
+        //   showErrorTrace
+        // )
+
+        encosedCode
       }.getOrElse {
         println("====== WARNING: Scalafmt Not Detected ====")
         encosedCode
