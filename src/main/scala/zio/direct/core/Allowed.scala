@@ -39,13 +39,19 @@ object Allowed {
         case Verify.Lenient => Examples.DeclarationNotAllowedWithAwaits
       }
 
-    def validate(expr: Tree): Unit =
+    sealed trait Next
+    object Next {
+      case object Proceed extends Next
+      case object Exit extends Next
+    }
+
+    def validate(expr: Tree): Next =
       // println(s"---------- Validating: ${Format.Tree(expr)}")
       expr match {
         case CaseDef(pattern, cond, output) =>
           cond match {
-            case None              =>
-            case Some(PureTree(_)) =>
+            case None              => Next.Proceed
+            case Some(PureTree(_)) => Next.Proceed
             case Some(nonpure) =>
               Unsupported.Error.awaitUnsupported(nonpure, "Match conditionals are not allow to contain `await`. Move the `await` call out of the match-statement.")
           }
@@ -56,6 +62,7 @@ object Allowed {
         // if verification is in "Lenient mode", allow ClassDefs, DefDefs, and ValDefs so long
         // as there are no 'await' calls inside of them
         case PureTree(_) if (instructions.verify == Verify.Lenient) =>
+          Next.Exit
 
         // Do not allow declarations inside of defer blocks
         case v: ClassDef =>
@@ -69,14 +76,20 @@ object Allowed {
 
         // otherwise ignore, the tree traversal will continue
         case _ =>
+          Next.Proceed
       }
     end validate
 
-    def validateTerm(expr: Term): Unit =
+    def validateTerm(expr: Term): Next =
       expr match {
         // should be handled by the tree traverser but put here just in case
         case tree @ RunCall(content) =>
+          // Separate set of validations for await-clauses in lenient mode
           validateAwaitClause(content.asTerm, instructions)
+          if (instructions.verify == Verify.Lenient)
+            Next.Exit
+          else
+            Next.Proceed
 
         // special error for assignment
         case asi: Assign =>
@@ -84,25 +97,26 @@ object Allowed {
 
         // All the kinds of valid things a Term can be in defer blocks
         // Originally taken from TreeMap.transformTerm in Quotes.scala
-        case Ident(name)             =>
-        case Select(qualifier, name) =>
-        case This(qual)              =>
-        case Super(qual, mix)        =>
-        case Apply(fun, args)        =>
-        case TypeApply(fun, args)    =>
-        case Literal(const)          =>
-        case New(tpt)                =>
-        case Typed(expr, tpt)        =>
-        case Block(stats, expr)      =>
-        case If(cond, thenp, elsep)  =>
+        case Ident(name)             => Next.Proceed
+        case Select(qualifier, name) => Next.Proceed
+        case This(qual)              => Next.Proceed
+        case Super(qual, mix)        => Next.Proceed
+        case Apply(fun, args)        => Next.Proceed
+        case TypeApply(fun, args)    => Next.Proceed
+        case Literal(const)          => Next.Proceed
+        case New(tpt)                => Next.Proceed
+        case Typed(expr, tpt)        => Next.Proceed
+        case Block(stats, expr)      => Next.Proceed
+        case If(cond, thenp, elsep)  => Next.Proceed
         // Anonymous functions run from things inside of Async can have these
-        case Closure(meth, tpt)                 =>
-        case Match(selector, cases)             =>
-        case Return(expr, from)                 =>
-        case While(cond, body)                  =>
-        case Try(block, cases, finalizer)       =>
-        case Inlined(call, bindings, expansion) =>
-        case SummonFrom(cases)                  =>
+        case Closure(meth, tpt) if (meth.symbol.flags.is(Flags.Synthetic)) =>
+          Next.Proceed
+        case Match(selector, cases)             => Next.Proceed
+        case Return(expr, from)                 => Next.Proceed
+        case While(cond, body)                  => Next.Proceed
+        case Try(block, cases, finalizer)       => Next.Proceed
+        case Inlined(call, bindings, expansion) => Next.Proceed
+        case SummonFrom(cases)                  => Next.Proceed
 
         case otherTree =>
           Unsupported.Error.awaitUnsupported(otherTree)
@@ -116,8 +130,11 @@ object Allowed {
             validateAwaitClause(content.asTerm, instructions)
           case _ =>
         }
-        validate(tree)
-        super.traverseTree(tree)(owner)
+        val nextStep = validate(tree)
+        nextStep match {
+          case Next.Proceed => super.traverseTree(tree)(owner)
+          case Next.Exit    =>
+        }
       }
     ).traverseTree(inputTree)(Symbol.spliceOwner)
   end validateBlocksTree
