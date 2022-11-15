@@ -226,8 +226,7 @@ trait WithReconstructTree {
                   finallyBlock match {
                     case Some(ir) =>
                       val finallyExpr = apply(ir)
-                      '{ $monadExpr.onExit(_ => ZioUtil.wrapWithThrowable($finallyExpr).orDie) }
-                    // TODO try this with Ensuring
+                      '{ $monadExpr.ensuring(ZioUtil.wrapWithThrowable($finallyExpr).orDie) }
 
                     case None =>
                       monadExpr
