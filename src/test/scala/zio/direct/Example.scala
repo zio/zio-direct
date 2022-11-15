@@ -436,10 +436,10 @@ object Example {
     val out =
       defer.verboseTree { //
         try {
-          throw e // // //
+          throw e
         } catch {
-          case `e`          => 1
-          case _: Throwable => run(defer(2)) // ..
+          case `e` => 1
+          // case _: Throwable => run(defer(2)) // .. ...
         } //
       }
     val outRun =

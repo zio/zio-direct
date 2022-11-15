@@ -208,16 +208,15 @@ trait WithReconstructTree {
                   // Note:
                   //   The `e` type can change because you can specify a ZIO in the response to the try
                   //   e.g: (x:ZIO[Any, Throwable, A]).catchSome { case io: IOException => y:ZIO[Any, OtherExcpetion, A] }
-                  // Note:
-                  //  Not sure why but in some cases ZIO causes AbstractMethodError errors saying that .isDefinedAt is abstract
-                  //  if the tryLamParam is not typed as Throwable (but as `er` instead).
-                  val methodType = MethodType(List("tryLamParam"))(_ => List(TypeRepr.of[Throwable]), _ => TypeRepr.of[ZIO[r, e, b]])
+                  val methodType = MethodType(List("tryLamParam"))(_ => List(TypeRepr.of[er]), _ => TypeRepr.of[ZIO[r, e, b]])
                   val methSym = Symbol.newMethod(Symbol.spliceOwner, "tryLam", methodType)
 
                   // Now we actually make the method with the body:
                   //   def tryLamParam(tryLam: e) = { case ...exception => ... }
                   val method = DefDef(methSym, sm => Some(Match(sm(0)(0).asInstanceOf[Term], newCaseDefs.map(_.changeOwner(methSym)))))
-                  val pfTree = TypeRepr.of[PartialFunction[e, ZIO[r, e, b]]]
+                  // NOTE: Be sure that error here is the same one as used to define tryLamParam. Otherwise, AbstractMethodError errors
+                  // saying that .isDefinedAt is abstract will happen.
+                  val pfTree = TypeRepr.of[PartialFunction[er, ZIO[r, e, b]]]
 
                   // Assemble the peices together into a closure
                   val closure = Closure(Ref(methSym), Some(pfTree))
