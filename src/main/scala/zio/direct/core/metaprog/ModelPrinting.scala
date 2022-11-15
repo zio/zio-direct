@@ -12,9 +12,9 @@ trait WithPrintIR {
   import macroQuotes.reflect
 
   def PrintIR(model: IR) =
-    Format(new AstPrinter().apply(model).plainText)
+    Format(new PrintIR().apply(model).plainText)
 
-  class AstPrinter extends pprint.Walker {
+  private class PrintIR extends pprint.Walker {
     val defaultWidth: Int = 150
     val defaultHeight: Int = Integer.MAX_VALUE
     val defaultIndent: Int = 2
