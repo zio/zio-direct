@@ -425,13 +425,28 @@ object Example {
   //     zio.Unsafe.unsafe { implicit unsafe =>
   //       zio.Runtime.default.unsafe.run(out).getOrThrow()
   //     }
-  //   println("====== RESULT: " + outRun)
+  //   println("====== RESULT: " + outRun) // //
   // }
 
+  class FooException extends Exception("foo")
+  def makeEx(): Throwable = new FooException()
+
   def main(args: Array[String]): Unit = {
-    PrintMac.detail({ // //
-      throw new IllegalArgumentException("foo")
-    })
+    val e = new Exception("blah") // //
+    val out =
+      defer.verboseTree { //
+        try {
+          throw e // // //
+        } catch {
+          case `e`          => 1
+          case _: Throwable => run(defer(2)) // ..
+        } //
+      }
+    val outRun =
+      zio.Unsafe.unsafe { implicit unsafe =>
+        zio.Runtime.default.unsafe.run(out).getOrThrow()
+      }
+    println("====== RESULT: " + outRun)
   }
 
   // def printPartialFuncExample(): Unit = {

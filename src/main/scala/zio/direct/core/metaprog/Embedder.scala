@@ -13,7 +13,7 @@ object Embedder {
     findOwner(Symbol.spliceOwner, sym => sym.name == "macro")
 
   object ZioApply {
-    def apply(using Quotes)(term: quotes.reflect.Term) =
+    def succeed(using Quotes)(term: quotes.reflect.Term) =
       import quotes.reflect._
       term.tpe.widen.asType match
         case '[t] =>
@@ -21,11 +21,11 @@ object Embedder {
 
     def True(using Quotes) =
       import quotes.reflect._
-      apply(Expr(true).asTerm).asExprOf[zio.ZIO[Any, Nothing, Boolean]]
+      succeed(Expr(true).asTerm).asExprOf[zio.ZIO[Any, Nothing, Boolean]]
 
     def False(using Quotes) =
       import quotes.reflect._
-      apply(Expr(false).asTerm).asExprOf[zio.ZIO[Any, Nothing, Boolean]]
+      succeed(Expr(false).asTerm).asExprOf[zio.ZIO[Any, Nothing, Boolean]]
   }
 
   private def findOwner(using Quotes)(owner: quotes.reflect.Symbol, skipSymbol: quotes.reflect.Symbol => Boolean): quotes.reflect.Symbol =

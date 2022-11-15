@@ -17,7 +17,9 @@ trait WithIR {
       def code: Term
     }
 
-    case class Fail(error: Term) extends Monadic
+    // TODO It's possible to do `throw run(function)` so need to support IR
+    // being passed into a throw.
+    case class Fail(error: IR) extends Monadic
 
     case class While(cond: IR, body: IR) extends Monadic
 
@@ -148,8 +150,8 @@ trait WithIR {
           IR.FlatMap(apply(monad), valSymbol, apply(body))
         case IR.Map(monad, valSymbol, body) =>
           IR.Map(apply(monad), valSymbol, apply(body))
-        case v: IR.Fail  => v
-        case v: IR.Monad => apply(v)
+        case IR.Fail(error) => IR.Fail(apply(error))
+        case v: IR.Monad    => apply(v)
         case IR.Block(head, tail) =>
           IR.Block(head, apply(tail))
         case IR.Match(scrutinee, caseDefs) =>

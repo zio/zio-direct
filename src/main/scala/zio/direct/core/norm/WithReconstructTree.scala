@@ -44,7 +44,7 @@ trait WithReconstructTree {
 
     private def apply(ir: IR, isTopLevel: Boolean = false): Expr[ZIO[?, ?, ?]] = {
       ir match
-        case IR.Pure(code) => ZioApply(code)
+        case IR.Pure(code) => ZioApply.succeed(code)
 
         // IR.Unsafe is a construct used to modify the internal tree via the WrapUnsafes phase.
         // As such, we don't need to anything special with it during tree-reconstruction.
@@ -87,7 +87,21 @@ trait WithReconstructTree {
 
         case IR.Monad(code) => code.asExprOf[ZIO[?, ?, ?]]
 
-        case IR.Fail(error) => '{ ZIO.fail(${ error.asExpr }) }
+        case IR.Fail(error) =>
+          error match {
+            case IR.Pure(value) =>
+              ComputeType.fromIR(error).a.widen.asType match
+                case '[a] =>
+                  '{ ZIO.fail[a](${ value.asExpr }.asInstanceOf[a]) }
+            // TODO test the case where error is constructed via an await
+            case m: IR.Monadic =>
+              ComputeType.fromIR(error).asTypeTuple match
+                case ('[r], '[e], '[a]) =>
+                  val monad = apply(m)
+                  monad.asTerm.tpe.asType match
+                    case '[t] =>
+                      '{ ${ monad }.asInstanceOf[ZIO[r, e, a]].flatMap(err => ZIO.fail(err)) }
+          }
 
         case block: IR.Block =>
           val (stmts, term) = compressBlock(List(), block)
@@ -194,7 +208,10 @@ trait WithReconstructTree {
                   // Note:
                   //   The `e` type can change because you can specify a ZIO in the response to the try
                   //   e.g: (x:ZIO[Any, Throwable, A]).catchSome { case io: IOException => y:ZIO[Any, OtherExcpetion, A] }
-                  val methodType = MethodType(List("tryLamParam"))(_ => List(TypeRepr.of[er]), _ => TypeRepr.of[ZIO[r, e, b]])
+                  // Note:
+                  //  Not sure why but in some cases ZIO causes AbstractMethodError errors saying that .isDefinedAt is abstract
+                  //  if the tryLamParam is not typed as Throwable (but as `er` instead).
+                  val methodType = MethodType(List("tryLamParam"))(_ => List(TypeRepr.of[Throwable]), _ => TypeRepr.of[ZIO[r, e, b]])
                   val methSym = Symbol.newMethod(Symbol.spliceOwner, "tryLam", methodType)
 
                   // Now we actually make the method with the body:
@@ -211,7 +228,7 @@ trait WithReconstructTree {
                     case Some(ir) =>
                       val finallyExpr = apply(ir)
                       '{ $monadExpr.onExit(_ => ZioUtil.wrapWithThrowable($finallyExpr).orDie) }
-                    // try this with Ensuring
+                    // TODO try this with Ensuring
 
                     case None =>
                       monadExpr
@@ -259,8 +276,8 @@ trait WithReconstructTree {
       val conditionState =
         (ifTrue, ifFalse) match {
           case (IR.Pure(a), IR.Pure(b))       => ConditionState.BothPure(a, b)
-          case (IR.Pure(a), b: IR.Monadic)    => ConditionState.BothMonadic(IR.Monad(ZioApply(a).asTerm), b)
-          case (a: IR.Monadic, IR.Pure(b))    => ConditionState.BothMonadic(a, IR.Monad(ZioApply(b).asTerm))
+          case (a: IR.Pure, b: IR.Monadic)    => ConditionState.BothMonadic(IR.Monad(apply(a).asTerm), b)
+          case (a: IR.Monadic, b: IR.Pure)    => ConditionState.BothMonadic(a, IR.Monad(apply(b).asTerm))
           case (a: IR.Monadic, b: IR.Monadic) => ConditionState.BothMonadic(a, b)
         }
 
@@ -285,10 +302,10 @@ trait WithReconstructTree {
             case ConditionState.BothMonadic(ifTrue, ifFalse) =>
               val ifTrueTerm = apply(ifTrue).asTerm
               val ifFalseTerm = apply(ifFalse).asTerm
-              ZioApply(If(value, ifTrueTerm, ifFalseTerm))
+              If(value, ifTrueTerm, ifFalseTerm).asExprOf[ZIO[?, ?, ?]]
             case ConditionState.BothPure(ifTrue, ifFalse) =>
               val ifStatement = If(value, ifTrue, ifFalse)
-              ZioApply(ifStatement)
+              apply(IR.Pure(ifStatement))
           }
         }
       }

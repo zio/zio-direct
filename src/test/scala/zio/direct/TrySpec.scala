@@ -6,7 +6,7 @@ import zio.direct.core.util.debug.PrintMac
 
 object TrySpec extends AsyncAwaitSpec {
 
-  val e = new Exception()
+  val e = new Exception("blah")
 
   def spec =
     suite("TrySpec")(
@@ -73,14 +73,16 @@ object TrySpec extends AsyncAwaitSpec {
         }
         +
         test("catch pure/impure") {
-          runLiftTest(1) {
-            try {
-              throw e
-            } catch {
-              case `e`          => 1
-              case _: Throwable => runBlock(defer(2))
+          val out =
+            defer.verboseTree {
+              try {
+                throw e
+              } catch {
+                case `e`          => 1
+                case _: Throwable => runBlock(defer(2)) //
+              } //
             }
-          }
+          assertZIO(out)(Assertion.equalTo(1))
         }
       }
     )

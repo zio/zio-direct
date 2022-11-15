@@ -44,7 +44,7 @@ trait WithDecomposeTree {
           Some(IR.Try(DecomposeTree.orPure(tryBlock), DecomposeCases(caseDefs), tryTerm.tpe, finallyBlock.map(DecomposeTree.orPure(_))))
 
         case Seal('{ throw $e }) =>
-          Some(IR.Fail(e.asTerm))
+          Some(IR.Fail(DecomposeTree.orPure(e.asTerm)))
 
         // Otherwise, if there are no Await calls treat the tree as "Pure" i.e.
         // it will be either embedded within the parent map/flatMap clause or
@@ -243,7 +243,7 @@ trait WithDecomposeTree {
         case CaseDef(pattern, cond, DecomposeTree(body)) =>
           IR.Match.CaseDef(pattern, cond, body)
         case CaseDef(pattern, cond, body) =>
-          IR.Match.CaseDef(pattern, cond, IR.Monad(ZioApply(body).asTerm))
+          IR.Match.CaseDef(pattern, cond, IR.Monad(ZioApply.succeed(body).asTerm))
       }
 
     def unapply(cases: List[CaseDef]) =
