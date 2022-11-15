@@ -432,9 +432,9 @@ object Example {
   def makeEx(): Throwable = new FooException()
 
   def main(args: Array[String]): Unit = {
-    val e = new Exception("blah") // //
+    val e = new Exception("blah") // // // //
     val out =
-      defer.verboseTree { //
+      defer { //
         try {
           throw e
         } catch {

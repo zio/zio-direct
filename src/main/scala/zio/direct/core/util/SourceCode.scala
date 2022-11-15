@@ -500,11 +500,30 @@ object SourceCode {
         this += "}"
 
       case Apply(fn, argsRaw) =>
+        val firstParamList =
+          for {
+            methodSym <- if (fn.symbol.flags.is(Flags.Method)) Some(fn.symbol) else None
+            firstParamList <- fn.symbol.paramSymss.find(params => params.headOption.exists(_.isValDef))
+          } yield firstParamList
+
+        // Sometimes we don't know directly from the Term whether it is implicit or not, try to get the
+        // arg val-defs and see if they are marked implicit there. All of this needs to be added to the code
+        // formatting logic.
+        val argsJoined: List[(Term, Option[Symbol])] =
+          firstParamList match {
+            case Some(parmValDefs) if parmValDefs.length == argsRaw.length =>
+              argsRaw.zip(parmValDefs.map(Some(_)))
+            case _ =>
+              argsRaw.map(arg => (arg, None))
+          }
+
         val args =
-          argsRaw.filter(arg => {
-            val isImplict = arg.symbol.flags.is(Flags.Given) || arg.symbol.flags.is(Flags.Implicit)
-            !isImplict || showDetails.showImplicitClauses
-          })
+          argsJoined.filter((arg, argValDef) => {
+            val isTermImplict = arg.symbol.flags.is(Flags.Given) || arg.symbol.flags.is(Flags.Implicit)
+            val isValDefImplicit = argValDef.exists(vd => vd.flags.is(Flags.Given) || vd.flags.is(Flags.Implicit))
+            val isImplicit = isTermImplict || isValDefImplicit
+            !isImplicit || showDetails.showImplicitClauses
+          }).map(_._1)
 
         var argsPrefix = ""
         fn match {
@@ -530,14 +549,22 @@ object SourceCode {
           this += argsPrefix
 
       case TypeApply(fn, args) =>
+        // if only type-params exist in the function (implicit parameters don't count), show them
+        val noTermParams =
+          (for {
+            methodSym <- if (fn.symbol.flags.is(Flags.Method)) Some(fn.symbol) else None
+            firstParamList <- fn.symbol.paramSymss.find(params => params.headOption.exists(p => p.isValDef && !p.flags.is(Flags.Implicit)))
+          } yield firstParamList).isEmpty
+
         printQualTree(fn)
         fn match {
           case Select(New(Applied(_, _)), "<init>") =>
             // type bounds already printed in `fn`
             this
           case _ =>
-            val isAsInstanceOfAndShow = fn.show.endsWith("asInstanceOf") && showDetails.showAsInstanceOf
-            if (showDetails.showTypeParams || isAsInstanceOfAndShow)
+            val isAsInstanceOf = fn.show.endsWith("asInstanceOf")
+            val isAsInstanceOfAndShow = isAsInstanceOf && showDetails.showAsInstanceOf
+            if (showDetails.showTypeParams || isAsInstanceOfAndShow || (!isAsInstanceOf && noTermParams))
               inSquare(printTrees(args, ", "))
             this
         }

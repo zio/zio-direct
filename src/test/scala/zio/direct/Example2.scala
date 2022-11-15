@@ -56,7 +56,7 @@ object Example2 {
         }
       } yield (out)
 
-    val out = defer.info(Params(Verify.Strict)) {
+    val out = defer(Params(Verify.Strict)) {
       val x = Ref.make("000").run
       val y = Ref.make("foo").run
 

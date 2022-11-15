@@ -4,7 +4,11 @@ import scala.quoted._
 import zio.direct.core.util.Format
 import zio.direct.Dsl.Params
 
-case class Instructions(info: InfoBehavior, collect: Collect, verify: Verify)
+case class Instructions(info: InfoBehavior, collect: Collect, verify: Verify) {
+  // For debugging purposes, check if there is any visibility setting enabled
+  // to know whether to print various ad-hoc things.
+  def anyVis = info != InfoBehavior.Silent
+}
 
 sealed trait InfoBehavior {
   def showComputedType: Boolean

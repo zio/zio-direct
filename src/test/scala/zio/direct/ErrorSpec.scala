@@ -19,7 +19,7 @@ object ErrorSpec extends AsyncAwaitSpec {
     suite("Different Kinds of ways that errors can be thrown") {
       test("Directly thrown error should always go to error channel") {
         val out =
-          defer.verbose(Params(Verify.None)) {
+          defer(Params(Verify.None)) {
             throw new FooError
           }
         assertZIO(out.exit)(fails(isSubtype[FooError](anything)))
@@ -27,7 +27,7 @@ object ErrorSpec extends AsyncAwaitSpec {
       +
       test("Indirect error function WITH 'unsafe' should be a failure") {
         val out =
-          defer.verbose(Params(Verify.None)) {
+          defer(Params(Verify.None)) {
             unsafe { throwFoo() }
           }
         assertZIO(out.exit)(fails(isSubtype[FooError](anything)))
@@ -35,7 +35,7 @@ object ErrorSpec extends AsyncAwaitSpec {
       +
       test("Indirect error function WITHOUT 'unsafe' should be a defect") {
         val out =
-          defer.verbose(Params(Verify.None)) {
+          defer(Params(Verify.None)) {
             throwFoo()
           }
         assertZIO(out.exit)(dies(isSubtype[FooError](anything)))
@@ -47,7 +47,7 @@ object ErrorSpec extends AsyncAwaitSpec {
       test("External error function without 'unsafe' should be a defect - odd case") {
         var extern = 1
         val out =
-          defer.verbose(Params(Verify.None)) {
+          defer(Params(Verify.None)) {
             extern = extern + 1
             throwFoo()
             try {
@@ -63,7 +63,7 @@ object ErrorSpec extends AsyncAwaitSpec {
       test("External error function without 'unsafe' should be a defect - odd case + environment") {
         var extern = 1
         val out =
-          defer.verbose(Params(Verify.None)) {
+          defer(Params(Verify.None)) {
             extern = extern + 1
             throwFoo()
             try {

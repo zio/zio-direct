@@ -3,10 +3,13 @@ package zio.direct
 import zio.direct.{run => runBlock}
 import zio.test._
 import zio.direct.core.util.debug.PrintMac
+import zio.ZIO
+import zio.ZIO.{unsafe => _, _}
 
 object TrySpec extends AsyncAwaitSpec {
 
   val e = new Exception("blah")
+  val e1 = new Exception("blahblah")
 
   def spec =
     suite("TrySpec")(
@@ -74,15 +77,46 @@ object TrySpec extends AsyncAwaitSpec {
         +
         test("catch pure/impure") {
           val out =
-            defer.verboseTree {
+            defer {
               try {
                 throw e
               } catch {
                 case `e`          => 1
-                case _: Throwable => runBlock(defer(2)) //
-              } //
+                case _: Throwable => runBlock(defer(2))
+              }
             }
           assertZIO(out)(Assertion.equalTo(1))
+        }
+        +
+        test("catch pure parallel block") { //
+          val out = defer.verbose {
+            try {
+              (123, { throw e })
+            } catch {
+              case `e` => (111, 222)
+            }
+          }
+          assertTrue(true == true)
+        }
+        +
+        test("catch impure parallel block - one side") {
+          runLiftTest((111, 222)) {
+            try {
+              (123, { throw succeed(e).run })
+            } catch {
+              case `e` => (111, 222)
+            }
+          }
+        }
+        +
+        test("catch impure parallel block - both sides") {
+          runLiftTest((111, 222)) {
+            try {
+              ({ throw succeed(e).run }, { throw succeed(e1).run })
+            } catch {
+              case `e` => (111, 222)
+            }
+          }
         }
       }
     )

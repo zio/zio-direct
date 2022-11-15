@@ -13,7 +13,7 @@ import zio.direct.Dsl.Params
 trait AsyncAwaitSpec extends ZIOSpecDefault {
   // various config parameters to test zio dependency
   case class ConfigInt(value: Int)
-  case class ConfigString(value: Int)
+  case class ConfigString(value: String)
   case class ConfigBool(value: Boolean)
 
   val errorMsg =
