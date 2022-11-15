@@ -6,7 +6,7 @@ import fansi.Str
 import zio.direct.core.util.Format
 
 trait WithPrintIR {
-  self: Model =>
+  self: WithIR =>
 
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect

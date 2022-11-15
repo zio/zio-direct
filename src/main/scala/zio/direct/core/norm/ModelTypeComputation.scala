@@ -1,12 +1,12 @@
 package zio.direct.core.norm
 
-import zio.direct.core.metaprog.Model
+import zio.direct.core.metaprog.WithIR
 import scala.quoted._
 import zio.direct.core.util.Format
 import zio.ZIO
 
 trait WithComputeType {
-  self: Model =>
+  self: WithIR =>
 
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._

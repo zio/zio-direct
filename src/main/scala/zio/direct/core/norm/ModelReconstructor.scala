@@ -1,6 +1,6 @@
 package zio.direct.core.norm
 
-import zio.direct.core.metaprog.Model
+import zio.direct.core.metaprog.WithIR
 import scala.quoted._
 import zio.direct.core.metaprog.Embedder._
 import zio.ZIO
@@ -14,8 +14,8 @@ import zio.direct.core.metaprog.Instructions
 import zio.direct.core.metaprog.Collect
 import zio.direct.core.util.ZioUtil
 
-trait ModelReconstructor {
-  self: Model with WithComputeType with WithPrintIR =>
+trait WithReconstructTree {
+  self: WithIR with WithComputeType with WithPrintIR =>
 
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._

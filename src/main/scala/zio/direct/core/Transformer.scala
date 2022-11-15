@@ -14,16 +14,16 @@ import zio.direct.core.util.ComputeTotalZioType
 import zio.direct.core.metaprog.WithPrintIR
 import zio.direct.core.metaprog.Embedder._
 import zio.direct.core.norm.WithComputeType
-import zio.direct.core.norm.ModelReconstructor
+import zio.direct.core.norm.WithReconstructTree
 import zio.direct.core.util.ShowDetails
 
 // TODO replace all instances of ZIO.succeed with ZIO.attempt?
 //      need to look through cases to see which ones expect errors
 class Transformer(inputQuotes: Quotes)
-    extends Model
+    extends WithIR
     with WithComputeType
     with WithPrintIR
-    with ModelReconstructor {
+    with WithReconstructTree {
 
   implicit val macroQuotes = inputQuotes
   import quotes.reflect._
