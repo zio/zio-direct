@@ -71,15 +71,21 @@ object Format {
 
   private def printShortCode(using Quotes)(code: quotes.reflect.Tree, mode: Mode): String =
     import quotes.reflect._
-    mode match {
-      case Mode.DottyColor(details) =>
-        SourceCode.showTree(code)(details, SyntaxHighlight.ANSI, false)
-      case Mode.DottyPlain(details) =>
-        SourceCode.showTree(code)(details, SyntaxHighlight.plain, false)
-      case Mode.ScalaFmt(details) =>
-        Format(SourceCode.showTree(code)(details, SyntaxHighlight.plain, false))
-      case Mode.None(details) =>
-        SourceCode.showTree(code)(details, SyntaxHighlight.plain, false)
+    val printedCode =
+      mode match {
+        case Mode.DottyColor(details) =>
+          SourceCode.showTree(code)(details, SyntaxHighlight.ANSI, false)
+        case Mode.DottyPlain(details) =>
+          SourceCode.showTree(code)(details, SyntaxHighlight.plain, false)
+        case Mode.ScalaFmt(details) =>
+          SourceCode.showTree(code)(details, SyntaxHighlight.plain, false)
+            .map(code => Format(code))
+        case Mode.None(details) =>
+          SourceCode.showTree(code)(details, SyntaxHighlight.plain, false)
+      }
+    printedCode match {
+      case Success(v) => v
+      case Failure(e) => s"""CannotPrintSourceCode(${e.getMessage()})"""
     }
 
   private def printShortCode(using q: Quotes)(expr: Expr[_], mode: Mode): String =

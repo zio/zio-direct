@@ -4,6 +4,8 @@ import zio._
 import zio.direct.core.util.debug.PrintMac
 import java.sql.SQLException
 import java.io.IOException
+import zio.direct.core.metaprog.Collect
+import zio.direct.core.metaprog.Verify
 
 object Example {
   // def funA():Unit = {
@@ -342,90 +344,94 @@ object Example {
 
   // TODO try without catch should not be allowed? what about finally?
   // TODO test this, as well as the failure case of this
-  def funI() = { //
-    val out =
-      defer.info {
-        try {
-          // unsafe {
-          // val x = 123
-          // throw new RuntimeException("foo")
-          // 456
+  // def funI() = { //
+  //   val out =
+  //     defer.verbose {
+  //       try {
+  //         // unsafe {
+  //         // val x = 123
+  //         // throw new RuntimeException("foo")
+  //         // 456
 
-          // TODO add test for this
-          // val x = 123
-          // (run(ZIO.succeed(x)), {
-          //   val a = run(ZIO.succeed(888)) //
-          //   a
-          // }, run(ZIO.succeed(456)))
+  //         // TODO add test for this
+  //         // val x = 123
+  //         // (run(ZIO.succeed(x)), {
+  //         //   val a = run(ZIO.succeed(888)) //
+  //         //   a
+  //         // }, run(ZIO.succeed(456)))
 
-          // TODO add test for this (should throw an exception that is not caught)
-          // val x = 123
-          // (run(ZIO.succeed(x)), {
-          //   val a = run(ZIO.succeed(888))
-          //   4/0
-          // }, run(ZIO.succeed(456)))
+  //         // TODO add test for this (should throw an exception that is not caught)
+  //         // val x = 123
+  //         // (run(ZIO.succeed(x)), {
+  //         //   val a = run(ZIO.succeed(888))
+  //         //   4/0
+  //         // }, run(ZIO.succeed(456)))
 
-          // TODO add test for this (should throw an exception that IS caught)
-          val x = 123
-          // unsafe {
-          //   (
-          //     run(ZIO.succeed(x)), {
-          //       val a = run(ZIO.succeed(888))
-          //       4 / 0
-          //     },
-          //     run(ZIO.succeed(456))
-          //   )
-          // }
-          unsafe {
-            (
-              run(ZIO.succeed(x)), {
-                val a = ZIO.succeed(888).run
-                4 / 0
-              },
-              ZIO.succeed(456).run
-            )
-          }
+  //         // TODO add test for this (should throw an exception that IS caught)
+  //         // val x = 123
+  //         // unsafe {
+  //         //   (
+  //         //     run(ZIO.succeed(x)), {
+  //         //       val a = run(ZIO.succeed(888))
+  //         //       4 / 0
+  //         //     },
+  //         //     run(ZIO.succeed(456))
+  //         //   )
+  //         // }
 
-          // TODO example like this with single await to test the other Parallel case
+  //         val x = 123
+  //         unsafe {
+  //           (
+  //             run(ZIO.succeed(x)), {
+  //               val a = ZIO.succeed(888).run
+  //               4 / 0
+  //             },
+  //             ZIO.succeed(456).run
+  //           )
+  //         }
 
-          // Note, before going further need to touch-up Format again to make sure output trees are palletable
-          // (maybe in future add an option to not hide tree complexity)
+  //         // TODO example like this with single await to test the other Parallel case
 
-          // TODO Add a test for this
-          // val a = run(ZIO.succeed(888))
-          // run(ZIO.attempt(1/0))
-        } catch {
-          case _ => (999, 999, 888)
-        }
-      }
+  //         // Note, before going further need to touch-up Format again to make sure output trees are palletable
+  //         // (maybe in future add an option to not hide tree complexity)
 
-    // val out2 =
-    //   ZIO
-    //     .succeed[Int](888)
-    //     //.asInstanceOf[ZIO[_ >: Nothing <: Any, _ >: Nothing <: Any, Int]]
-    //     .flatMap(((v: Int) => {
-    //       val a: Int = v
-    //       ZIO.attempt[Int](1./(0))
-    //     }))
-    //     .catchSome[Nothing & Any, Any, Any](
-    //       (
-    //           (tryLamParam: Any) =>
-    //             tryLamParam match {
-    //               case _ =>
-    //                 ZIO.succeed[Int](999)
-    //             }
-    //       ).asInstanceOf[PartialFunction[Any, ZIO[Any, Throwable, Int]]]
-    //     )
+  //         // TODO Add a test for this
+  //         // val a = run(ZIO.succeed(888))
+  //         // run(ZIO.attempt(1/0))
+  //       } catch {
+  //         case _ => (999, 999, 888)
+  //       }
+  //     }
 
-    val outRun =
-      zio.Unsafe.unsafe { implicit unsafe =>
-        zio.Runtime.default.unsafe.run(out).getOrThrow()
-      }
-    println("====== RESULT: " + outRun)
-  }
+  //   // val out2 =
+  //   //   ZIO
+  //   //     .succeed[Int](888)
+  //   //     //.asInstanceOf[ZIO[_ >: Nothing <: Any, _ >: Nothing <: Any, Int]]
+  //   //     .flatMap(((v: Int) => {
+  //   //       val a: Int = v
+  //   //       ZIO.attempt[Int](1./(0))
+  //   //     }))
+  //   //     .catchSome[Nothing & Any, Any, Any](
+  //   //       (
+  //   //           (tryLamParam: Any) =>
+  //   //             tryLamParam match {
+  //   //               case _ =>
+  //   //                 ZIO.succeed[Int](999)
+  //   //             }
+  //   //       ).asInstanceOf[PartialFunction[Any, ZIO[Any, Throwable, Int]]]
+  //   //     )
+
+  //   val outRun =
+  //     zio.Unsafe.unsafe { implicit unsafe =>
+  //       zio.Runtime.default.unsafe.run(out).getOrThrow()
+  //     }
+  //   println("====== RESULT: " + outRun)
+  // }
 
   def main(args: Array[String]): Unit = {
-    funI()
+    PrintMac.detail({ // //
+      throw new IllegalArgumentException("foo")
+    })
   }
 
   // def printPartialFuncExample(): Unit = {

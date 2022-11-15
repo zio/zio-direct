@@ -47,6 +47,7 @@ sealed trait Verify
 object Verify {
   case object Strict extends Verify
   case object Lenient extends Verify
+  case object None extends Verify
 }
 
 sealed trait Collect
@@ -92,6 +93,7 @@ object Unliftables {
       def unlift =
         case '{ Verify.Strict }  => Verify.Strict
         case '{ Verify.Lenient } => Verify.Lenient
+        case '{ Verify.None }    => Verify.None
     }
 
     given unliftInfoBehavior: Unlifter[InfoBehavior] with {

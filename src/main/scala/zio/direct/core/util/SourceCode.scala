@@ -2,6 +2,7 @@ package zio.direct.core.util
 
 import scala.quoted._
 import scala.annotation.switch
+import scala.util
 
 trait SyntaxHighlight {
   def highlightKeyword(str: String): String
@@ -81,17 +82,23 @@ object ShowDetails {
   }
 }
 
-/** Printer for fully elaborated representation of the source code */
+/**
+ * Printer for fully elaborated representation of the source code. Futher customized based on SourceCode in the Dotty repo.
+ * In many situations if symbol.owner cannot be found the compiler will fail with a NoDenotation.owner error. This typically
+ * happens when there is some kind of upstream problem which is the cause of the real issue e.g. a foo.bar call where the `bar` doesn't
+ * actually exist. That means that the NoDenotation.owner error is just noise. Therefore the show___ methods
+ * now return a try that catches a custom NoDenotationException which callers of this object can deal with.
+ */
 object SourceCode {
 
-  def showTree(using Quotes)(tree: quotes.reflect.Tree)(showDetails: ShowDetails, syntaxHighlight: SyntaxHighlight, fullNames: Boolean): String =
-    new SourceCodePrinter[quotes.type](showDetails, syntaxHighlight, fullNames).printTree(tree).result()
+  def showTree(using Quotes)(tree: quotes.reflect.Tree)(showDetails: ShowDetails, syntaxHighlight: SyntaxHighlight, fullNames: Boolean): util.Try[String] =
+    util.Try(new SourceCodePrinter[quotes.type](showDetails, syntaxHighlight, fullNames).printTree(tree).result())
 
-  def showType(using Quotes)(tpe: quotes.reflect.TypeRepr)(showDetails: ShowDetails, syntaxHighlight: SyntaxHighlight, fullNames: Boolean): String =
-    new SourceCodePrinter[quotes.type](showDetails, syntaxHighlight, fullNames).printType(tpe)(using None).result()
+  def showType(using Quotes)(tpe: quotes.reflect.TypeRepr)(showDetails: ShowDetails, syntaxHighlight: SyntaxHighlight, fullNames: Boolean): util.Try[String] =
+    util.Try(new SourceCodePrinter[quotes.type](showDetails, syntaxHighlight, fullNames).printType(tpe)(using None).result())
 
-  def showConstant(using Quotes)(const: quotes.reflect.Constant)(showDetails: ShowDetails, syntaxHighlight: SyntaxHighlight, fullNames: Boolean): String =
-    new SourceCodePrinter[quotes.type](showDetails, syntaxHighlight, fullNames).printConstant(const).result()
+  def showConstant(using Quotes)(const: quotes.reflect.Constant)(showDetails: ShowDetails, syntaxHighlight: SyntaxHighlight, fullNames: Boolean): util.Try[String] =
+    util.Try(new SourceCodePrinter[quotes.type](showDetails, syntaxHighlight, fullNames).printConstant(const).result())
 
   def showSymbol(using Quotes)(symbol: quotes.reflect.Symbol)(syntaxHighlight: SyntaxHighlight): String =
     symbol.fullName
@@ -142,9 +149,16 @@ object SourceCode {
     flagList.result().mkString("/*", " ", "*/")
   }
 
+  class NoOwnerException(msg: String) extends Exception(msg)
+
   private class SourceCodePrinter[Q <: Quotes & Singleton](showDetails: ShowDetails, syntaxHighlight: SyntaxHighlight, fullNames: Boolean)(using val quotes: Q) {
     import syntaxHighlight._
     import quotes.reflect._
+
+    extension (sym: Symbol)
+      def ownerSafe =
+        if (sym.isNoSymbol) throw new NoOwnerException("Symbol has no owner")
+        else sym.owner
 
     object FromChars {
       import java.lang.{Character => JCharacter}
@@ -243,7 +257,7 @@ object SourceCode {
         if (flags.is(Flags.Case)) this += highlightKeyword("case ")
 
         if (name == "package$") {
-          this += highlightKeyword("package object ") += highlightTypeDef(cdef.symbol.owner.name.stripSuffix("$"))
+          this += highlightKeyword("package object ") += highlightTypeDef(cdef.symbol.ownerSafe.name.stripSuffix("$"))
         } else if (flags.is(Flags.Module)) this += highlightKeyword("object ") += highlightTypeDef(name.stripSuffix("$"))
         else if (flags.is(Flags.Trait)) this += highlightKeyword("trait ") += highlightTypeDef(name)
         else if (flags.is(Flags.Abstract)) this += highlightKeyword("abstract class ") += highlightTypeDef(name)
@@ -302,8 +316,8 @@ object SourceCode {
             // Currently the compiler does not allow overriding some of the methods generated for case classes
             d.symbol.flags.is(Flags.Synthetic) &&
             (d match {
-              case DefDef("apply" | "unapply" | "writeReplace", _, _, _) if d.symbol.owner.flags.is(Flags.Module) => true
-              case DefDef(n, _, _, _) if d.symbol.owner.flags.is(Flags.Case) =>
+              case DefDef("apply" | "unapply" | "writeReplace", _, _, _) if d.symbol.ownerSafe.flags.is(Flags.Module) => true
+              case DefDef(n, _, _, _) if d.symbol.ownerSafe.flags.is(Flags.Case) =>
                 n == "copy" ||
                   n.matches("copy\\$default\\$[1-9][0-9]*") || // default parameters for the copy method
                   n.matches("_[1-9][0-9]*") || // Getters from Product
@@ -968,9 +982,9 @@ object SourceCode {
 
     private def printParamDef(arg: ValDef)(using elideThis: Option[Symbol]): Unit = {
       val name = splicedName(arg.symbol).getOrElse(arg.symbol.name)
-      val sym = arg.symbol.owner
+      val sym = arg.symbol.ownerSafe
       if sym.isDefDef && sym.name == "<init>" then
-        val ClassDef(_, _, _, _, body) = sym.owner.tree: @unchecked
+        val ClassDef(_, _, _, _, body) = sym.ownerSafe.tree: @unchecked
         body.collectFirst {
           case vdef @ ValDef(`name`, _, _) if vdef.symbol.flags.is(Flags.ParamAccessor) =>
             if (!vdef.symbol.flags.is(Flags.Local)) {
@@ -1044,7 +1058,7 @@ object SourceCode {
           case Select(extractor, "unapply" | "unapplySeq") =>
             printTree(extractor)
           case Ident("unapply" | "unapplySeq") =>
-            this += fun.symbol.owner.fullName.stripSuffix("$")
+            this += fun.symbol.ownerSafe.fullName.stripSuffix("$")
           case _ =>
             throw new MatchError(fun.show(using Printer.TreeStructure))
         }
@@ -1218,9 +1232,9 @@ object SourceCode {
           tpe.qualifier match {
             case ThisType(tp) if tp.typeSymbol == defn.RootClass || tp.typeSymbol == defn.EmptyPackageClass =>
             case NoPrefix() =>
-              if (sym.owner.flags.is(Flags.Package)) {
+              if (sym.ownerSafe.flags.is(Flags.Package)) {
                 // TODO should these be in the prefix? These are at least `scala`, `java` and `scala.collection`.
-                val packagePath = sym.owner.fullName.stripPrefix("<root>").stripPrefix("<empty>").stripPrefix(".")
+                val packagePath = sym.ownerSafe.fullName.stripPrefix("<root>").stripPrefix("<empty>").stripPrefix(".")
                 if (packagePath != "")
                   this += packagePath += "."
               }
@@ -1563,7 +1577,7 @@ object SourceCode {
     private[this] val namesIndex = collection.mutable.Map.empty[String, Int]
 
     private def splicedName(sym: Symbol): Option[String] = {
-      if sym.owner.isClassDef then None
+      if sym.ownerSafe.isClassDef then None
       else
         names.get(sym).orElse {
           val name0 = sym.name

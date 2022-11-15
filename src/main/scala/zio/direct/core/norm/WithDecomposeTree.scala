@@ -32,6 +32,23 @@ trait WithDecomposeTree {
 
     def unapply(expr: Term): Option[IR.Monadic] = {
       val ret = expr match {
+
+        // Certain constructs should always be translated into ZIO constructs
+        // even if they do not contain any Await calls. These involve error handling.
+        case Seal('{ unsafe($value) }) =>
+          Some(IR.Unsafe(DecomposeTree.orPure(value.asTerm)))
+
+        case tryTerm @ Try(tryBlock, caseDefs, finallyBlock) =>
+          val tryBlockIR = DecomposeTree.orPure(tryBlock)
+          val cases = DecomposeCases(caseDefs)
+          Some(IR.Try(DecomposeTree.orPure(tryBlock), DecomposeCases(caseDefs), tryTerm.tpe, finallyBlock.map(DecomposeTree.orPure(_))))
+
+        case Seal('{ throw $e }) =>
+          Some(IR.Fail(e.asTerm))
+
+        // Otherwise, if there are no Await calls treat the tree as "Pure" i.e.
+        // it will be either embedded within the parent map/flatMap clause or
+        // wrapped into a ZIO.succeed.
         case PureTree(tree) =>
           None
 
@@ -56,9 +73,6 @@ trait WithDecomposeTree {
         case While(cond, body) =>
           Some(IR.While(DecomposeTree.orPure(cond), DecomposeTree.orPure(body)))
 
-        case Seal('{ unsafe($value) }) =>
-          Some(IR.Unsafe(DecomposeTree.orPure(value.asTerm)))
-
         case Seal('{ ($a: Boolean) && ($b: Boolean) }) =>
           // the actual case where they are both cure is handled by the PureTree case
           val (aTerm, bTerm) = DecomposeTree.orPure2(a.asTerm, b.asTerm)
@@ -68,11 +82,6 @@ trait WithDecomposeTree {
           // the actual case where they are both cure is handled by the PureTree case
           val (aTerm, bTerm) = DecomposeTree.orPure2(a.asTerm, b.asTerm)
           Some(IR.Or(aTerm, bTerm))
-
-        case tryTerm @ Try(tryBlock, caseDefs, finallyBlock) =>
-          val tryBlockIR = DecomposeTree.orPure(tryBlock)
-          val cases = DecomposeCases(caseDefs)
-          Some(IR.Try(DecomposeTree.orPure(tryBlock), DecomposeCases(caseDefs), tryTerm.tpe, finallyBlock.map(DecomposeTree.orPure(_))))
 
         case block @ Block(parts, lastPart) =>
           DecomposeBlock.unapply(block)
@@ -207,9 +216,9 @@ trait WithDecomposeTree {
           head match
             case term: Term =>
               term.tpe.asType match
-                case '[ZIO[r, e, a]] =>
+                case '[ZIO[r, e, a]] if (!(term.tpe =:= TypeRepr.of[Nothing])) =>
                   report.warning(
-                    s"Found a ZIO term that is not being awaited. Non-awaited ZIO terms inside of `{ ... }` blocks will never be executed i.e. they will be discarded. " +
+                    s"Found a ZIO term that is not being awaited (type: ${Format.TypeRepr(term.tpe)}). Non-awaited ZIO terms inside of `{ ... }` blocks will never be executed i.e. they will be discarded. " +
                       s"To execute this term add `.run` at the end or wrap it into an `run(...)` statement." +
                       s"\n========\n" +
                       Format.Term(term),

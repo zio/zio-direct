@@ -25,7 +25,7 @@ trait WithReconstructTree {
       new ReconstructTree(instructions)
   }
   protected class ReconstructTree private (instructions: Instructions) {
-    def fromIR(ir: IR) = apply(ir)
+    def fromIR(ir: IR) = apply(ir, true)
 
     private def computeSymbolType(valSymbol: Option[Symbol], alternativeSource: Term) =
       valSymbol match
@@ -38,11 +38,11 @@ trait WithReconstructTree {
     private def compressBlock(accum: List[Statement] = List(), block: IR.Block): (List[Statement], Term) =
       block.tail match
         case nextBlock: IR.Block =>
-          compressBlock(block.head +: accum, nextBlock)
+          compressBlock(accum :+ block.head, nextBlock)
         case otherMonad =>
-          (block.head +: accum, apply(otherMonad).asTerm)
+          (accum :+ block.head, apply(otherMonad).asTerm)
 
-    private def apply(ir: IR): Expr[ZIO[?, ?, ?]] = {
+    private def apply(ir: IR, isTopLevel: Boolean = false): Expr[ZIO[?, ?, ?]] = {
       ir match
         case IR.Pure(code) => ZioApply(code)
 
@@ -87,9 +87,18 @@ trait WithReconstructTree {
 
         case IR.Monad(code) => code.asExprOf[ZIO[?, ?, ?]]
 
+        case IR.Fail(error) => '{ ZIO.fail(${ error.asExpr }) }
+
         case block: IR.Block =>
           val (stmts, term) = compressBlock(List(), block)
-          Block(stmts, term).asExprOf[ZIO[?, ?, ?]]
+          // if we are on the top-level we are not inside of any map or flatMap
+          // which means that we need to nest any possible exceptions into ZIO.succeed
+          // so that they will go into the effect system instead of directly to the outside
+          val blockExpr = Block(stmts, term).asExprOf[ZIO[?, ?, ?]]
+          if (isTopLevel)
+            '{ ZIO.succeed($blockExpr).flatten }
+          else
+            blockExpr
 
         case value: IR.Match =>
           reconstructMatch(value)

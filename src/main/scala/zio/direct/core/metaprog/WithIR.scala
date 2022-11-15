@@ -17,6 +17,8 @@ trait WithIR {
       def code: Term
     }
 
+    case class Fail(error: Term) extends Monadic
+
     case class While(cond: IR, body: IR) extends Monadic
 
     case class Unsafe(body: IR) extends Monadic
@@ -146,6 +148,7 @@ trait WithIR {
           IR.FlatMap(apply(monad), valSymbol, apply(body))
         case IR.Map(monad, valSymbol, body) =>
           IR.Map(apply(monad), valSymbol, apply(body))
+        case v: IR.Fail  => v
         case v: IR.Monad => apply(v)
         case IR.Block(head, tail) =>
           IR.Block(head, apply(tail))

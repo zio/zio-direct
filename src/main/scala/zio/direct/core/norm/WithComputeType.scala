@@ -103,6 +103,9 @@ trait WithComputeType {
         case IR.Block(head, tail) =>
           from(tail)
 
+        case IR.Fail(error) =>
+          ZioType(TypeRepr.of[Any], error.tpe, TypeRepr.of[Nothing])
+
         // Things inside Unsafe blocks that are not inside awaits will be wrapepd into ZIO.attempt
         // which will make their lower-bound Throwable in the MonadifyTries phase.
         // Do not need to do that manually here with the `e` type though.

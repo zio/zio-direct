@@ -1,127 +1,129 @@
-// package zio.direct
+package zio.direct
 
-// import zio.test._
-// import zio.direct.core.util.debug.PrintMac
+import zio.direct.{run => runBlock}
+import zio.test._
+import zio.direct.core.util.debug.PrintMac
 
-// object TrySpec extends AsyncAwaitSpec {
+object TrySpec extends AsyncAwaitSpec {
 
-//   val e = new Exception()
+  val e = new Exception()
 
-//   def spec =
-//     suite("TrySpec") (
-//       suiteSuccess,
-//       suiteFailure,
-//       suiteFinally
-//     ) @@ TestAspect.sequential
+  def spec =
+    suite("TrySpec")(
+      suiteSuccess,
+      suiteFailure,
+      suiteFinally
+    ) @@ TestAspect.sequential
 
-//   val suiteSuccess =
-//     suiteAll("success") {
-//       suiteAll("try pure") {
-//         test("catch pure") {
-//           runLiftTest(1) {
-//             try 1
-//             catch {
-//               case `e` => 2
-//             }
-//           }
-//         }
-//         test("catch impure") {
-//           runLiftTest(1) {
-//             try 1
-//             catch {
-//               case `e` => run(defer(2))
-//             }
-//           }
-//         }
-//         test("catch pure/impure") {
-//           runLiftTest(1) {
-//             try 1
-//             catch {
-//               case `e`          => 2
-//               case _: Throwable => run(defer(3))
-//             }
-//           }
-//         }
-//       }
-//     }
+  val suiteSuccess =
+    suiteAll("success") {
+      suiteAll("try pure") {
+        test("catch pure") {
+          // TODO if we remove the :Int widenings it will say "Wrong type expected"
+          // because 1 and 2 will be treated as type-literals but zio-direct will widen
+          // it to Int. Should look into these cases and how they need to be addressed.
+          runLiftTest(1: Int) {
+            try 1
+            catch {
+              case `e` => 2: Int
+            }
+          }
+        }
+        test("catch impure") {
+          runLiftTest(1) {
+            try 1
+            catch {
+              case `e` => runBlock(defer(2))
+            }
+          }
+        }
+        test("catch pure/impure") {
+          runLiftTest(1) {
+            try 1
+            catch {
+              case `e`          => 2
+              case _: Throwable => runBlock(defer(3))
+            }
+          }
+        }
+      }
+    }
 
-//   val suiteFailure =
-//     suite("failure") (
-//       suite("try pure") {
-//         test("catch pure") {
-//           runLiftTest(2) {
-//             try {
-//               throw e
-//             } catch {
-//               case `e` => 2
-//             }
-//           }
-//         }
-//         +
-//         test("catch impure") {
-//           runLiftTest(2) {
-//             try {
-//               throw e
-//             } catch {
-//               case `e`         => run(defer(2))
-//             }
-//           }
-//         }
-//         +
-//         test("catch pure/impure") {
-//           runLiftTest(1) {
-//             try {
-//               throw e
-//             } catch {
-//               case `e`          => 1
-//               case _: Throwable => run(defer(2))
-//             }
-//           }
-//         }
-//       }
-//     )
+  val suiteFailure =
+    suite("failure")(
+      suite("try pure") {
+        test("catch pure") {
+          runLiftTest(2) {
+            try {
+              throw e
+            } catch {
+              case `e` => 2
+            }
+          }
+        }
+        +
+        test("catch impure") {
+          runLiftTest(2) {
+            try {
+              throw e
+            } catch {
+              case `e` => runBlock(defer(2))
+            }
+          }
+        }
+        +
+        test("catch pure/impure") {
+          runLiftTest(1) {
+            try {
+              throw e
+            } catch {
+              case `e`          => 1
+              case _: Throwable => runBlock(defer(2))
+            }
+          }
+        }
+      }
+    )
 
-//   val suiteFinally = suiteAll("finally") {
-//     test("pure") {
-//       var called = false
-//       def c(): Unit = called = true
-//       runLiftTest(true) {
-//         val _ =
-//           try {
-//             run(defer(1))
-//           }
-//           finally {
-//             c()
-//           }
-//         called
-//       }
-//     }
-//     test("without catch") {
-//       var called = false
-//       def c() = called = true
-//       runLiftTest(true) {
-//         try
-//           run(defer(1))
-//         finally {
-//           c()
-//         }
-//         called
-//       }
-//     }
-//     test("as the only impure") {
-//       var called = false
-//       def c() = called = true
-//       runLiftTest(true) {
-//         val _ =
-//           try 1
-//           catch {
-//             case `e`          => 2
-//             case _: Throwable => 3
-//           } finally {
-//             c()
-//           }
-//         called
-//       }
-//     }
-//   }
-// }
+  val suiteFinally = suiteAll("finally") {
+    test("pure") {
+      var called = false
+      def c(): Unit = called = true
+      runLiftTest(true) {
+        val _ =
+          try {
+            runBlock(defer(1))
+          } finally {
+            c()
+          }
+        called
+      }
+    }
+    test("without catch") {
+      var called = false
+      def c() = called = true
+      runLiftTest(true) {
+        try runBlock(defer(1))
+        finally {
+          c()
+        }
+        called
+      }
+    }
+    test("as the only impure") {
+      var called = false
+      def c() = called = true
+      runLiftTest(true) {
+        val _ =
+          try 1
+          catch {
+            case `e`          => 2
+            case _: Throwable => 3
+          } finally {
+            c()
+          }
+        called
+      }
+    }
+  }
+}

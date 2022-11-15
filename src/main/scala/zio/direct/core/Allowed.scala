@@ -37,6 +37,8 @@ object Allowed {
       instructions.verify match {
         case Verify.Strict  => Messages.DeclarationNotAllowed
         case Verify.Lenient => Messages.DeclarationNotAllowedWithAwaits
+        // Verify.None should stop "Allowed" from running so this should not be used
+        case Verify.None => "No Verification is being done."
       }
 
     sealed trait Next

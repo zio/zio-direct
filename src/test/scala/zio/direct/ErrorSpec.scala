@@ -1,0 +1,62 @@
+package zio.direct
+
+import zio.direct.{run => runBlock}
+import zio.test._
+import zio.test.Assertion._
+import zio.direct.core.util.debug.PrintMac
+import zio._
+import zio.direct.core.metaprog.Collect
+import zio.direct.core.metaprog.Verify
+
+object ErrorSpec extends AsyncAwaitSpec {
+
+  class FooError extends Exception("foo")
+  def throwFoo() = throw new FooError
+
+  val spec = suite("ErrorSpec")(
+    suite("Different Kinds of ways that errors can be thrown") {
+      test("Directly thrown error should always go to error channel") {
+        val out =
+          defer.verbose(Collect.Sequence, Verify.None) {
+            throw new FooError
+          }
+        assertZIO(out.exit)(fails(isSubtype[FooError](anything)))
+      }
+      +
+      test("External error function WITH 'unsafe' should be a defect") {
+        val out =
+          defer.verbose(Collect.Sequence, Verify.None) {
+            unsafe { throwFoo() }
+          }
+        assertZIO(out.exit)(fails(isSubtype[FooError](anything)))
+      }
+      +
+      test("External error function WITHOUT 'unsafe' should be a defect") {
+        val out =
+          defer.verbose(Collect.Sequence, Verify.None) {
+            throwFoo()
+          }
+        assertZIO(out.exit)(dies(isSubtype[FooError](anything)))
+      }
+      +
+      // For this whole example to even possibly work incorrectly need to insert an unneeded try element.
+      // That would force an outer IR.Block to happen which in one case would cause the throwFoo() error to not
+      // even be caught within the zio system.
+      test("External error function without 'unsafe' should be a defect - odd case") {
+        var extern = 1
+        val out =
+          defer.verbose(Collect.Sequence, Verify.None) {
+            extern = extern + 1
+            throwFoo()
+            try {
+              ZIO.succeed(222).run
+            } catch {
+              case _ => 333
+            }
+          }
+        assertZIO(out.exit)(dies(isSubtype[FooError](anything))) *>
+          assertTrue(extern == 2)
+      }
+    }
+  )
+}

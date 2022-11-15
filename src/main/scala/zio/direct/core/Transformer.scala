@@ -39,7 +39,8 @@ class Transformer(inputQuotes: Quotes)
     val value = valueRaw.asTerm.underlyingArgument
 
     // // Do a top-level transform to check that there are no invalid constructs
-    Allowed.validateBlocksIn(value.asExpr, instructions)
+    if (instructions.verify != Verify.None)
+      Allowed.validateBlocksIn(value.asExpr, instructions)
     // // Do the main transformation
     val transformedRaw = DecomposeTree.orPure(value)
 
