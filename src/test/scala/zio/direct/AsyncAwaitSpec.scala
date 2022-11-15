@@ -11,6 +11,11 @@ import zio.direct.core.metaprog.Collect
 import zio.direct.Dsl.Params
 
 trait AsyncAwaitSpec extends ZIOSpecDefault {
+  // various config parameters to test zio dependency
+  case class ConfigInt(value: Int)
+  case class ConfigString(value: Int)
+  case class ConfigBool(value: Boolean)
+
   val errorMsg =
     "Detected an `await` call inside of an unsupported structure"
 

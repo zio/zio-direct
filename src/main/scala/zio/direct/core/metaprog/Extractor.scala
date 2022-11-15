@@ -516,6 +516,17 @@ object Extractors {
             case _                                           => None
   end Uncast
 
+  object SymbolOps {
+    def isSynthetic(using Quotes)(s: quotes.reflect.Symbol) = isSyntheticName(getName(s))
+    private def isSyntheticName(name: String) = {
+      name == "<init>" || (name.startsWith("<local ") && name.endsWith(">")) || name == "$anonfun" || name == "macro"
+    }
+    private def getName(using Quotes)(s: quotes.reflect.Symbol) = {
+      s.name.trim
+        .stripSuffix("$") // meh
+    }
+  }
+
   /**
    * Matches `case class Person(first: String, last: String)` creation of the forms:
    *   Person("Joe","Bloggs")

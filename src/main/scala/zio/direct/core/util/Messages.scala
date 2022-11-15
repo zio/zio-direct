@@ -16,7 +16,7 @@ In Lenient mode, Class, Function, and Mutable-Variable definitions are allowed b
 
 val DeclarationNotAllowed =
 """
-Class, Function, and Mutable-Variable definitions (class X, def X, var X) are not allowed inside of defer blocks.
+Class, Function, and Mutable-Variable definitions (class X, def X, var X) are not allowed inside of defer blocks unless they in the `run` call.
 Please move them outside of the defer area. (They can be inside of an await)
 """
 

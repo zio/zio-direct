@@ -59,6 +59,22 @@ object ErrorSpec extends AsyncAwaitSpec {
         assertZIO(out.exit)(dies(isSubtype[FooError](anything))) *>
           assertTrue(extern == 2)
       }
+      +
+      test("External error function without 'unsafe' should be a defect - odd case + environment") {
+        var extern = 1
+        val out =
+          defer.verbose(Params(Verify.None)) {
+            extern = extern + 1
+            throwFoo()
+            try {
+              ZIO.service[ConfigInt].map(_.value).run
+            } catch {
+              case _ => 333
+            }
+          }
+        assertZIO(out.provide(ZLayer.succeed(ConfigInt(1))).exit)(dies(isSubtype[FooError](anything))) *>
+          assertTrue(extern == 2)
+      }
     }
   )
 }
