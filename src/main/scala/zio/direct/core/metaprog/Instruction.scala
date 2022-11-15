@@ -7,6 +7,7 @@ case class Instructions(info: InfoBehavior, collect: Collect, verify: Verify)
 
 sealed trait InfoBehavior {
   def showComputedType: Boolean
+  def showComputedTypeDetail: Boolean
   def showDeconstructed: Boolean
   def showReconstructed: Boolean
   def showReconstructedTree: Boolean
@@ -14,24 +15,28 @@ sealed trait InfoBehavior {
 object InfoBehavior {
   case object Silent extends InfoBehavior {
     val showComputedType = false
+    val showComputedTypeDetail = false
     val showDeconstructed = false
     val showReconstructed = false
     val showReconstructedTree = false
   }
   case object Info extends InfoBehavior {
-    val showComputedType = false
+    val showComputedType = true
+    val showComputedTypeDetail = false
     val showDeconstructed = false
     val showReconstructed = true
     val showReconstructedTree = false
   }
   case object Verbose extends InfoBehavior {
     val showComputedType = true
+    val showComputedTypeDetail = true
     val showDeconstructed = true
     val showReconstructed = true
     val showReconstructedTree = false
   }
   case object VerboseTree extends InfoBehavior {
     val showComputedType = true
+    val showComputedTypeDetail = true
     val showDeconstructed = true
     val showReconstructed = true
     val showReconstructedTree = true
