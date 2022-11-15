@@ -6,7 +6,7 @@ import zio.direct.core.metaprog.Trees
 import zio.direct.core.metaprog.Extractors._
 import zio.direct.core.util.PureTree
 import zio.direct.core.util.Unsupported
-import zio.direct.core.util.Examples
+import zio.direct.core.util.Messages
 import zio.direct.core.metaprog.Instructions
 import zio.direct.core.metaprog.Verify
 
@@ -21,11 +21,11 @@ object Allowed {
     Trees.traverse(expr, Symbol.spliceOwner) {
       // Cannot have nested awaits:
       case tree @ RunCall(_) =>
-        Unsupported.Error.withTree(tree, Examples.AwaitInAwaitError)
+        Unsupported.Error.withTree(tree, Messages.AwaitInAwaitError)
 
       // Assignment in an await allowed by not recommenteded
       case asi: Assign =>
-        Unsupported.Warn.withTree(asi, Examples.AwaitAssignmentNotRecommended)
+        Unsupported.Warn.withTree(asi, Messages.AwaitAssignmentNotRecommended)
     }
 
   // TODO this way of traversing the tree is error prone not not very efficient. Re-write this
@@ -35,8 +35,8 @@ object Allowed {
 
     val declsError =
       instructions.verify match {
-        case Verify.Strict  => Examples.DeclarationNotAllowed
-        case Verify.Lenient => Examples.DeclarationNotAllowedWithAwaits
+        case Verify.Strict  => Messages.DeclarationNotAllowed
+        case Verify.Lenient => Messages.DeclarationNotAllowedWithAwaits
       }
 
     sealed trait Next
@@ -93,7 +93,7 @@ object Allowed {
 
         // special error for assignment
         case asi: Assign =>
-          Unsupported.Error.withTree(asi, Examples.AssignmentNotAllowed)
+          Unsupported.Error.withTree(asi, Messages.AssignmentNotAllowed)
 
         // All the kinds of valid things a Term can be in defer blocks
         // Originally taken from TreeMap.transformTerm in Quotes.scala

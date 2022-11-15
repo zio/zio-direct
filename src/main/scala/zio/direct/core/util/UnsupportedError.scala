@@ -12,10 +12,10 @@ object Unsupported {
       def render = msg
     }
 
-    def AwaitUnsupportedTree(using Quotes)(tree: quotes.reflect.Tree, additionalMsg: String = "", example: String = Examples.MoveAwaitOut) =
+    def AwaitUnsupportedTree(using Quotes)(tree: quotes.reflect.Tree, additionalMsg: String = "", example: String = Messages.MoveAwaitOut) =
       AwaitUnsupported(Format.Tree(tree), additionalMsg, example)
 
-    case class AwaitUnsupported(unsupportedConstruct: String, additionalMsg: String = "", example: String = Examples.MoveAwaitOut) extends Msg {
+    case class AwaitUnsupported(unsupportedConstruct: String, additionalMsg: String = "", example: String = Messages.MoveAwaitOut) extends Msg {
       def render =
         s"""|Detected an `await` call inside of an unsupported structure:
             |${unsupportedConstruct}
