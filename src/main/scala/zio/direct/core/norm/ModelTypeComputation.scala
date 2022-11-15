@@ -5,7 +5,7 @@ import scala.quoted._
 import zio.direct.core.util.Format
 import zio.ZIO
 
-trait ModelTypeComputation {
+trait WithComputeType {
   self: Model =>
 
   implicit val macroQuotes: Quotes
@@ -83,61 +83,61 @@ trait ModelTypeComputation {
               TypeRepr.of[at]
             else
               TypeRepr.of[at with bt]
-      // println(s"<<<<<<<<<<<< Union of (${Format.TypeRepr(a.widen)}, ${Format.TypeRepr(b.widen)}) = ${Format.TypeRepr(out)}")
       out
   }
   protected object ComputeType {
-    def apply(ir: IR): ZioType =
+    def fromIR(ir: IR): ZioType = from(ir)
+    private def from(ir: IR): ZioType =
       ir match {
         case IR.Pure(code) =>
           ZioType.fromPure(code)
 
         case IR.FlatMap(monad, valSymbol, body) =>
-          apply(monad).flatMappedWith(apply(body))
+          from(monad).flatMappedWith(from(body))
 
         case IR.Map(monad, valSymbol, IR.Pure(term)) =>
-          apply(monad).mappedWith(term)
+          from(monad).mappedWith(term)
 
         case IR.Monad(code) => ZioType.fromZIO(code)
 
         case IR.Block(head, tail) =>
-          apply(tail)
+          from(tail)
 
         // Things inside Unsafe blocks that are not inside awaits will be wrapepd into ZIO.attempt
         // which will make their lower-bound Throwable in the MonadifyTries phase.
         // Do not need to do that manually here with the `e` type though.
         case IR.Unsafe(body) =>
-          apply(body)
+          from(body)
 
         case IR.Match(scrutinee, caseDefs) =>
           // Ultimately the scrutinee will be used if it is pure or lifted, either way we can
           // treat it as a value that will be flatMapped (or Mapped) against the caseDef values.
-          val scrutineeType = apply(scrutinee)
+          val scrutineeType = from(scrutinee)
           // NOTE: We can possibly do the same thing as IR.Try and pass through the Match result tpe, then
           // then use that to figure out what the type should be
-          val caseDefTypes = caseDefs.map(caseDef => apply(caseDef.rhs))
+          val caseDefTypes = caseDefs.map(caseDef => from(caseDef.rhs))
           val caseDefTotalType = ZioType.composeN(caseDefTypes)
           scrutineeType.flatMappedWith(caseDefTotalType)
 
         case IR.If(cond, ifTrue, ifFalse) =>
-          val condType = apply(cond)
-          val expressionType = ZioType.compose(apply(ifTrue), apply(ifFalse))
+          val condType = from(cond)
+          val expressionType = ZioType.compose(from(ifTrue), from(ifFalse))
           condType.flatMappedWith(expressionType)
 
         case IR.And(left, right) =>
-          ZioType.compose(apply(left), apply(right))
+          ZioType.compose(from(left), from(right))
 
         case IR.Or(left, right) =>
-          ZioType.compose(apply(left), apply(right))
+          ZioType.compose(from(left), from(right))
 
         case IR.Try(tryBlock, caseDefs, outputType, finallyBlock) =>
-          val tryBlockType = apply(tryBlock)
+          val tryBlockType = from(tryBlock)
           // Could possibly try to delve into the case-def types and widen it from there
           // but scala has already computed the total type from the output of the Try term
           // so instead we can just use that.
           // val caseDefType =
           //   ZioType.composeN(
-          //     caseDefs.map(caseDef => apply(caseDef.rhs))
+          //     caseDefs.map(caseDef => from(caseDef.rhs))
           //   )
           val caseDefType =
             outputType.asType match
@@ -146,16 +146,16 @@ trait ModelTypeComputation {
           tryBlockType.flatMappedWith(caseDefType)
 
         case IR.While(cond, body) =>
-          val condTpe = apply(cond)
-          val bodyTpe = apply(body)
+          val condTpe = from(cond)
+          val bodyTpe = from(body)
           val out = condTpe.flatMappedWith(bodyTpe).mappedWithType(TypeRepr.of[Unit])
           println(s"----------- Type: ${condTpe.show}.flatMap(${bodyTpe.show}).map(Unit) => ${out.show}")
           out
 
         case IR.Parallel(monadics, body) =>
-          val monadTypes = monadics.map((monadic, _) => apply(monadic))
+          val monadTypes = monadics.map((monadic, _) => from(monadic))
           val monadsType = ZioType.composeN(monadTypes)
-          val bodyType = apply(body) // a IR.Leaf will either be a IR.Pure or an IR.Monad, both already have cases here
+          val bodyType = from(body) // a IR.Leaf will either be a IR.Pure or an IR.Monad, both already have cases here
           monadsType.flatMappedWith(bodyType)
       }
   }

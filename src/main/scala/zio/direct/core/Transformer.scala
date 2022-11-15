@@ -11,9 +11,9 @@ import scala.collection.mutable
 import zio.Chunk
 import zio.direct.core.util.PureTree
 import zio.direct.core.util.ComputeTotalZioType
-import zio.direct.core.metaprog.ModelPrinting
+import zio.direct.core.metaprog.WithPrintIR
 import zio.direct.core.metaprog.Embedder._
-import zio.direct.core.norm.ModelTypeComputation
+import zio.direct.core.norm.WithComputeType
 import zio.direct.core.norm.ModelReconstructor
 import zio.direct.core.util.ShowDetails
 
@@ -21,14 +21,14 @@ import zio.direct.core.util.ShowDetails
 //      need to look through cases to see which ones expect errors
 class Transformer(inputQuotes: Quotes)
     extends Model
-    with ModelTypeComputation
-    with ModelPrinting
+    with WithComputeType
+    with WithPrintIR
     with ModelReconstructor {
 
   implicit val macroQuotes = inputQuotes
   import quotes.reflect._
 
-  private object Decompose {
+  private object DecomposeTree {
     def orPure(term: Term): IR =
       unapply(term).getOrElse(IR.Pure(term))
 
@@ -42,9 +42,9 @@ class Transformer(inputQuotes: Quotes)
 
         case If(cond, ifTrue, ifFalse) =>
           // NOTE: Code below is quite inefficient, do instead do this:
-          // (Decompose.unapply(ifTrue), Decompose.unapply(ifFalse)). Then match on the Some/Some, Some/None, etc... cases
-          val (ifTrueIR, ifFalseIR) = Decompose.orPure2(ifTrue, ifFalse)
-          val condIR = Decompose.orPure(cond)
+          // (DecomposeTree.unapply(ifTrue), DecomposeTree.unapply(ifFalse)). Then match on the Some/Some, Some/None, etc... cases
+          val (ifTrueIR, ifFalseIR) = DecomposeTree.orPure2(ifTrue, ifFalse)
+          val condIR = DecomposeTree.orPure(cond)
           Some(IR.If(condIR, ifTrueIR, ifFalseIR))
 
         // For example, this:
@@ -59,30 +59,30 @@ class Transformer(inputQuotes: Quotes)
         // then something like this will happen:
         //   def whileFunc() { foo.flatMap(fooVal => { if (foo) { bar; whileFunc() } })) }
         case While(cond, body) =>
-          Some(IR.While(Decompose.orPure(cond), Decompose.orPure(body)))
+          Some(IR.While(DecomposeTree.orPure(cond), DecomposeTree.orPure(body)))
 
         case Seal('{ unsafe($value) }) =>
-          Some(IR.Unsafe(Decompose.orPure(value.asTerm)))
+          Some(IR.Unsafe(DecomposeTree.orPure(value.asTerm)))
 
         case Seal('{ ($a: Boolean) && ($b: Boolean) }) =>
           // the actual case where they are both cure is handled by the PureTree case
-          val (aTerm, bTerm) = Decompose.orPure2(a.asTerm, b.asTerm)
+          val (aTerm, bTerm) = DecomposeTree.orPure2(a.asTerm, b.asTerm)
           Some(IR.And(aTerm, bTerm))
 
         case Seal('{ ($a: Boolean) || ($b: Boolean) }) =>
           // the actual case where they are both cure is handled by the PureTree case
-          val (aTerm, bTerm) = Decompose.orPure2(a.asTerm, b.asTerm)
+          val (aTerm, bTerm) = DecomposeTree.orPure2(a.asTerm, b.asTerm)
           Some(IR.Or(aTerm, bTerm))
 
         case tryTerm @ Try(tryBlock, caseDefs, finallyBlock) =>
-          val tryBlockIR = Decompose.orPure(tryBlock)
+          val tryBlockIR = DecomposeTree.orPure(tryBlock)
           val cases = DecomposeCases(caseDefs)
-          Some(IR.Try(Decompose.orPure(tryBlock), DecomposeCases(caseDefs), tryTerm.tpe, finallyBlock.map(Decompose.orPure(_))))
+          Some(IR.Try(DecomposeTree.orPure(tryBlock), DecomposeCases(caseDefs), tryTerm.tpe, finallyBlock.map(DecomposeTree.orPure(_))))
 
         case block @ Block(parts, lastPart) =>
           DecomposeBlock.unapply(block)
 
-        case Match(m @ Decompose(monad), caseDefs) =>
+        case Match(m @ DecomposeTree(monad), caseDefs) =>
           // Since in Scala 3 we cannot just create a arbitrary symbol and pass it around.
           // (See https://github.com/lampepfl/dotty/blob/33818506801c80c8c73649fdaab3782c052580c6/library/src/scala/quoted/Quotes.scala#L3675)
           // In order to be able to have a valdef-symbol to manipulate, we need to create the actual valdef
@@ -102,7 +102,7 @@ class Transformer(inputQuotes: Quotes)
 
           val out =
             body match
-              case Decompose(bodyMonad) =>
+              case DecomposeTree(bodyMonad) =>
                 IR.FlatMap(monad, oldSymbol, bodyMonad)
               case bodyPure =>
                 IR.Map(monad, oldSymbol, IR.Pure(bodyPure))
@@ -147,7 +147,7 @@ class Transformer(inputQuotes: Quotes)
   }
 
   /**
-   * Decompose a sequence of steps
+   * DecomposeTree a sequence of steps
    * a; b = unlift(zio); c
    * Into a.flatMap()
    */
@@ -168,16 +168,16 @@ class Transformer(inputQuotes: Quotes)
         // (e.g. it can actually be stuff.flatMap(v => val x = v; stuff-that-uses-x))
         // TODO A zero-args DefDef (i.e. a ByName can essentially be treated as a ValDef so we can use that too)
 
-        case ValDefStatement(symbol, Decompose(monad)) :: tail =>
+        case ValDefStatement(symbol, DecomposeTree(monad)) :: tail =>
           val out =
             BlockN(tail) match
-              case Decompose(monadBody) =>
+              case DecomposeTree(monadBody) =>
                 IR.FlatMap(monad, symbol, monadBody)
               case pureBody =>
                 IR.Map(monad, symbol, IR.Pure(pureBody))
           Some(out)
 
-        case Decompose(monad) :: tail =>
+        case DecomposeTree(monad) :: tail =>
           tail match {
             // In this case where is one statement in the block which my definition
             // needs to have the same type as the output: e.g.
@@ -196,7 +196,7 @@ class Transformer(inputQuotes: Quotes)
               // in the nested sequence.
               val out =
                 BlockN(tail) match
-                  case Decompose(bodyMonad) =>
+                  case DecomposeTree(bodyMonad) =>
                     IR.FlatMap(monad, None, bodyMonad)
                   case bodyPure =>
                     IR.Map(monad, None, IR.Pure(bodyPure))
@@ -236,7 +236,7 @@ class Transformer(inputQuotes: Quotes)
 
     private def applyMark(cases: List[CaseDef]) =
       cases.map {
-        case CaseDef(pattern, cond, Decompose(body)) =>
+        case CaseDef(pattern, cond, DecomposeTree(body)) =>
           IR.Match.CaseDef(pattern, cond, body)
         case CaseDef(pattern, cond, body) =>
           IR.Match.CaseDef(pattern, cond, IR.Monad(ZioApply(body).asTerm))
@@ -260,21 +260,21 @@ class Transformer(inputQuotes: Quotes)
     // // Do a top-level transform to check that there are no invalid constructs
     Allowed.validateBlocksIn(value.asExpr, instructions)
     // // Do the main transformation
-    val transformedRaw = Decompose.orPure(value)
+    val transformedRaw = DecomposeTree.orPure(value)
 
     if (instructions.info.showDeconstructed)
-      println("============== Deconstructed Instructions ==============\n" + mprint(transformedRaw))
+      println("============== Deconstructed Instructions ==============\n" + PrintIR(transformedRaw))
 
     val transformed = WrapUnsafes(transformedRaw)
     val transformedSameAsRaw = transformed != transformedRaw
     if (instructions.info.showDeconstructed) {
       if (transformedSameAsRaw)
-        println("============== Monadified Tries ==============\n" + mprint(transformed))
+        println("============== Monadified Tries ==============\n" + PrintIR(transformed))
       else
         println("============== Monadified Tries (No Changes) ==============")
     }
 
-    val output = new Reconstruct(instructions)(transformed)
+    val output = ReconstructTree(instructions).fromIR(transformed)
     if (instructions.info.showReconstructed)
       val showDetailsMode =
         instructions.info match {
@@ -287,7 +287,7 @@ class Transformer(inputQuotes: Quotes)
     if (instructions.info.showReconstructedTree)
       println("============== Reconstituted Code Raw ==============\n" + Format(Printer.TreeStructure.show(output.asTerm)))
 
-    val computedType = ComputeType(transformed)
+    val computedType = ComputeType.fromIR(transformed)
 
     val zioType = computedType.toZioType
 

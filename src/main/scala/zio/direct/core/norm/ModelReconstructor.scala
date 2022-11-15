@@ -4,7 +4,7 @@ import zio.direct.core.metaprog.Model
 import scala.quoted._
 import zio.direct.core.metaprog.Embedder._
 import zio.ZIO
-import zio.direct.core.metaprog.ModelPrinting
+import zio.direct.core.metaprog.WithPrintIR
 import zio.Chunk
 import zio.direct.core.util.ComputeTotalZioType
 import zio.direct.core.util.Format
@@ -15,12 +15,18 @@ import zio.direct.core.metaprog.Collect
 import zio.direct.core.util.ZioUtil
 
 trait ModelReconstructor {
-  self: Model with ModelTypeComputation with ModelPrinting =>
+  self: Model with WithComputeType with WithPrintIR =>
 
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._
 
-  protected class Reconstruct(instructions: Instructions) {
+  protected object ReconstructTree {
+    def apply(instructions: Instructions) =
+      new ReconstructTree(instructions)
+  }
+  protected class ReconstructTree private (instructions: Instructions) {
+    def fromIR(ir: IR) = apply(ir)
+
     private def computeSymbolType(valSymbol: Option[Symbol], alternativeSource: Term) =
       valSymbol match
         case Some(oldSymbol) =>
@@ -36,7 +42,7 @@ trait ModelReconstructor {
         case otherMonad =>
           (block.head +: accum, apply(otherMonad).asTerm)
 
-    def apply(ir: IR): Expr[ZIO[?, ?, ?]] = {
+    private def apply(ir: IR): Expr[ZIO[?, ?, ?]] = {
       ir match
         case IR.Pure(code) => ZioApply(code)
 
@@ -63,21 +69,6 @@ trait ModelReconstructor {
                   }
                 )
               }
-
-          // (monadExpr.asTerm.tpe.asType, bodyExpr.asTerm.tpe.asType) match
-          //   case ('[ZIO[r, e, a]], '[ZIO[r1, e1, a1]]) =>
-          //     println(s"----------- Computed type (symbol ${Format.TypeOf[t]}) ${Format.TypeRepr(monadExpr.asTerm.tpe)} -> ${Format.TypeRepr(bodyExpr.asTerm.tpe)}")
-          //     val out =
-          //     '{ ${monadExpr}.asInstanceOf[ZIO[?, ?, t]].flatMap((v: t) =>
-          //       ${
-          //         val funcOut = replaceSymbolInBodyMaybe(using macroQuotes)(bodyExpr.asTerm)(valSymbol, ('v).asTerm).asExprOf[ZIO[?, ?, a1]]
-          //         println(s"---------- Compute funcOut: ${Format.TypeRepr(funcOut.asTerm.tpe)}")
-          //         funcOut
-          //       } //.asInstanceOf[ZIO[Any, Nothing, a1]]
-          //     ) }
-          //     //.asInstanceOf[ZIO[?, ?, ?]]
-          //     println(s"---------- Compute: ${Format.Expr(out)}")
-          //     out
         }
 
         // Pull out the value from IR.Pure and use it directly in the mapping
@@ -120,7 +111,7 @@ trait ModelReconstructor {
             // case Pure/Pure is taken care by in the transformer on a higher-level via the PureTree case. Still, handle them just in case
             case (IR.Pure(a), IR.Pure(b)) =>
               '{ ZIO.succeed(${ a.asExprOf[Boolean] } && ${ b.asExprOf[Boolean] }) }
-            case _ => report.errorAndAbort(s"Invalid boolean variable combination:\n${mprint(expr)}")
+            case _ => report.errorAndAbort(s"Invalid boolean variable combination:\n${PrintIR(expr)}")
           }
 
         case expr @ IR.Or(left, right) =>
@@ -137,13 +128,13 @@ trait ModelReconstructor {
             // case Pure/Pure is taken care by in the transformer on a higher-level via the PureTree case. Still, handle them just in case
             case (IR.Pure(a), IR.Pure(b)) =>
               '{ ZIO.succeed(${ a.asExprOf[Boolean] } || ${ b.asExprOf[Boolean] }) }
-            case _ => report.errorAndAbort(s"Invalid boolean variable combination:\n${mprint(expr)}")
+            case _ => report.errorAndAbort(s"Invalid boolean variable combination:\n${PrintIR(expr)}")
           }
 
         // TODO test with dependencyes and various errors types in both condition and body
         case irWhile @ IR.While(whileCond, whileBody) =>
           // Since the function needs to know the type for the definition (especially because it's recursive!) need to find that out here
-          val methOutputComputed = ComputeType(irWhile)
+          val methOutputComputed = ComputeType.fromIR(irWhile)
           val methOutputTpe = methOutputComputed.toZioType
 
           val methodType = MethodType(Nil)(_ => Nil, _ => methOutputTpe)
@@ -169,10 +160,10 @@ trait ModelReconstructor {
           apply(IR.Block(newMethod, IR.Monad(Apply(Ref(methSym), Nil))))
 
         case tryIR @ IR.Try(tryBlock, cases, _, finallyBlock) =>
-          ComputeType(tryBlock).asTypeTuple match
+          ComputeType.fromIR(tryBlock).asTypeTuple match
             case ('[rr], '[er], '[ar]) =>
               val newCaseDefs = reconstructCaseDefs(cases)
-              val resultType = ComputeType(tryIR).toZioType
+              val resultType = ComputeType.fromIR(tryIR).toZioType
               val tryTerm = apply(tryBlock)
               (tryTerm.asTerm.tpe.asType, resultType.asType) match
                 case ('[ZIO[r0, e0, a0]], '[ZIO[r, e, b]]) => {
@@ -369,7 +360,7 @@ trait ModelReconstructor {
               }
             )
 
-          val totalType = ComputeType(newTree).toZioType
+          val totalType = ComputeType.fromIR(newTree).toZioType
           val output =
             totalType.asType match
               case '[ZIO[r, e, t]] =>

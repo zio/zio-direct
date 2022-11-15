@@ -5,13 +5,13 @@ import pprint._
 import fansi.Str
 import zio.direct.core.util.Format
 
-trait ModelPrinting {
+trait WithPrintIR {
   self: Model =>
 
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect
 
-  def mprint(model: IR) =
+  def PrintIR(model: IR) =
     Format(new AstPrinter().apply(model).plainText)
 
   class AstPrinter extends pprint.Walker {
