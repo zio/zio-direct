@@ -14,15 +14,15 @@ import zio.direct.core.NotDeferredException
 def unsafe[T](value: T): T = NotDeferredException.fromNamed("unsafe")
 
 object defer {
-  transparent inline def apply[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Silent }, '{ Collect.Sequence }, '{ Verify.Strict }) }
-  transparent inline def info[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Info }, '{ Collect.Sequence }, '{ Verify.Strict }) }
-  transparent inline def verbose[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Verbose }, '{ Collect.Sequence }, '{ Verify.Strict }) }
-  transparent inline def verboseTree[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.VerboseTree }, '{ Collect.Sequence }, '{ Verify.Strict }) }
+  transparent inline def apply[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Silent }, '{ Dsl.Params() }) }
+  transparent inline def info[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Info }, '{ Dsl.Params() }) }
+  transparent inline def verbose[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Verbose }, '{ Dsl.Params() }) }
+  transparent inline def verboseTree[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.VerboseTree }, '{ Dsl.Params() }) }
 
-  transparent inline def apply[T](inline collect: Collect = Collect.Sequence, inline verify: Verify = Verify.Strict)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Silent }, 'collect, 'verify) }
-  transparent inline def info[T](inline collect: Collect = Collect.Sequence, inline verify: Verify = Verify.Strict)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Info }, 'collect, 'verify) }
-  transparent inline def verbose[T](inline collect: Collect = Collect.Sequence, inline verify: Verify = Verify.Strict)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Verbose }, 'collect, 'verify) }
-  transparent inline def verboseTree[T](inline collect: Collect = Collect.Sequence, inline verify: Verify = Verify.Strict)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.VerboseTree }, 'collect, 'verify) }
+  transparent inline def apply[T](inline params: Dsl.Params)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Silent }, 'params) }
+  transparent inline def info[T](inline params: Dsl.Params)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Info }, 'params) }
+  transparent inline def verbose[T](inline params: Dsl.Params)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Verbose }, 'params) }
+  transparent inline def verboseTree[T](inline params: Dsl.Params)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.VerboseTree }, 'params) }
 }
 
 extension [R, E, A](value: ZIO[R, E, A]) {
@@ -31,10 +31,24 @@ extension [R, E, A](value: ZIO[R, E, A]) {
 
 object Dsl {
   import InfoBehavior._
+  class Params private (val collect: Collect, val verify: Verify)
+  object Params {
+    def apply(collect: Collect, verify: Verify) =
+      new Params(collect, verify)
+    def apply(collect: Collect) =
+      new Params(collect, Verify.Strict)
+    def apply(verify: Verify) =
+      new Params(Collect.Sequence, verify)
+    def apply() =
+      new Params(Collect.Sequence, Verify.Strict)
+  }
 
-  def impl[T: Type](value: Expr[T], infoBehavior: Expr[InfoBehavior], col: Expr[Collect], verify: Expr[Verify])(using q: Quotes): Expr[ZIO[?, ?, ?]] =
-    doTransform(value, Unliftables.unliftInfoBehavior(infoBehavior), Unliftables.unliftCollect(col), Unliftables.unliftVerify(verify))
+  def impl[T: Type](value: Expr[T], infoExpr: Expr[InfoBehavior], paramsExpr: Expr[Params])(using q: Quotes): Expr[ZIO[?, ?, ?]] =
+    import quotes.reflect._
+    val infoBehavior = Unliftables.unliftInfoBehavior(infoExpr.asTerm.underlyingArgument.asExprOf[InfoBehavior])
+    val params = Unliftables.unliftParams(paramsExpr.asTerm.underlyingArgument.asExprOf[Params])
+    doTransform(value, Instructions(infoBehavior, params.collect, params.verify))
 
-  def doTransform[T: Type](value: Expr[T], infoBehavior: InfoBehavior, collect: Collect, verify: Verify)(using q: Quotes): Expr[ZIO[?, ?, ?]] =
-    (new Transformer(q)).apply(value, Instructions(infoBehavior, collect, verify))
+  def doTransform[T: Type](value: Expr[T], instructions: Instructions)(using q: Quotes): Expr[ZIO[?, ?, ?]] =
+    (new Transformer(q)).apply(value, instructions)
 }

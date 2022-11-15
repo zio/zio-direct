@@ -2,6 +2,7 @@ package zio.direct.core.metaprog
 
 import scala.quoted._
 import zio.direct.core.util.Format
+import zio.direct.Dsl.Params
 
 case class Instructions(info: InfoBehavior, collect: Collect, verify: Verify)
 
@@ -66,6 +67,9 @@ object Unliftables {
   def unliftInfoBehavior(info: Expr[InfoBehavior])(using Quotes) =
     Implicits.unliftInfoBehavior.unliftOrfail(info)
 
+  def unliftParams(info: Expr[Params])(using Quotes) =
+    Implicits.unliftParams.unliftOrfail(info)
+
   private object Implicits {
     extension [T](expr: Expr[T])(using unlifter: Unlifter[T], q: Quotes)
       def fromExpr = unlifter.unliftOrfail(expr)
@@ -103,6 +107,19 @@ object Unliftables {
         case '{ InfoBehavior.Silent }      => InfoBehavior.Silent
         case '{ InfoBehavior.Verbose }     => InfoBehavior.Verbose
         case '{ InfoBehavior.VerboseTree } => InfoBehavior.VerboseTree
+    }
+
+    given unliftParams: Unlifter[Params] with {
+      def tpe = Type.of[Params]
+      def unlift =
+        case '{ Params($collect, $verify) } =>
+          Params(collect.fromExpr, verify.fromExpr)
+        case '{ Params(($collect: Collect)) } =>
+          Params(collect.fromExpr, Verify.Strict)
+        case '{ Params(($verify: Verify)) } =>
+          Params(Collect.Sequence, verify.fromExpr)
+        case '{ Params.apply() } =>
+          Params(Collect.Sequence, Verify.Strict)
     }
   }
 }

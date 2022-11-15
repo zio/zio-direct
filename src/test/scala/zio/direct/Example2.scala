@@ -11,6 +11,7 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import zio.direct.core.metaprog.Collect
 import zio.direct.core.metaprog.Verify
+import zio.direct.Dsl.Params
 
 object Example2 {
 
@@ -55,7 +56,7 @@ object Example2 {
         }
       } yield (out)
 
-    val out = defer.info(Collect.Parallel, Verify.Strict) {
+    val out = defer.info(Params(Verify.Strict)) {
       val x = Ref.make("000").run
       val y = Ref.make("foo").run
 

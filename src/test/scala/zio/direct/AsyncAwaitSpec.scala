@@ -8,6 +8,7 @@ import zio.direct._
 import scala.compiletime.testing.typeCheckErrors
 import zio.direct.core.metaprog.Verify
 import zio.direct.core.metaprog.Collect
+import zio.direct.Dsl.Params
 
 trait AsyncAwaitSpec extends ZIOSpecDefault {
   val errorMsg =
@@ -21,7 +22,7 @@ trait AsyncAwaitSpec extends ZIOSpecDefault {
   }
 
   inline def runLiftTestLenient[T](expected: T)(inline body: T) = {
-    val deferBody = defer(Collect.Sequence, Verify.Lenient)(body)
+    val deferBody = defer(Params(Verify.Lenient))(body)
     // Not sure why but If I don't cast to .asInstanceOf[ZIO[Any, Nothing, ?]]
     // zio says it expects a layer of scala.Nothing
     assertZIO(deferBody.asInstanceOf[ZIO[Any, ?, ?]])(Assertion.equalTo(expected))
@@ -29,7 +30,7 @@ trait AsyncAwaitSpec extends ZIOSpecDefault {
 
   transparent inline def runLiftFailLenientMsg(errorStringContains: String)(body: String) = {
     val errors =
-      typeCheckErrors("defer(zio.direct.core.metaprog.Collect.Sequence, zio.direct.core.metaprog.Verify.Lenient) {" + body + "}").map(_.message)
+      typeCheckErrors("defer(zio.direct.Dsl.Params(zio.direct.core.metaprog.Verify.Lenient)) {" + body + "}").map(_.message)
     assert(errors)(exists(containsString(errorStringContains)))
   }
 
