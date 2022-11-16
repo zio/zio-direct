@@ -3,6 +3,7 @@ package zio.direct.core.metaprog
 import scala.quoted._
 import zio.direct.core.metaprog.Extractors._
 import zio.direct.core.util.Format
+import zio.ZIO
 
 object Embedder {
 
@@ -13,11 +14,15 @@ object Embedder {
     findOwner(Symbol.spliceOwner, sym => sym.name == "macro")
 
   object ZioApply {
+    // wrap the value in a ZIO.succeed. Note that widening here could have some serious consequences
+    // and make statements not many any sense of the term passed in represents a singleton-type
+    // e.g. Zio.Apply('{ 1 }) or a union of singleton types e.g. Zio.Apply('{ if (blah) 1 else 2 })
+    // (the latter is typed as `1 | 2`)
     def succeed(using Quotes)(term: quotes.reflect.Term) =
       import quotes.reflect._
-      term.tpe.widen.asType match
+      term.tpe.asType match
         case '[t] =>
-          '{ zio.ZIO.succeed[t](${ term.asExprOf[t] }) }
+          '{ zio.ZIO.succeed[t](${ term.asExprOf[t] }) } // .asInstanceOf[ZIO[Any, Nothing, t]]
 
     def True(using Quotes) =
       import quotes.reflect._

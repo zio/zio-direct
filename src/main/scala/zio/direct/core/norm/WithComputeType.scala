@@ -14,6 +14,9 @@ trait WithComputeType {
   protected case class ZioType(r: TypeRepr, e: TypeRepr, a: TypeRepr) {
     def show = s"ZioType(${Format.TypeRepr(r)}, ${Format.TypeRepr(e)}, ${Format.TypeRepr(a)})"
 
+    def transformA(f: TypeRepr => TypeRepr) =
+      ZioType(r, e, f(a))
+
     def asTypeTuple = (r.asType, e.asType, a.asType)
 
     def toZioType: TypeRepr =

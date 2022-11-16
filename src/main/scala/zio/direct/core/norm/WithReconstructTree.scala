@@ -384,10 +384,9 @@ trait WithReconstructTree {
               }
             )
 
-          val totalType = ComputeType.fromIR(newTree).toZioType
           val output =
-            totalType.asType match
-              case '[ZIO[r, e, t]] =>
+            ComputeType.fromIR(newTree).transformA(_.widen).asTypeTuple match
+              case ('[r], '[e], '[t]) =>
                 newTree match
                   case IR.Pure(newTree) =>
                     '{
