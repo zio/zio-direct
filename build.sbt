@@ -76,19 +76,19 @@ lazy val docs = project
       "com.geirsson" % "metaconfig-typesafe-config_2.13",
       "org.typelevel" % "paiges-core_2.13",
     ),
-    crossScalaVersions                         := Seq(),
+    crossScalaVersions                         := Seq(ScalaDotty),
     scalaVersion                               := ScalaDotty,
     publish / skip                             := true,
     moduleName                                 := "zio-direct-docs",
     scalacOptions -= "-Yno-imports",
-    //scalacOptions -= "-Xfatal-warnings",
-    //ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(`zio-direct`),
-    //ScalaUnidoc / unidoc / target              := (LocalRootProject / baseDirectory).value / "website" / "static" / "api",
-    //cleanFiles += (ScalaUnidoc / unidoc / target).value,
-    //docusaurusCreateSite                       := docusaurusCreateSite.dependsOn(Compile / unidoc).value,
-    //docusaurusPublishGhpages                   := docusaurusPublishGhpages.dependsOn(Compile / unidoc).value
+    scalacOptions -= "-Xfatal-warnings",
+    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(`zio-direct`),
+    ScalaUnidoc / unidoc / target              := (LocalRootProject / baseDirectory).value / "website" / "static" / "api",
+    cleanFiles += (ScalaUnidoc / unidoc / target).value,
+    docusaurusCreateSite                       := docusaurusCreateSite.dependsOn(Compile / unidoc).value,
+    docusaurusPublishGhpages                   := docusaurusPublishGhpages.dependsOn(Compile / unidoc).value
   )
   .dependsOn(`zio-direct`)
-  .enablePlugins(MdocPlugin, DocusaurusPlugin) //ScalaUnidocPlugin
+  .enablePlugins(MdocPlugin, DocusaurusPlugin, ScalaUnidocPlugin)
 
 addCommandAlias("fmt", "all scalafmt test:scalafmt")

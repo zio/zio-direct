@@ -60,7 +60,7 @@ object BuildHelper {
     )
 
   val dottySettings = Seq(
-    crossScalaVersions += ScalaDotty,
+    crossScalaVersions := Seq(ScalaDotty),
     scalacOptions ++= {
       if (scalaVersion.value == ScalaDotty)
         Seq() // Seq("-noindent", "-Xcheck-macros")
