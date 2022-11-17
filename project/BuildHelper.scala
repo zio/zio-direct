@@ -18,7 +18,7 @@ object BuildHelper {
     list.map(v => (v.split('.').take(2).mkString("."), v)).toMap
   }
   val ScalaDotty: String                    = versions("3.2")
-  val Scala213: String                      = versions("2.13")
+  val Scala213: String                      = "2.13.7"  // Don't have this in scala build matrix since no zio-direct build yet
 
   val SilencerVersion = "1.7.12"
 
