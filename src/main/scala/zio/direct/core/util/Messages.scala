@@ -14,6 +14,14 @@ val DeclarationNotAllowedWithAwaits =
 In Lenient mode, Class, Function, and Mutable-Variable definitions are allowed but only so long as they do not direclty read awaits.
 """
 
+val AwaitAfterTransformer =
+"""
+run-calls were detected even after all the transformations of zio-direct were completed. That means
+that zio-direct cannot successfully process the input you have passed into it. Try to use defer.verbose
+to examine the tree structure in order to understand what is wrong or submit a bug-report
+at https://github.com/zio/zio-direct.
+"""
+
 val DeclarationNotAllowed =
 """
 Class, Function, and Mutable-Variable definitions (class X, def X, var X) are not allowed inside of defer blocks unless they in the `run` call.

@@ -63,7 +63,7 @@ object ParallelSpec extends AsyncAwaitSpec {
       }
       +
       test("Inferred Environment both sides error impure - least base type") {
-        val out = defer.info(Params(TypeUnion.LeastUpper)) {
+        val out = defer(Params(TypeUnion.LeastUpper)) {
           (fail(makeFooError).run, fail(makeBarError).run)
         }
         assertZIO(out.exit)(fails(anything))

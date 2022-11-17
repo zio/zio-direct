@@ -14,6 +14,19 @@ import zio.direct.core.metaprog.InfoBehavior
 
 object Allowed {
 
+  def finalValidtyCheck(expr: Expr[_])(using Quotes) =
+    import quotes.reflect._
+    Trees.traverse(expr.asTerm, Symbol.spliceOwner) {
+      case tree @ RunCall(_) =>
+        Unsupported.Error.withTree(
+          tree,
+          s"""|${Messages.AwaitInAwaitError}
+              |=======
+              |${Format.Tree(tree)}
+              |""".stripMargin
+        )
+    }
+
   def validateBlocksIn(using Quotes)(expr: Expr[_], instructions: Instructions): Unit =
     import quotes.reflect._
     validateBlocksTree(expr.asTerm, instructions)
