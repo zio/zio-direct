@@ -29,8 +29,6 @@ addCommandAlias(
   ";zio-direct/test"
 )
 
-val zioVersion = "2.0.0"
-
 lazy val `zio-direct` =
   (project in file("."))
     .settings(stdSettings("zio-direct"))
@@ -61,7 +59,7 @@ lazy val docs = project
   .settings(stdSettings("zio-direct"))
   .settings(macroDefinitionSettings)
   .settings(
-    scalaVersion                               := ScalaDotty,
+    scalaVersion                               := Scala213,
     publish / skip                             := true,
     moduleName                                 := "zio-direct-docs",
     scalacOptions -= "-Yno-imports",

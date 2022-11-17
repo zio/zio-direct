@@ -18,6 +18,7 @@ object BuildHelper {
     list.map(v => (v.split('.').take(2).mkString("."), v)).toMap
   }
   val ScalaDotty: String                    = versions("3.2")
+  val Scala213: String                      = versions("2.13")
 
   val SilencerVersion = "1.7.12"
 
