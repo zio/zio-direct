@@ -11,6 +11,7 @@ import zio.direct.core.metaprog.Instructions
 import zio.direct.core.metaprog.Verify
 import zio.direct.core.util.ShowDetails
 import zio.direct.core.metaprog.InfoBehavior
+import zio.direct.deferred
 
 object Allowed {
 
@@ -113,6 +114,11 @@ object Allowed {
 
     def validateTerm(expr: Term): Next =
       expr match {
+        // if we have transformed the tree before then we can skip validation of the contents
+        // because the whole block is treated an an effective unit
+        case Seal('{ deferred($effect) }) =>
+          Next.Exit
+
         // should be handled by the tree traverser but put here just in case
         case tree @ RunCall(content) =>
           validateAwaitClause(content.asTerm, instructions)
