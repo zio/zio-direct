@@ -47,6 +47,7 @@ lazy val `zio-direct` = project
     .settings(buildInfoSettings("zio.direct"))
     .enablePlugins(BuildInfoPlugin)
     .settings(
+      Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat,
       scalaVersion := ScalaDotty,
       resolvers ++= Seq(
         Resolver.mavenLocal,
