@@ -1,7 +1,6 @@
 package zio.direct.core.metaprog
 
 import scala.quoted._
-import zio.direct.core.metaprog.Extractors.Lambda1
 import zio.direct.core.util.Format
 
 object ValDefStatement:
@@ -12,7 +11,7 @@ object ValDefStatement:
         val body =
           rhsOpt match {
             // TODO Better site-description in error
-            case None      => report.throwError(s"Cannot parse 'val' clause with no '= rhs' (i.e. equals and right hand side) of ${Printer.TreeStructure.show(stmt)}")
+            case None      => report.errorAndAbort(s"Cannot parse 'val' clause with no '= rhs' (i.e. equals and right hand side) of ${Printer.TreeStructure.show(stmt)}")
             case Some(rhs) => rhs
           }
 

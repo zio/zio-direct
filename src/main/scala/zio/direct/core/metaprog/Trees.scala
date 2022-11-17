@@ -1,9 +1,7 @@
 package zio.direct.core.metaprog
 
 import scala.quoted._
-import zio.direct.core.metaprog.Extractors.Lambda1
 import zio.direct.core.util.Format
-import zio.direct.core.metaprog.Extractors.Untype
 
 object Trees:
   object TransformTree:
@@ -12,7 +10,6 @@ object Trees:
       var counter = 0
       (new TreeMap:
         override def transformStatement(stmt: Statement)(owner: Symbol): Statement = {
-          if (stmt.show.contains("awaitInt")) println(s"----------------------- Inside: ${Format.Tree(stmt)}")
           val lifted =
             pf.lift(stmt) match {
               case Some(term: Statement) => Some(term)
@@ -22,7 +19,6 @@ object Trees:
           lifted.getOrElse(super.transformStatement(stmt)(owner))
         }
         override def transformTerm(stmt: Term)(owner: Symbol): Term = {
-          if (stmt.show.contains("awaitInt")) println(s"----------------------- Inside: ${Format.Tree(stmt)}")
           val lifted =
             pf.lift(stmt) match {
               case Some(term: Term) => Some(term)
@@ -80,7 +76,6 @@ object Trees:
       override def transformTerm(term: Term)(owner: Symbol): Term = {
         term match
           case id: Ident if (mappings.contains(id.symbol)) =>
-            println(s"----------- Replacing: ${id} with ${mappings(id.symbol)}")
             mappings(id.symbol)
           case other =>
             super.transformTerm(other)(owner)

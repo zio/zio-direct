@@ -1,18 +1,51 @@
-import ReleaseTransformations._
-//import com.typesafe.sbt.SbtScalariform.ScalariformKeys
-//import scalariform.formatter.preferences._
-import com.jsuereth.sbtpgp.PgpKeys.publishSigned
-import sbtrelease.ReleasePlugin
-import scala.sys.process.Process
-import java.io.{File => JFile}
+import BuildHelper._
 import Dependencies._
 
-addCommandAlias("fmt", "all scalafmt test:scalafmt")
+inThisBuild(
+  List(
+    organization  := "dev.zio",
+    homepage      := Some(url("https://zio.github.io/zio-direct/")),
+    licenses      := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
+    developers    := List(
+      Developer(
+        "deusaquilus",
+        "Alexander Ioffe",
+        "deusaquilus@gmail.com",
+        url("https://github.com/deusaquilus")
+      )
+    ),
+    pgpPassphrase := sys.env.get("PGP_PASSWORD").map(_.toArray),
+    pgpPublicRing := file("/tmp/public.asc"),
+    pgpSecretRing := file("/tmp/secret.asc")
+  )
+)
+
+addCommandAlias("fmt", "all scalafmtSbt scalafmt test:scalafmt")
+addCommandAlias("fix", "; all compile:scalafix test:scalafix; all scalafmtSbt scalafmtAll")
+addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll; compile:scalafix --check; test:scalafix --check")
+
+addCommandAlias(
+  "testJVM",
+  ";zioParserJVM/test; calibanParser/test"
+)
+addCommandAlias(
+  "testJS",
+  ";zioParserJS/test"
+)
+addCommandAlias(
+  "testNative",
+  ";zioParserNative/test"
+)
+
+val zioVersion = "2.0.0"
 
 lazy val `zio-direct` =
   (project in file("."))
-    .settings(releaseSettings: _*)
-    .settings(basicSettings: _*)
+    .settings(stdSettings("zio-parser"))
+    .settings(crossProjectSettings)
+    .settings(dottySettings)
+    .settings(buildInfoSettings("zio.parser"))
+    .enablePlugins(BuildInfoPlugin)
     .settings(
       resolvers ++= Seq(
         Resolver.mavenLocal,
@@ -29,75 +62,25 @@ lazy val `zio-direct` =
       )
     )
 
-lazy val basicSettings = Seq(
-  libraryDependencies += `scala-compat`,
-  excludeDependencies ++= Seq(
-    // TODO Only if scala3
-    ExclusionRule("org.scala-lang.modules", "scala-collection-compat_2.13")
-  ),
-  scalaVersion := {
-    "3.2.0"
-  },
-  organization := "dev.zio",
-  // The -e option is the 'error' report of ScalaTest. We want it to only make a log
-  // of the failed tests once all tests are done, the regular -o log shows everything else.
-  // Test / testOptions ++= Seq(
-  //   Tests.Argument(TestFrameworks.ScalaTest, "-oF")
-  //   //  /*, "-eGNCXEHLOPQRM"*/, "-h", "target/html", "-u", "target/junit"
-  //   //Tests.Argument(TestFrameworks.ScalaTest, "-u", "junits")
-  //   //Tests.Argument(TestFrameworks.ScalaTest, "-h", "testresults")
-  // ),
-  scalacOptions ++= Seq(
-    "-language:implicitConversions", "-explain"
+
+
+lazy val docs = project
+  .in(file("zio-direct-docs"))
+  .settings(stdSettings("zio-direct"))
+  .settings(macroDefinitionSettings)
+  .settings(
+    scalaVersion                               := ScalaDotty,
+    publish / skip                             := true,
+    moduleName                                 := "zio-direct-docs",
+    scalacOptions -= "-Yno-imports",
+    scalacOptions -= "-Xfatal-warnings",
+    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(`zio-direct`),
+    ScalaUnidoc / unidoc / target              := (LocalRootProject / baseDirectory).value / "website" / "static" / "api",
+    cleanFiles += (ScalaUnidoc / unidoc / target).value,
+    docusaurusCreateSite                       := docusaurusCreateSite.dependsOn(Compile / unidoc).value,
+    docusaurusPublishGhpages                   := docusaurusPublishGhpages.dependsOn(Compile / unidoc).value
   )
-)
+  .dependsOn(`zio-direct`)
+  .enablePlugins(MdocPlugin, DocusaurusPlugin, ScalaUnidocPlugin)
 
-lazy val releaseSettings = ReleasePlugin.extraReleaseCommands ++ Seq(
-  releasePublishArtifactsAction := PgpKeys.publishSigned.value,
-  publishMavenStyle := true,
-  publishTo := {
-    val nexus = "https://oss.sonatype.org/"
-    if (isSnapshot.value)
-      Some("snapshots" at nexus + "content/repositories/snapshots")
-    else
-      Some("releases"  at nexus + "service/local/staging/deploy/maven2")
-  },
-  pgpSecretRing := file("local.secring.gpg"),
-  pgpPublicRing := file("local.pubring.gpg"),
-  releaseVersionBump := sbtrelease.Version.Bump.Next,
-  releasePublishArtifactsAction := PgpKeys.publishSigned.value,
-  releaseProcess := {
-    Seq[ReleaseStep]() ++
-    doOnDefault(checkSnapshotDependencies) ++
-    doOnDefault(inquireVersions) ++
-    doOnDefault(runClean) ++
-    doOnPush   (setReleaseVersion) ++
-    doOnPush   (commitReleaseVersion) ++
-    doOnPush   (tagRelease) ++
-    doOnDefault(publishArtifacts) ++
-    doOnPush   (setNextVersion) ++
-    doOnPush   (commitNextVersion) ++
-    //doOnPush(releaseStepCommand("sonatypeReleaseAll")) ++
-    doOnPush   (pushChanges)
-  },
-  homepage := Some(url("http://github.com/zio/zio-defer-await")),
-  licenses := List(("Apache License 2.0", url("https://raw.githubusercontent.com/getquill/protoquill/master/LICENSE.txt"))),
-  developers := List(
-    Developer("deusaquilus", "Alexander Ioffe", "", url("https://github.com/deusaquilus"))
-  ),
-  scmInfo := Some(
-    ScmInfo(url("https://github.com/zio/zio-defer-await"), "git@github.com:zio/zio-defer-await.git")
-  )
-)
-
-def doOnDefault(steps: ReleaseStep*): Seq[ReleaseStep] =
-  Seq[ReleaseStep](steps: _*)
-
-def doOnPush(steps: ReleaseStep*): Seq[ReleaseStep] =
-  if (skipPush)
-    Seq[ReleaseStep]()
-  else
-    Seq[ReleaseStep](steps: _*)
-
-val skipPush =
-  sys.props.getOrElse("skipPush", "false").toBoolean
+addCommandAlias("fmt", "all scalafmt test:scalafmt")

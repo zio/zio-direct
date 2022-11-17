@@ -1,9 +1,7 @@
 package zio.direct.core.metaprog
 
 import scala.quoted._
-import zio.direct.core.metaprog.Extractors.Lambda1
 import zio.direct.core.util.Format
-import scala.meta.Type.ByName.apply
 import zio.ZIO
 
 object DefDefCopy {
@@ -18,7 +16,7 @@ object DefDefCopy {
   private def polyTypeMaker(using Quotes)(clause: quotes.reflect.TypeParamClause): quotes.reflect.TypeRepr => quotes.reflect.MethodType =
     import quotes.reflect._
     // TODO what about await clauses in lambdas? Should there be an explicit check to disable them?
-    report.throwError("Poly types with await-clauses are not supported yet. Please move the await clause out of the function.")
+    report.errorAndAbort("Poly types with await-clauses are not supported yet. Please move the await clause out of the function.")
 
   private def outputTypeMaker(using Quotes)(params: quotes.reflect.ParamClause): quotes.reflect.TypeRepr => quotes.reflect.MethodType | quotes.reflect.PolyType =
     import quotes.reflect._

@@ -428,26 +428,26 @@ object Example {
   //   println("====== RESULT: " + outRun) // //
   // }
 
-  class FooException extends Exception("foo")
-  def makeEx(): Throwable = new FooException()
+  // class FooException extends Exception("foo")
+  // def makeEx(): Throwable = new FooException()
 
-  def main(args: Array[String]): Unit = {
-    val e = new Exception("blah") // // // //
-    val out =
-      defer { //
-        try {
-          throw e
-        } catch {
-          case `e` => 1
-          // case _: Throwable => run(defer(2)) // .. ...
-        } //
-      }
-    val outRun =
-      zio.Unsafe.unsafe { implicit unsafe =>
-        zio.Runtime.default.unsafe.run(out).getOrThrow()
-      }
-    println("====== RESULT: " + outRun)
-  }
+  // def main(args: Array[String]): Unit = {
+  //   val e = new Exception("blah") // // // //
+  //   val out =
+  //     defer { //
+  //       try {
+  //         throw e
+  //       } catch {
+  //         case `e` => 1
+  //         // case _: Throwable => run(defer(2)) // .. ...
+  //       } //
+  //     }
+  //   val outRun =
+  //     zio.Unsafe.unsafe { implicit unsafe =>
+  //       zio.Runtime.default.unsafe.run(out).getOrThrow()
+  //     }
+  //   println("====== RESULT: " + outRun)
+  // }
 
   // def printPartialFuncExample(): Unit = {
   //   println("========================Partial Function Lambda=============================")
@@ -468,4 +468,23 @@ object Example {
   // def stuff2(input: Function[String, Int]): Int =
   //   input.apply("foo")
 
+  import ZIO._
+  import zio.Console.printLine
+
+  def main(args: Array[String]): Unit = {
+    val out = defer.info {
+      val l = succeed(List(1, 2, 3)).run
+      succeed(
+        for (i <- l) {
+          println(i)
+        }
+      )
+    }
+
+    val outRun =
+      zio.Unsafe.unsafe { implicit unsafe =>
+        zio.Runtime.default.unsafe.run(out).getOrThrow()
+      }
+    println("====== RESULT: " + outRun) // //
+  }
 }

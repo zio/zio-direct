@@ -15,7 +15,7 @@ object PrintMac {
 
   def printMacImpl[T: Type](anyRaw: Expr[T], showDetailRaw: Expr[Boolean])(using Quotes): Expr[T] = {
     import quotes.reflect._
-    val showDetail = Expr.unapply(showDetailRaw).getOrElse { report.throwError("showDetail must be a constant value true/false") }
+    val showDetail = Expr.unapply(showDetailRaw).getOrElse { report.errorAndAbort("showDetail must be a constant value true/false") }
 
     val any = anyRaw.asTerm.underlyingArgument.asExprOf[T]
     val deser = any.asTerm
