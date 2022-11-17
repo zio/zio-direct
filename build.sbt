@@ -26,27 +26,29 @@ addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll; compile:scalafix
 
 addCommandAlias(
   "testJVM",
-  ";zioParserJVM/test; calibanParser/test"
-)
-addCommandAlias(
-  "testJS",
-  ";zioParserJS/test"
-)
-addCommandAlias(
-  "testNative",
-  ";zioParserNative/test"
+  ";zio-direct/test"
 )
 
-val zioVersion = "2.0.0"
+lazy val root = (project in file("."))
+  .aggregate(
+    `zio-direct`,
+    docs
+  )
+  .settings(
+    crossScalaVersions := Nil,
+    publish / skip     := true
+  )
 
-lazy val `zio-direct` =
-  (project in file("."))
+lazy val `zio-direct` = project
+    .in(file("zio-direct"))
     .settings(stdSettings("zio-direct"))
     .settings(crossProjectSettings)
     .settings(dottySettings)
-    .settings(buildInfoSettings("zio.parser"))
+    .settings(buildInfoSettings("zio.direct"))
     .enablePlugins(BuildInfoPlugin)
     .settings(
+      Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat,
+      scalaVersion := ScalaDotty,
       resolvers ++= Seq(
         Resolver.mavenLocal,
         "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots",
@@ -69,18 +71,24 @@ lazy val docs = project
   .settings(stdSettings("zio-direct"))
   .settings(macroDefinitionSettings)
   .settings(
+    excludeDependencies ++= Seq(
+      "com.geirsson" % "metaconfig-core_2.13",
+      "com.geirsson" % "metaconfig-typesafe-config_2.13",
+      "org.typelevel" % "paiges-core_2.13",
+    ),
+    crossScalaVersions                         := Seq(),
     scalaVersion                               := ScalaDotty,
     publish / skip                             := true,
     moduleName                                 := "zio-direct-docs",
     scalacOptions -= "-Yno-imports",
-    scalacOptions -= "-Xfatal-warnings",
-    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(`zio-direct`),
-    ScalaUnidoc / unidoc / target              := (LocalRootProject / baseDirectory).value / "website" / "static" / "api",
-    cleanFiles += (ScalaUnidoc / unidoc / target).value,
-    docusaurusCreateSite                       := docusaurusCreateSite.dependsOn(Compile / unidoc).value,
-    docusaurusPublishGhpages                   := docusaurusPublishGhpages.dependsOn(Compile / unidoc).value
+    //scalacOptions -= "-Xfatal-warnings",
+    //ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(`zio-direct`),
+    //ScalaUnidoc / unidoc / target              := (LocalRootProject / baseDirectory).value / "website" / "static" / "api",
+    //cleanFiles += (ScalaUnidoc / unidoc / target).value,
+    //docusaurusCreateSite                       := docusaurusCreateSite.dependsOn(Compile / unidoc).value,
+    //docusaurusPublishGhpages                   := docusaurusPublishGhpages.dependsOn(Compile / unidoc).value
   )
   .dependsOn(`zio-direct`)
-  .enablePlugins(MdocPlugin, DocusaurusPlugin, ScalaUnidocPlugin)
+  .enablePlugins(MdocPlugin, DocusaurusPlugin) //ScalaUnidocPlugin
 
 addCommandAlias("fmt", "all scalafmt test:scalafmt")

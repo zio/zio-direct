@@ -107,14 +107,12 @@ trait WithIR {
 
       // Monadify all top-level pure calls
       override def apply(ir: IR): IR =
-        // println(s"----------- Monadify IR: ${ir}")
         ir match
           case v: IR.Pure => monadify(v)
           case _          => super.apply(ir)
 
       // Monadify pure calls inside IR.Leaf instances (inside IR.Parallel)
       override def apply(ir: IR.Leaf): IR.Leaf =
-        // println(s"----------- Monadify Leaf: ${Format.Term(ir.code)}")
         ir match
           case v: IR.Pure  => monadify(v)
           case v: IR.Monad => v

@@ -9,9 +9,9 @@ Start by adding `zio-direct` as a dependency to your project:
 
 ```scala mdoc:passthrough
     println(s"""```scala""")
-    if (zio.parser.BuildInfo.isSnapshot) {
+    if (zio.direct.BuildInfo.isSnapshot) {
         println(s"""resolvers += Resolver.sonatypeRepo("snapshots")""")
     }
-    println(s"""libraryDependencies += "dev.zio" %% "zio-direct" % "${zio.parser.BuildInfo.version}"""")
+    println(s"""libraryDependencies += "dev.zio" %% "zio-direct" % "${zio.direct.BuildInfo.version}"""")
     println(s"""```""")
 ```

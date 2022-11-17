@@ -78,9 +78,7 @@ object Embedder {
     import quotes.reflect._
     oldSymbolTerm match
       case Some(oldSymbol) =>
-        val out = replaceSymbolIn(body)(oldSymbol, newSymbolTerm)
-        // println(s"============+ Creating $oldSymbol:${Printer.TypeReprShortCode.show(oldSymbol.termRef.widen)} -> ${newSymbolTerm.show}:${Printer.TypeReprShortCode.show(newSymbolTerm.tpe.widen)} replacement let:\n${Format(Printer.TreeShortCode.show(out))}")
-        out
+        replaceSymbolIn(body)(oldSymbol, newSymbolTerm)
       case None =>
         body
 

@@ -29,7 +29,7 @@ object BuildHelper {
     "-unchecked"
   ) ++ {
     if (sys.env.contains("CI")) {
-      Seq("-Xfatal-warnings")
+      Seq() //"-Xfatal-warnings"
     } else {
       Nil // to enable Scalafix locally
     }
@@ -178,9 +178,9 @@ object BuildHelper {
     }
 
   def platformSpecificSources(conf: String, baseDirectory: File)(versions: String*) = for {
-    platform <- List("shared")
     version  <- "scala" :: versions.toList.map("scala-" + _)
-    result    = baseDirectory.getParentFile / "src" / conf / version
+    result    = baseDirectory / "src" / conf / version
+    //_ = {println(s"------- Write to directory: ${result}")}
     if result.exists
   } yield result
 
@@ -219,7 +219,6 @@ object BuildHelper {
 
   def stdSettings(prjName: String) = Seq(
     name                                   := s"$prjName",
-    crossScalaVersions                     := Seq(),
     ThisBuild / scalaVersion               := ScalaDotty,
     scalacOptions                          := stdOptions ++ extraOptions(scalaVersion.value, optimize = !isSnapshot.value),
   )
@@ -257,7 +256,6 @@ object BuildHelper {
         |${item("fmt")} - Formats source files using scalafmt
         |${item("~compileJVM")} - Compiles all JVM modules (file-watch enabled)
         |${item("testJVM")} - Runs all JVM tests
-        |${item("testJS")} - Runs all ScalaJS tests
         |${item("testOnly *.YourSpec -- -t \"YourLabel\"")} - Only runs tests with matching term e.g.
         |${subItem("coreTestsJVM/testOnly *.ZIOSpec -- -t \"happy-path\"")}
         |${item("docs/docusaurusCreateSite")} - Generates the ZIO microsite

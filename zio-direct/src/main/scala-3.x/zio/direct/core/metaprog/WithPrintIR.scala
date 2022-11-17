@@ -54,7 +54,6 @@ trait WithPrintIR {
           Tree.Literal(s"ZioType[${Format.TypeRepr(zt.r)}, ${Format.TypeRepr(zt.e)}, ${Format.TypeRepr(zt.a)}]")
 
         case _ =>
-          // println(s"CLASS OF: ${x.getClass()}")
           super.treeify(x)
       }
 
