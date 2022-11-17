@@ -86,6 +86,11 @@ object Allowed {
               Unsupported.Error.awaitUnsupported(nonpure, "Match conditionals are not allow to contain `await`. Move the `await` call out of the match-statement.")
           }
 
+        // if we have transformed the tree before then we can skip validation of the contents
+        // because the whole block is treated an an effective unit
+        case Seal('{ deferred($effect) }) =>
+          Next.Exit
+
         case term: Term =>
           validateTerm(term)
 
@@ -114,11 +119,6 @@ object Allowed {
 
     def validateTerm(expr: Term): Next =
       expr match {
-        // if we have transformed the tree before then we can skip validation of the contents
-        // because the whole block is treated an an effective unit
-        case Seal('{ deferred($effect) }) =>
-          Next.Exit
-
         // should be handled by the tree traverser but put here just in case
         case tree @ RunCall(content) =>
           validateAwaitClause(content.asTerm, instructions)
