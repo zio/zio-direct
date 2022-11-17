@@ -26,15 +26,7 @@ addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll; compile:scalafix
 
 addCommandAlias(
   "testJVM",
-  ";zioParserJVM/test; calibanParser/test"
-)
-addCommandAlias(
-  "testJS",
-  ";zioParserJS/test"
-)
-addCommandAlias(
-  "testNative",
-  ";zioParserNative/test"
+  ";zio-direct/test"
 )
 
 val zioVersion = "2.0.0"
