@@ -59,11 +59,12 @@ lazy val docs = project
   .settings(stdSettings("zio-direct"))
   .settings(macroDefinitionSettings)
   .settings(
+    crossScalaVersions                         := Seq(Scala213),
     scalaVersion                               := Scala213,
     publish / skip                             := true,
     moduleName                                 := "zio-direct-docs",
     scalacOptions -= "-Yno-imports",
-    scalacOptions -= "-Xfatal-warnings",
+    //scalacOptions -= "-Xfatal-warnings",
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(`zio-direct`),
     ScalaUnidoc / unidoc / target              := (LocalRootProject / baseDirectory).value / "website" / "static" / "api",
     cleanFiles += (ScalaUnidoc / unidoc / target).value,

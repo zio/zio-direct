@@ -30,7 +30,7 @@ object BuildHelper {
     "-unchecked"
   ) ++ {
     if (sys.env.contains("CI")) {
-      Seq("-Xfatal-warnings")
+      Seq() //"-Xfatal-warnings"
     } else {
       Nil // to enable Scalafix locally
     }
@@ -220,7 +220,6 @@ object BuildHelper {
 
   def stdSettings(prjName: String) = Seq(
     name                                   := s"$prjName",
-    crossScalaVersions                     := Seq(),
     ThisBuild / scalaVersion               := ScalaDotty,
     scalacOptions                          := stdOptions ++ extraOptions(scalaVersion.value, optimize = !isSnapshot.value),
   )
