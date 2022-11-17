@@ -11,6 +11,7 @@ import zio.direct.core.metaprog.Unliftables
 import zio.direct.core.metaprog.Verify
 import zio.direct.core.NotDeferredException
 import zio.direct.core.util.TraceType
+import zio.direct.core.metaprog.TypeUnion
 
 def unsafe[T](value: T): T = NotDeferredException.fromNamed("unsafe")
 
@@ -32,23 +33,27 @@ extension [R, E, A](value: ZIO[R, E, A]) {
 
 object Dsl {
   import InfoBehavior._
-  class Params private (val collect: Collect, val verify: Verify, val traceTypes: List[TraceType])
+  class Params private (val collect: Collect, val verify: Verify, val typeUnion: TypeUnion, val traceTypes: List[TraceType])
   object Params {
-    def apply(collect: Collect, verify: Verify, traceTypes: List[TraceType]) =
-      new Params(collect, verify, traceTypes)
+    def apply(collect: Collect, verify: Verify, typeUnion: TypeUnion, traceTypes: List[TraceType]) =
+      new Params(collect, verify, typeUnion, traceTypes)
     def apply(collect: Collect) =
-      new Params(collect, Verify.Strict, Nil)
+      new Params(collect, Verify.Strict, TypeUnion.OrType, Nil)
     def apply(verify: Verify) =
-      new Params(Collect.Sequence, verify, Nil)
+      new Params(Collect.Sequence, verify, TypeUnion.OrType, Nil)
+    def apply(traceTypes: List[TraceType]) =
+      new Params(Collect.Sequence, Verify.Strict, TypeUnion.OrType, traceTypes)
+    def apply(typeUnion: TypeUnion) =
+      new Params(Collect.Sequence, Verify.Strict, typeUnion, Nil)
     def apply() =
-      new Params(Collect.Sequence, Verify.Strict, Nil)
+      new Params(Collect.Sequence, Verify.Strict, TypeUnion.OrType, Nil)
   }
 
   def impl[T: Type](value: Expr[T], infoExpr: Expr[InfoBehavior], paramsExpr: Expr[Params])(using q: Quotes): Expr[ZIO[?, ?, ?]] =
     import quotes.reflect._
     val infoBehavior = Unliftables.unliftInfoBehavior(infoExpr.asTerm.underlyingArgument.asExprOf[InfoBehavior])
     val params = Unliftables.unliftParams(paramsExpr.asTerm.underlyingArgument.asExprOf[Params])
-    doTransform(value, Instructions(infoBehavior, params.collect, params.verify, params.traceTypes))
+    doTransform(value, Instructions(infoBehavior, params.collect, params.verify, params.typeUnion, params.traceTypes))
 
   def doTransform[T: Type](value: Expr[T], instructions: Instructions)(using q: Quotes): Expr[ZIO[?, ?, ?]] =
     (new Transformer(q)).apply(value, instructions)

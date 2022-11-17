@@ -13,10 +13,11 @@ import zio.Exit.Success
 import zio.Exit.Failure
 import zio.direct.core.metaprog.Instructions
 import zio.direct.core.metaprog.Collect
+import zio.direct.core.metaprog.WithZioType
 import zio.direct.core.util.ZioUtil
 
 trait WithReconstructTree {
-  self: WithIR with WithComputeType with WithPrintIR with WithInterpolator =>
+  self: WithIR with WithZioType with WithComputeType with WithPrintIR with WithInterpolator =>
 
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._

@@ -15,6 +15,7 @@ class Is[T: Type]:
 
 object Extractors {
   import zio.direct._
+
   object RunCall {
     def unapply(using Quotes)(tree: quotes.reflect.Tree): Option[Expr[ZIO[?, ?, ?]]] =
       import quotes.reflect._

@@ -5,7 +5,7 @@ import zio.direct.core.util.Format
 import zio.direct.Dsl.Params
 import zio.direct.core.util.TraceType
 
-case class Instructions(info: InfoBehavior, collect: Collect, verify: Verify, traceTypes: List[TraceType]) {
+case class Instructions(info: InfoBehavior, collect: Collect, verify: Verify, typeUnion: TypeUnion, traceTypes: List[TraceType]) {
   // For debugging purposes, check if there is any visibility setting enabled
   // to know whether to print various ad-hoc things.
   def anyVis = info != InfoBehavior.Silent
@@ -47,6 +47,14 @@ object InfoBehavior {
     val showReconstructed = true
     val showReconstructedTree = true
   }
+  val default = Silent
+}
+
+sealed trait TypeUnion
+object TypeUnion {
+  case object OrType extends TypeUnion
+  case object LeastUpper extends TypeUnion
+  val default = OrType
 }
 
 sealed trait Verify
@@ -54,12 +62,14 @@ object Verify {
   case object Strict extends Verify
   case object Lenient extends Verify
   case object None extends Verify
+  val default = Strict
 }
 
 sealed trait Collect
 object Collect {
   case object Sequence extends Collect
   case object Parallel extends Collect
+  val default = Sequence
 }
 
 object Unliftables {
@@ -111,6 +121,7 @@ object Unliftables {
       def unlift =
         case '{ Collect.Sequence } => Collect.Sequence
         case '{ Collect.Parallel } => Collect.Parallel
+        case '{ Collect.default }  => Collect.default
     }
 
     given unliftVerify: Unlifter[Verify] with {
@@ -119,6 +130,7 @@ object Unliftables {
         case '{ Verify.Strict }  => Verify.Strict
         case '{ Verify.Lenient } => Verify.Lenient
         case '{ Verify.None }    => Verify.None
+        case '{ Verify.default } => Verify.default
     }
 
     given unliftInfoBehavior: Unlifter[InfoBehavior] with {
@@ -128,6 +140,15 @@ object Unliftables {
         case '{ InfoBehavior.Silent }      => InfoBehavior.Silent
         case '{ InfoBehavior.Verbose }     => InfoBehavior.Verbose
         case '{ InfoBehavior.VerboseTree } => InfoBehavior.VerboseTree
+        case '{ InfoBehavior.default }     => InfoBehavior.default
+    }
+
+    given unliftTypeUnion: Unlifter[TypeUnion] with {
+      def tpe = Type.of[TypeUnion]
+      def unlift =
+        case '{ TypeUnion.OrType }     => TypeUnion.OrType
+        case '{ TypeUnion.LeastUpper } => TypeUnion.LeastUpper
+        case '{ TypeUnion.default }    => TypeUnion.default
     }
 
     given unliftTraceType: Unlifter[TraceType] with {
@@ -139,14 +160,18 @@ object Unliftables {
     given unliftParams: Unlifter[Params] with {
       def tpe = Type.of[Params]
       def unlift =
-        case '{ Params($collect, $verify, $traceTypes) } =>
-          Params(collect.fromExpr, verify.fromExpr, traceTypes.fromExpr)
+        case '{ Params($collect, $verify, $typeUnion, $traceTypes) } =>
+          Params(collect.fromExpr, verify.fromExpr, typeUnion.fromExpr, traceTypes.fromExpr)
         case '{ Params(($collect: Collect)) } =>
-          Params(collect.fromExpr, Verify.Strict, Nil)
+          Params(collect.fromExpr, Verify.default, TypeUnion.default, Nil)
         case '{ Params(($verify: Verify)) } =>
-          Params(Collect.Sequence, verify.fromExpr, Nil)
+          Params(Collect.default, verify.fromExpr, TypeUnion.default, Nil)
+        case '{ Params(($typeUnion: TypeUnion)) } =>
+          Params(Collect.default, Verify.default, typeUnion.fromExpr, Nil)
+        case '{ Params(($traceTypes: List[TraceType])) } =>
+          Params(Collect.default, Verify.default, TypeUnion.default, traceTypes.fromExpr)
         case '{ Params.apply() } =>
-          Params(Collect.Sequence, Verify.Strict, Nil)
+          Params(Collect.default, Verify.default, TypeUnion.default, Nil)
     }
   }
 }

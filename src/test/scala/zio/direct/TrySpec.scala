@@ -101,11 +101,14 @@ object TrySpec extends AsyncAwaitSpec {
             }
           }
           assertIsType[ZIO[Any, FooError, Tuple2[Int, Int]]](out) *>
-            assertZIO(out)(equalTo((111, 222)))
+            assertZIO(out.exit)(fails(isSubtype[FooError](anything)))
         }
         +
         test("catch impure parallel block - one side") {
-          val out = defer {
+          // even thought we create the exception inside a success block, the actual
+          // 'throw' term is being used so a ZIO.fail(error) is called. therefore
+          // we have the error in the fail channel so it is not a defect.
+          val out = defer.verbose {
             try {
               (123, { throw succeed(makeFooError).run })
             } catch {
@@ -113,10 +116,10 @@ object TrySpec extends AsyncAwaitSpec {
             }
           }
           assertIsType[ZIO[Any, FooError, Tuple2[Int, Int]]](out) *>
-            assertZIO(out)(equalTo((111, 222)))
+            assertZIO(out.exit)(fails(isSubtype[FooError](anything)))
         }
         +
-        test("catch impure parallel block - both sides") { //
+        test("catch impure parallel block - both sides") {
           val out = defer {
             try {
               ({ throw ZIO.succeed(makeFooError).run }, { throw ZIO.succeed(makeBarError).run })
@@ -125,7 +128,7 @@ object TrySpec extends AsyncAwaitSpec {
             }
           }
           assertIsType[ZIO[Any, FooError | BarError, Tuple2[Int, Int]]](out) *>
-            assertZIO(out)(equalTo((111, 222)))
+            assertZIO(out.exit)(fails(isSubtype[FooError](anything)))
 
         }
       }

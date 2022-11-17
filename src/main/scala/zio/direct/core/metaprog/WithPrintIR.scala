@@ -6,7 +6,7 @@ import fansi.Str
 import zio.direct.core.util.Format
 
 trait WithPrintIR {
-  self: WithIR =>
+  self: WithIR with WithZioType =>
 
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect
@@ -49,6 +49,9 @@ trait WithPrintIR {
             Tree.Literal("NO_SYMBOL")
           else
             Tree.Apply("SCALA_SYM", Iterator(Tree.Literal(s"/*${sym}*/")))
+
+        case zt: ZioType =>
+          Tree.Literal(s"ZioType[${Format.TypeRepr(zt.r)}, ${Format.TypeRepr(zt.e)}, ${Format.TypeRepr(zt.a)}]")
 
         case _ =>
           // println(s"CLASS OF: ${x.getClass()}")

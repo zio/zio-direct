@@ -25,7 +25,8 @@ class Transformer(inputQuotes: Quotes)
     with WithPrintIR
     with WithReconstructTree
     with WithDecomposeTree
-    with WithInterpolator {
+    with WithInterpolator
+    with WithZioType {
 
   implicit val macroQuotes = inputQuotes
   import quotes.reflect._

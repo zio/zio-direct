@@ -7,6 +7,19 @@ import zio.ZIO
 
 object Embedder {
 
+  def computeCommonBaseClass(using Quotes)(a: quotes.reflect.TypeRepr, b: quotes.reflect.TypeRepr): quotes.reflect.TypeRepr =
+    import quotes.reflect._
+    import scala.collection.immutable.ListSet
+    if (a =:= TypeRepr.of[Nothing] && b =:= TypeRepr.of[Nothing]) TypeRepr.of[Nothing]
+    else if (a =:= TypeRepr.of[Nothing]) b
+    else if (b =:= TypeRepr.of[Nothing]) a
+    else if (a =:= TypeRepr.of[Any] || b =:= TypeRepr.of[Any]) TypeRepr.of[Any]
+    else
+      val isectRaw = ListSet(a.widen.baseClasses: _*).intersect(ListSet(b.widen.baseClasses: _*))
+      val isect = isectRaw.map(a.select(_))
+      if (isect.isEmpty) TypeRepr.of[Any]
+      else isect.head
+
   def topLevelOwner(using Quotes): quotes.reflect.Symbol =
     import quotes.reflect._
     // Need to check the name because for some reason checking symbol flags recurisvely upward gives you
