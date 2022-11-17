@@ -24,15 +24,15 @@ const siteConfig = {
   title: 'ZIO Parser',
   tagline: 'Parser and pretty printer library for ZIO',
   url: 'https://zio.github.io',
-  baseUrl: '/zio-parser/',
+  baseUrl: '/zio-direct/',
 
-  projectName: 'zio-parser',
+  projectName: 'zio-direct',
   organizationName: 'zio',
 
   // For no header links in the top nav bar -> headerLinks: [],
   headerLinks: [
     {doc: 'overview/overview_index', label: 'Overview'},
-    {href: '/zio-parser/api/index.html', label: 'API'},
+    {href: '/zio-direct/api/index.html', label: 'API'},
     {doc: 'about/about_index', label: 'About'}
   ],
 
@@ -102,7 +102,7 @@ const siteConfig = {
     cornerOffset: 100,
   },
 
-  customDocsPath: 'zio-parser-docs/target/mdoc',
+  customDocsPath: 'zio-direct-docs/target/mdoc',
 
   // You may provide arbitrary config keys to be used as needed by your
   // template. For example, if you need your repo's URL...

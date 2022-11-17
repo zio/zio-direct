@@ -41,7 +41,7 @@ val zioVersion = "2.0.0"
 
 lazy val `zio-direct` =
   (project in file("."))
-    .settings(stdSettings("zio-parser"))
+    .settings(stdSettings("zio-direct"))
     .settings(crossProjectSettings)
     .settings(dottySettings)
     .settings(buildInfoSettings("zio.parser"))
