@@ -1,6 +1,8 @@
 resolvers += Classpaths.sbtPluginReleases
 
 resolvers += "Typesafe repository" at "https://repo.typesafe.com/typesafe/releases/"
+// needed for mdoc to work with Scala 3 (https://github.com/sbt/sbt/issues/6264)
+resolvers += Resolver.JCenterRepository
 
 addDependencyTreePlugin
 

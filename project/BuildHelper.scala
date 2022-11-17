@@ -18,7 +18,6 @@ object BuildHelper {
     list.map(v => (v.split('.').take(2).mkString("."), v)).toMap
   }
   val ScalaDotty: String                    = versions("3.2")
-  val Scala213: String                      = "2.13.7"  // Don't have this in scala build matrix since no zio-direct build yet
 
   val SilencerVersion = "1.7.12"
 
@@ -179,9 +178,9 @@ object BuildHelper {
     }
 
   def platformSpecificSources(conf: String, baseDirectory: File)(versions: String*) = for {
-    platform <- List("shared")
     version  <- "scala" :: versions.toList.map("scala-" + _)
-    result    = baseDirectory.getParentFile / "src" / conf / version
+    result    = baseDirectory / "src" / conf / version
+    //_ = {println(s"------- Write to directory: ${result}")}
     if result.exists
   } yield result
 
@@ -257,7 +256,6 @@ object BuildHelper {
         |${item("fmt")} - Formats source files using scalafmt
         |${item("~compileJVM")} - Compiles all JVM modules (file-watch enabled)
         |${item("testJVM")} - Runs all JVM tests
-        |${item("testJS")} - Runs all ScalaJS tests
         |${item("testOnly *.YourSpec -- -t \"YourLabel\"")} - Only runs tests with matching term e.g.
         |${subItem("coreTestsJVM/testOnly *.ZIOSpec -- -t \"happy-path\"")}
         |${item("docs/docusaurusCreateSite")} - Generates the ZIO microsite
