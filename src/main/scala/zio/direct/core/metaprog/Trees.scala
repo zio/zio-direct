@@ -61,7 +61,6 @@ object Trees:
       override def transformTerm(tree: Term)(owner: Symbol): Term = {
         tree match
           case tree: Ident if (tree.symbol == oldIdentSymbol) =>
-            println(s"----------- Replace ${tree} -> ${newTerm}")
             newTerm
           case other =>
             super.transformTerm(other)(oldIdentSymbol.owner)

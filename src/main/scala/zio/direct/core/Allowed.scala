@@ -76,7 +76,6 @@ object Allowed {
     }
 
     def validate(expr: Tree): Next =
-      // println(s"---------- Validating: ${Format.Tree(expr)}")
       expr match {
         case CaseDef(pattern, cond, output) =>
           cond match {

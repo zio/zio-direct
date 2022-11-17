@@ -38,8 +38,6 @@ object DefDefCopy {
 
     val allSymbols = defdef.paramss.flatMap(symbolsOfTerms(_))
 
-    println(s"-------------- New Method Type: ${methodType.show}")
-
     // Can possibly add a suffix here to indicate the method was renamed e.g. defdef.name
     // since we are replacing all the idents of defdef everywhere anyway (needed by Scala 3 macro hygene)
     // we can also rename them if it is helpful.

@@ -351,12 +351,10 @@ trait WithReconstructTree {
                   newTree.tpe.asType match
                     case '[r] =>
                       val lam = wrapWithLambda[t, r](newTree, oldSymbol)
-                      // TODO what if we do not directly specify 'r' here? what about the flatMap case?
                       apply(IR.Monad('{ ${ monadExpr.asExprOf[ZIO[?, ?, t]] }.map[r](${ lam.asExprOf[t => r] }) }.asTerm))
                 case IR.Monad(newTree) =>
                   newTree.tpe.asType match
                     case '[ZIO[x1, y1, r]] =>
-                      // println(s"----------- Computed type FlatMap: ${Format.TypeOf[ZIO[x1, y1, r]]}")
                       val lam = wrapWithLambda[t, ZIO[x1, y1, r]](newTree, oldSymbol)
                       // back here
                       // could also work like this?
