@@ -9,6 +9,26 @@ import scala.compiletime.testing.typeCheckErrors
 import zio.direct.core.metaprog.Verify
 import zio.direct.core.metaprog.Collect
 import zio.direct.Dsl.Params
+import zio.direct.core.util.Format
+import zio.internal.stacktracer.SourceLocation
+
+object AsyncAwaitSpec {
+  def sourceLocationImpl(using Quotes): Expr[SourceLocation] = {
+    import quotes.reflect._
+    val (name, line) = Symbol.spliceOwner.pos.map(p => (p.sourceFile.path, p.startLine)).getOrElse("", 0)
+    '{ SourceLocation(${ Expr(name) }, ${ Expr(line) }) }
+  }
+
+  def isType[T: Type](intput: Expr[Any])(using Quotes): Expr[Boolean] =
+    import quotes.reflect._
+    val expectedTpe = TypeRepr.of[T]
+    val actualType = intput.asTerm.tpe.widenTermRefByName
+    if (expectedTpe =:= actualType)
+      '{ true }
+    else
+      report.warning(s"Expected type to be: ${Format.TypeRepr(expectedTpe)} but got: ${Format.TypeRepr(actualType)}")
+      '{ false }
+}
 
 trait AsyncAwaitSpec extends ZIOSpecDefault {
   // various config parameters to test zio dependency
@@ -16,8 +36,21 @@ trait AsyncAwaitSpec extends ZIOSpecDefault {
   case class ConfigString(value: String)
   case class ConfigBool(value: Boolean)
 
+  class FooError extends Exception("foo")
+  def throwFoo() = throw new FooError
+  def makeFooError = new FooError
+
+  class BarError extends Exception("foo")
+  def throwBar() = throw new BarError
+  def makeBarError = new BarError
+
   val errorMsg =
     "Detected an `await` call inside of an unsupported structure"
+
+  transparent inline def isType[T](inline input: Any) = ${ AsyncAwaitSpec.isType[T]('input) }
+  transparent inline def assertIsType[T](inline input: Any) = {
+    assertTrue(isType[T](input))
+  }
 
   inline def runLiftTest[T](expected: T)(inline body: T) = {
     val deferBody = defer(body)
@@ -45,9 +78,13 @@ trait AsyncAwaitSpec extends ZIOSpecDefault {
     assert(errors)(exists(containsString(errorStringContains)))
   }
 
+  inline def sourceLocation: SourceLocation = ${ AsyncAwaitSpec.sourceLocationImpl }
+
   transparent inline def runLiftFail(body: String) = {
+    val expression = "defer {\n" + body + "\n}"
     val errors =
-      typeCheckErrors("defer {" + body + "}").map(_.message)
-    assert(errors)(isNonEmpty)
+      typeCheckErrors(expression).map(_.message)
+
+    zio.test.UseSmartAssert.of(errors, None, None)(Assertion.isNonEmpty)(sourceLocation)
   }
 }

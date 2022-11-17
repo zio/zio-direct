@@ -2,9 +2,11 @@ package zio.direct
 
 import zio.direct.{run => runBlock}
 import zio.test._
+import zio.test.Assertion._
 import zio.direct.core.util.debug.PrintMac
 import zio.ZIO
 import zio.ZIO.{unsafe => _, _}
+import java.io.IOException
 
 object TrySpec extends AsyncAwaitSpec {
 
@@ -85,39 +87,46 @@ object TrySpec extends AsyncAwaitSpec {
                 case _: Throwable => runBlock(defer(2))
               }
             }
-          assertZIO(out)(Assertion.equalTo(1))
+
+          assertIsType[ZIO[Any, Exception, Int]](out) *>
+            assertZIO(out)(equalTo(1))
         }
         +
-        test("catch pure parallel block") { //
+        test("catch pure parallel block - oneside") {
           val out = defer {
             try {
-              // (next with two `{ throw e }`s)
-              (123, { throw e })
+              (123, { throw new FooError })
             } catch {
               case `e` => (111, 222)
             }
           }
-          assertTrue(true == true)
+          assertIsType[ZIO[Any, FooError, Tuple2[Int, Int]]](out) *>
+            assertZIO(out)(equalTo((111, 222)))
         }
         +
         test("catch impure parallel block - one side") {
-          runLiftTest((111, 222)) {
+          val out = defer {
             try {
-              (123, { throw succeed(e).run })
+              (123, { throw succeed(makeFooError).run })
             } catch {
               case `e` => (111, 222)
             }
           }
+          assertIsType[ZIO[Any, FooError, Tuple2[Int, Int]]](out) *>
+            assertZIO(out)(equalTo((111, 222)))
         }
         +
-        test("catch impure parallel block - both sides") {
-          runLiftTest((111, 222)) {
+        test("catch impure parallel block - both sides") { //
+          val out = defer {
             try {
-              ({ throw succeed(e).run }, { throw succeed(e1).run })
+              ({ throw ZIO.succeed(makeFooError).run }, { throw ZIO.succeed(makeBarError).run })
             } catch {
               case `e` => (111, 222)
             }
           }
+          assertIsType[ZIO[Any, FooError | BarError, Tuple2[Int, Int]]](out) *>
+            assertZIO(out)(equalTo((111, 222)))
+
         }
       }
     )
@@ -152,7 +161,7 @@ object TrySpec extends AsyncAwaitSpec {
       def c() = called = true
       // runLiftTest(true)
       val out =
-        defer.verbose {
+        defer {
           val _ =
             try 1
             catch {

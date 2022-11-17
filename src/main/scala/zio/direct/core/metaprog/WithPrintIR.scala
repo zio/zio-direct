@@ -11,6 +11,9 @@ trait WithPrintIR {
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect
 
+  def PrintAny(model: Any) =
+    Format(new PrintIR().apply(model).plainText)
+
   def PrintIR(model: IR) =
     Format(new PrintIR().apply(model).plainText)
 

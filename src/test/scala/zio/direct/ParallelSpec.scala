@@ -14,7 +14,7 @@ object ParallelSpec extends AsyncAwaitSpec {
   val spec = suite("ParallelSpec")(
     suite("Multi Await Tests") {
       test("Inferred Environment Should be Correct") {
-        val out = defer {
+        val out = defer.verbose {
           (service[ConfigInt].run.value, service[ConfigString].run.value)
         }
         // TODO specifc test for the type

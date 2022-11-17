@@ -11,10 +11,6 @@ import zio.direct.Dsl.Params
 
 object ErrorSpec extends AsyncAwaitSpec {
 
-  class FooError extends Exception("foo")
-  def throwFoo() = throw new FooError
-  def makeFooError = new FooError
-
   val spec = suite("ErrorSpec")(
     suite("Different Kinds of ways that errors can be thrown") {
       test("Directly thrown error should always go to error channel") {

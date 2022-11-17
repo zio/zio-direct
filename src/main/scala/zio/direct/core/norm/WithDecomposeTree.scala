@@ -38,7 +38,6 @@ trait WithDecomposeTree {
         (unapply(termA).getOrElse(IR.Pure(termA)), unapply(termB).getOrElse(IR.Pure(termB)))
 
       def unapply(expr: Term): Option[IR.Monadic] = {
-        if (instr.anyVis) println(s"------ Decomposing: ${expr.show}")
         val ret = expr match {
           // Otherwise, if there are no Await calls treat the tree as "Pure" i.e.
           // it will be either embedded within the parent map/flatMap clause or
@@ -122,7 +121,7 @@ trait WithDecomposeTree {
           // To something that looks like:
           // { ZIO.collect(foo, bar).map(iter => val a = iter.next(); val b = iter.next(); (a, b)) }
           case term => // @ Allowed.ParallelExpression()
-            if (instr.anyVis) println(s"========== GENERIC CONSTRUCT: ${Format.Tree(term)}\n==============\n${Format(Printer.TreeStructure.show(term))}")
+            // if (instr.anyVis) println(s"========== GENERIC CONSTRUCT: ${Format.Tree(term)}\n==============\n${Format(Printer.TreeStructure.show(term))}")
 
             val unlifts = mutable.ArrayBuffer.empty[(IR.Monadic, Symbol)]
             val newTree: Term =
@@ -134,14 +133,14 @@ trait WithDecomposeTree {
                   Ref(sym)
 
                 case originalTerm @ DecomposeSingleTermConstruct(monad) =>
-                  if (instr.anyVis) println(s"----- Decomposing term construct: ${originalTerm.show}")
+                  // if (instr.anyVis) println(s"----- Decomposing term construct: ${originalTerm.show}")
                   val tpe = originalTerm.tpe
                   val sym = Symbol.newVal(Symbol.spliceOwner, "par", tpe, Flags.EmptyFlags, Symbol.noSymbol)
                   unlifts += ((monad, sym))
                   Ref(sym)
 
                 case originalTerm @ DecomposeBlock(monad) =>
-                  if (instr.anyVis) println(s"----- Decomposing block: ${originalTerm.show}")
+                  // if (instr.anyVis) println(s"----- Decomposing block: ${originalTerm.show}")
                   // Take the type from the originalTerm (i.e. the result of the await call since it could be a block etc...)
                   val tpe = originalTerm.tpe
                   val sym = Symbol.newVal(Symbol.spliceOwner, "par", tpe, Flags.EmptyFlags, Symbol.noSymbol)

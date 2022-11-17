@@ -4,9 +4,13 @@ import zio.direct.core.metaprog.WithIR
 import scala.quoted._
 import zio.direct.core.util.Format
 import zio.ZIO
+import zio.direct.core.metaprog.WithPrintIR
+import zio.direct.core.util.WithInterpolator
+import zio.direct.core.util.TraceType
+import zio.direct.core.metaprog.Instructions
 
 trait WithComputeType {
-  self: WithIR =>
+  self: WithIR with WithInterpolator with WithPrintIR =>
 
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._
@@ -14,6 +18,10 @@ trait WithComputeType {
   protected case class ZioType(r: TypeRepr, e: TypeRepr, a: TypeRepr) {
     def show = s"ZioType(${Format.TypeRepr(r)}, ${Format.TypeRepr(e)}, ${Format.TypeRepr(a)})"
 
+    def transformR(f: TypeRepr => TypeRepr) =
+      ZioType(f(r), e, a)
+    def transformE(f: TypeRepr => TypeRepr) =
+      ZioType(r, f(e), a)
     def transformA(f: TypeRepr => TypeRepr) =
       ZioType(r, e, f(a))
 
@@ -69,9 +77,29 @@ trait WithComputeType {
       ZioType(and(a.r, b.r), or(a.e, b.e), or(a.a, b.a))
 
     def or(a: TypeRepr, b: TypeRepr) =
+      // if (a =:= TypeRepr.of[Nothing] && b =:= TypeRepr.of[Nothing]) TypeRepr.of[Nothing]
+      // else
+      //   val base = a.baseType(b.typeSymbol)
+      //   // println(s"---------- Base of: ${Format.TypeRepr(a)} and ${Format.TypeRepr(b)} -> ${Format.TypeRepr(TypeRepr.of[at | bt].simplified.widen)}")
+      //   base
       (a.widen.asType, b.widen.asType) match
         case ('[at], '[bt]) =>
-          TypeRepr.of[at | bt].simplified.widen // TODO check that this widens multiple exceptions to `Throwable`
+          // val base = a.widen.baseType(b.widen.typeSymbol)
+          // val msg =
+          //   s"---------- Or(${Format.TypeRepr(a)}, ${Format.TypeRepr(b)}) -> ${Format.TypeRepr(TypeRepr.of[at | bt].simplified.widen)} / ${base}\n"
+          //     + { val pos = Symbol.spliceOwner.pos.get; s"at: ${pos.sourceFile.path}:${pos.startLine + 1}" }
+          // if (msg.contains("Or(Int, String)")) println(msg)
+          // if (msg.contains("Or(Int, String)")) {
+          //   println(msg)
+          //   println(
+          //     s"""|===== Base is NoType
+          //         |${base.toString == "NoType"}
+          //         |""".stripMargin
+          //   )
+          //   println((new RuntimeException).getStackTrace().take(20).mkString("\n"))
+          //   // base =:= TypeRepr.of[Nothing]
+          // }
+          TypeRepr.of[at | bt].simplified.widen
 
     def and(a: TypeRepr, b: TypeRepr) =
       // if either type is Any, specialize to the thing that is narrower
@@ -88,9 +116,16 @@ trait WithComputeType {
               TypeRepr.of[at with bt]
       out
   }
-  protected object ComputeType {
-    def fromIR(ir: IR): ZioType = apply(ir)
-    private def apply(ir: IR): ZioType =
+  object ComputeType {
+    def fromIR(ir: IR)(implicit instructions: Instructions): ZioType =
+      new ComputeType(instructions).apply(ir)
+  }
+
+  class ComputeType private (instructions: Instructions) {
+    val interp = Interpolator(TraceType.TypeCompute)(instructions)
+    import interp._
+
+    def apply(ir: IR): ZioType =
       ir match {
         case IR.Pure(code) =>
           ZioType.fromPure(code)
@@ -109,6 +144,7 @@ trait WithComputeType {
         case IR.Fail(error) =>
           // TODO need to check that environment is correct in this case
           val bodyError = apply(error)
+          println(s"--------- Rendering error type: ${bodyError.show}")
           ZioType(bodyError.r, bodyError.a.widenTermRefByName, TypeRepr.of[Nothing])
 
         // Things inside Unsafe blocks that are not inside awaits will be wrapepd into ZIO.attempt
@@ -140,31 +176,40 @@ trait WithComputeType {
 
         case IR.Try(tryBlock, caseDefs, outputType, finallyBlock) =>
           val tryBlockType = apply(tryBlock)
-          // Could possibly try to delve into the case-def types and widen it apply there
-          // but scala has already computed the total type apply the output of the Try term
-          // so instead we can just use that.
-          // val caseDefType =
-          //   ZioType.composeN(
-          //     caseDefs.map(caseDef => apply(caseDef.rhs))
-          //   )
+          // We get better results by doing into the case-defs and computing the union-type of them
+          // than we do by getting the information from outputType because outputType is limited
+          // by Scala's ability to understand the try-catch. For example, if we infer from outputType,
+          // the error-type will never be more concrete that `Throwable`.
           val caseDefType =
-            outputType.asType match
-              case '[ZIO[r, e, a]] => ZioType(TypeRepr.of[r].widen, TypeRepr.of[e].widen, TypeRepr.of[a].widen)
-              case '[t]            => ZioType(TypeRepr.of[Any].widen, TypeRepr.of[Throwable].widen, TypeRepr.of[t].widen)
+            ZioType.composeN(caseDefs.map(caseDef => apply(caseDef.rhs)))
+          // Could also compute from outputType but this has worse results, see comment above.
+          // val caseDefType =
+          //   outputType.asType match
+          //     case '[ZIO[r, e, a]] => ZioType(TypeRepr.of[r].widen, TypeRepr.of[e].widen, TypeRepr.of[a].widen)
+          //     case '[t]            => ZioType(TypeRepr.of[Any].widen, TypeRepr.of[Throwable].widen, TypeRepr.of[t].widen)
           tryBlockType.flatMappedWith(caseDefType)
 
         case IR.While(cond, body) =>
           val condTpe = apply(cond)
           val bodyTpe = apply(body)
-          val out = condTpe.flatMappedWith(bodyTpe).mappedWithType(TypeRepr.of[Unit])
-          println(s"----------- Type: ${condTpe.show}.flatMap(${bodyTpe.show}).map(Unit) => ${out.show}")
-          out
+          condTpe.flatMappedWith(bodyTpe).mappedWithType(TypeRepr.of[Unit])
 
         case IR.Parallel(monadics, body) =>
           val monadTypes = monadics.map((monadic, _) => apply(monadic))
-          val monadsType = ZioType.composeN(monadTypes)
           val bodyType = apply(body) // a IR.Leaf will either be a IR.Pure or an IR.Monad, both already have cases here
-          monadsType.flatMappedWith(bodyType)
+          // For some arbitrary structure that contains monads e.g:
+          //   ((foo:ZIO[ConfA,ExA,A]).run, (bar:ZIO[ConfB,ExB,B]).run)
+          // This will turn into something like:
+          //   ZIO.collectAll(foo, bar).map(col => {val iter = col.iter; (iter.next, iter.next)}) which has the type
+          // That means that the output signature will be a ZIO of the following:
+          //   R-Parameter: ConfA & ConfB, E-Parameter: ExA | ExB, A-Parameter: (A, B)
+          // In some cases the above function will be a flatMap and wrapped into a ZIO.attempt or ZIO.succeed
+          //   so we include the body-type error and environment just in case
+          ZioType(
+            ZioType.andN(bodyType.r +: monadTypes.map(_.r)),
+            ZioType.orN(bodyType.e +: monadTypes.map(_.e)),
+            bodyType.a
+          )
       }
   }
 }

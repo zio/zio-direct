@@ -3,8 +3,9 @@ package zio.direct.core.metaprog
 import scala.quoted._
 import zio.direct.core.util.Format
 import zio.direct.Dsl.Params
+import zio.direct.core.util.TraceType
 
-case class Instructions(info: InfoBehavior, collect: Collect, verify: Verify) {
+case class Instructions(info: InfoBehavior, collect: Collect, verify: Verify, traceTypes: List[TraceType]) {
   // For debugging purposes, check if there is any visibility setting enabled
   // to know whether to print various ad-hoc things.
   def anyVis = info != InfoBehavior.Silent
@@ -74,20 +75,36 @@ object Unliftables {
   def unliftParams(info: Expr[Params])(using Quotes) =
     Implicits.unliftParams.unliftOrfail(info)
 
+  def unliftTraceTypes(traceTypes: Expr[List[TraceType]])(using Quotes) =
+    import Implicits.{given, _}
+    traceTypes.fromExpr
+
   private object Implicits {
-    extension [T](expr: Expr[T])(using unlifter: Unlifter[T], q: Quotes)
-      def fromExpr = unlifter.unliftOrfail(expr)
+    extension [T](expr: Expr[T])(using unlifter: FromExpr[T])
+      def fromExpr(using q: Quotes) = unlifter.unliftOrfail(expr)
+
+    extension [T](unlifter: Unlifter[T])
+      def unliftOrfail(v: Expr[T])(using Quotes) =
+        import quotes.reflect._
+        unlifter.unapply(v).getOrElse {
+          report.errorAndAbort(s"Could not unlift the expression ${Format.Expr(v)} into the type: ${Format.Type(unlifter.tpe)}")
+        }
+
+    // Define an unliftOrFail for general FromExpr instances. The only difference is that we do not
+    // automatically know the type of the thing we are unlifting. This makes issues a bit harder
+    // to diagnost. That is why we prefer the one with Unlifter instead.
+    extension [T](unlifter: FromExpr[T])
+      def unliftOrfail(v: Expr[T])(using Quotes) =
+        import quotes.reflect._
+        unlifter.unapply(v).getOrElse {
+          report.errorAndAbort(s"Could not unlift the expression ${Format.Expr(v)}.")
+        }
 
     trait Unlifter[T] extends FromExpr[T]:
       def tpe: Quotes ?=> Type[T]
       def unlift: Quotes ?=> PartialFunction[Expr[T], T]
       def unapply(v: Expr[T])(using Quotes): Option[T] =
         unlift.lift(v)
-      def unliftOrfail(v: Expr[T])(using Quotes) =
-        import quotes.reflect._
-        unlift.lift(v).getOrElse {
-          report.errorAndAbort(s"Could not unlift the expression ${Format.Expr(v)} into the type: ${Format.Type(tpe)}")
-        }
 
     given unliftCollect: Unlifter[Collect] with {
       def tpe = Type.of[Collect]
@@ -113,17 +130,23 @@ object Unliftables {
         case '{ InfoBehavior.VerboseTree } => InfoBehavior.VerboseTree
     }
 
+    given unliftTraceType: Unlifter[TraceType] with {
+      def tpe = Type.of[TraceType]
+      def unlift =
+        case '{ TraceType.TypeCompute } => TraceType.TypeCompute
+    }
+
     given unliftParams: Unlifter[Params] with {
       def tpe = Type.of[Params]
       def unlift =
-        case '{ Params($collect, $verify) } =>
-          Params(collect.fromExpr, verify.fromExpr)
+        case '{ Params($collect, $verify, $traceTypes) } =>
+          Params(collect.fromExpr, verify.fromExpr, traceTypes.fromExpr)
         case '{ Params(($collect: Collect)) } =>
-          Params(collect.fromExpr, Verify.Strict)
+          Params(collect.fromExpr, Verify.Strict, Nil)
         case '{ Params(($verify: Verify)) } =>
-          Params(Collect.Sequence, verify.fromExpr)
+          Params(Collect.Sequence, verify.fromExpr, Nil)
         case '{ Params.apply() } =>
-          Params(Collect.Sequence, Verify.Strict)
+          Params(Collect.Sequence, Verify.Strict, Nil)
     }
   }
 }

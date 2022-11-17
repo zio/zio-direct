@@ -8,6 +8,7 @@ import zio.direct.core.metaprog.WithPrintIR
 import zio.Chunk
 import zio.direct.core.util.ComputeTotalZioType
 import zio.direct.core.util.Format
+import zio.direct.core.util.WithInterpolator
 import zio.Exit.Success
 import zio.Exit.Failure
 import zio.direct.core.metaprog.Instructions
@@ -15,7 +16,7 @@ import zio.direct.core.metaprog.Collect
 import zio.direct.core.util.ZioUtil
 
 trait WithReconstructTree {
-  self: WithIR with WithComputeType with WithPrintIR =>
+  self: WithIR with WithComputeType with WithPrintIR with WithInterpolator =>
 
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._
@@ -25,6 +26,7 @@ trait WithReconstructTree {
       new ReconstructTree(instructions)
   }
   protected class ReconstructTree private (instructions: Instructions) {
+    implicit val instructionsInst: Instructions = instructions
     def fromIR(ir: IR) = apply(ir, true)
 
     private def computeSymbolType(valSymbol: Option[Symbol], alternativeSource: Term) =

@@ -11,6 +11,7 @@ import scala.collection.mutable
 import zio.Chunk
 import zio.direct.core.util.PureTree
 import zio.direct.core.util.ComputeTotalZioType
+import zio.direct.core.util.WithInterpolator
 import zio.direct.core.metaprog.WithPrintIR
 import zio.direct.core.metaprog.Embedder._
 import zio.direct.core.norm.WithComputeType
@@ -23,7 +24,8 @@ class Transformer(inputQuotes: Quotes)
     with WithComputeType
     with WithPrintIR
     with WithReconstructTree
-    with WithDecomposeTree {
+    with WithDecomposeTree
+    with WithInterpolator {
 
   implicit val macroQuotes = inputQuotes
   import quotes.reflect._
@@ -97,7 +99,7 @@ class Transformer(inputQuotes: Quotes)
     if (instructions.info.showReconstructedTree)
       printSection("Reconstituted Code Raw", Format(Printer.TreeStructure.show(output.asTerm)))
 
-    val computedType = ComputeType.fromIR(transformed)
+    val computedType = ComputeType.fromIR(transformed)(using instructions)
 
     val zioType = computedType.toZioType
 
@@ -113,9 +115,9 @@ class Transformer(inputQuotes: Quotes)
     // // TODO verify that there are no await calls left. Otherwise throw an error
     val ownerPositionOpt = topLevelOwner.pos
 
-    (computedType.r.asType, computedType.e.asType, computedType.a.asType) match {
+    computedType.asTypeTuple match {
       case ('[r], '[e], '[a]) =>
-        val computedTypeMsg = s"Computed Type: ${Format.TypeOf[ZIO[r, e, a]]}"
+        val computedTypeMsg = s"Computed Type: ${Format.TypeOf[ZIO[r, e, a]]}" // /
 
         if (instructions.info.showComputedType)
           ownerPositionOpt match {
