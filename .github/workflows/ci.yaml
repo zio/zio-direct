@@ -56,9 +56,9 @@ jobs:
 
   ci:
     runs-on: ubuntu-20.04
-    needs: [lint, mdoc, test]
+    needs: [mdoc, test]
     steps:
-      - name: Aggregate of lint, and all tests
+      - name: Aggregate of builds
         run: echo "ci passed"
 
   publish:
