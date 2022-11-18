@@ -94,6 +94,13 @@ object Allowed {
               Unsupported.Error.awaitUnsupported(nonpure, "Match conditionals are not allow to contain `run`. Move the `run` call out of the match-statement.")
           }
 
+        // should be handled by the tree traverser but put here just in case
+        case tree @ RunCall(content) =>
+          validateAwaitClause(content.asTerm, instructions)
+          // Do not need other validations inside the run-clause
+          Next.Exit
+
+        // evaluate standard terms i.e. that do not have any kind of special handing such as being side of run(...) calls etc...
         case term: Term =>
           validateTerm(term)
 
@@ -125,12 +132,6 @@ object Allowed {
 
     def validateTerm(expr: Term): Next =
       expr match {
-        // should be handled by the tree traverser but put here just in case
-        case tree @ RunCall(content) =>
-          validateAwaitClause(content.asTerm, instructions)
-          // Do not need other validations inside the run-clause
-          Next.Exit
-
         // special error for assignment
         case asi: Assign =>
           Unsupported.Error.withTree(asi, Messages.AssignmentNotAllowed)

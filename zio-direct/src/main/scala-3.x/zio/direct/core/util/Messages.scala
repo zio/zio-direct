@@ -11,7 +11,7 @@ implicit class StringExt(str: String) {
 
 val ImplicitsNotAllowed =
 """
-Implicits are not allowed directly in defer clauses (they are allowed inside of `run(...)` blocks
+Implicits are not allowed inside defer clauses (they are allowed inside of `run(...)` blocks.
 """
 
 val MutableCollectionDetected =
