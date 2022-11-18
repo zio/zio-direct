@@ -34,6 +34,10 @@ object Trees:
       import quotes.reflect._
       (new TreeMap:
         override def transformTerm(tree: Term)(owner: Symbol): Term = {
+          // In this case we need to return an actual value for each construct in the tree so that means
+          // that when the partial function that matches a term executes after the => arrow, it needs to actually
+          // define which nodes to go into next. This is no the case for just `traverse` where we keep going down the tree
+          // no mater what happens since each partial-function invocation doesn't need to actually return anything.
           pf.lift(tree).getOrElse(super.transformTerm(tree)(owner))
         }
       ).transformTerm(term)(owner)
@@ -42,7 +46,10 @@ object Trees:
     import quotes.reflect._
     (new TreeTraverser:
       override def traverseTree(tree: Tree)(owner: Symbol): Unit = {
-        pf.applyOrElse(tree, tree => super.traverseTree(tree)(owner))
+        // if the partial function matches it will run whatever logic is therin. Otherwise we don't care about the value
+        pf.applyOrElse(tree, tree => ())
+        // In either case, proceed further up the tree
+        super.traverseTree(tree)(owner)
       }
     ).traverseTree(tree)(owner)
 

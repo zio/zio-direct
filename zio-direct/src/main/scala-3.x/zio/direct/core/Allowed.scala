@@ -11,21 +11,20 @@ import zio.direct.core.metaprog.Instructions
 import zio.direct.core.metaprog.Verify
 import zio.direct.core.util.ShowDetails
 import zio.direct.core.metaprog.InfoBehavior
-import zio.direct.deferred
+import zio.direct.Dsl.Internal.deferred
+import zio.direct.Dsl.Internal.ignore
 
 object Allowed {
 
-  def finalValidtyCheck(expr: Expr[_])(using Quotes) =
+  def finalValidtyCheck(expr: Expr[_], instructions: Instructions)(using Quotes) =
     import quotes.reflect._
     Trees.traverse(expr.asTerm, Symbol.spliceOwner) {
+      // If there are code blocks remaining that have arbitrary zio values it means that
+      // they will be lost because the transformations for block-stmts to map/flatMap chains are already done.
+      case Block(stmts, output) =>
+        stmts.foreach(Unsupported.Warn.checkUnmooredZio(_))
       case tree @ RunCall(_) =>
-        Unsupported.Error.withTree(
-          tree,
-          s"""|${Messages.AwaitInAwaitError}
-              |=======
-              |${Format.Tree(tree)}
-              |""".stripMargin
-        )
+        Unsupported.Error.withTree(tree, Messages.AwaitRemainingAfterTransformer)
     }
 
   def validateBlocksIn(using Quotes)(expr: Expr[_], instructions: Instructions): Unit =
@@ -81,6 +80,9 @@ object Allowed {
         // if we have transformed the tree before then we can skip validation of the contents
         // because the whole block is treated an an effective unit
         case Seal('{ deferred[r, e, a]($effect) }) =>
+          Next.Exit
+
+        case Seal('{ ignore($code) }) =>
           Next.Exit
 
         case CaseDef(pattern, cond, output) =>

@@ -5,6 +5,7 @@ import pprint._
 import fansi.Str
 import zio.direct.core.util.Format
 import zio.ZIO
+import scala.tools.nsc.PipelineMain.Pipeline
 
 trait WithIR {
   implicit val macroQuotes: Quotes
@@ -37,7 +38,33 @@ trait WithIR {
       def apply(monad: Monadic, valSymbol: Symbol, body: IR.Pure) =
         new Map(monad, Some(valSymbol), body)
     }
-    case class Monad(code: Term) extends Monadic with Leaf
+
+    class Monad private (val code: Term, val source: Monad.Source) extends Monadic with Leaf {
+      private val id = Monad.Id(code)
+      override def equals(other: Any): Boolean =
+        other match {
+          case v: Monad => id == v.id
+          case _        => false
+        }
+    }
+    object Monad {
+      def apply(code: Term, source: Monad.Source = Monad.Source.Pipeline) =
+        new Monad(code, source)
+
+      def unapply(value: Monad) =
+        Some(value.code)
+
+      sealed trait Source
+      case object Source {
+        case object Pipeline extends Source
+        // Indicates that this IR.Monad came from a previous Defer clause. This is useful to see inside the tree
+        case object PrevDefer extends Source
+        case object IgnoreCall extends Source
+      }
+
+      private case class Id(code: Term)
+    }
+
     // TODO Function to collapse inner blocks into one block because you can have Block(term, Block(term, Block(monad)))
     case class Block(head: Statement, tail: Monadic) extends Monadic
 

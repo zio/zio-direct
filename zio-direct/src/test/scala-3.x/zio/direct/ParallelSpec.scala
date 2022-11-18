@@ -15,11 +15,17 @@ object ParallelSpec extends AsyncAwaitSpec {
 
   val spec = suite("ParallelSpec")(
     suite("Multi Await Tests") {
+      test("Simple two-thing parallel") {
+        val out = defer {
+          (succeed(111).run, succeed(222).run)
+        }
+        assertZIO(out)(Assertion.equalTo((111, 222)))
+      }
+      +
       test("Inferred Environment Should be Correct") {
         val out = defer {
           (service[ConfigInt].run.value, service[ConfigString].run.value)
         }
-        // TODO specifc test for the type
         val provided = out.provide(ZLayer.succeed(ConfigInt(1)), ZLayer.succeed(ConfigString("two")))
         assertZIO(provided)(Assertion.equalTo((1, "two")))
       }

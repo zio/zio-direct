@@ -13,7 +13,7 @@ object ErrorSpec extends AsyncAwaitSpec {
 
   val spec = suite("ErrorSpec")(
     suite("Different Kinds of ways that errors can be thrown") {
-      test("Directly thrown error should always go to error channel") {
+      test("Directly thrown error should always go to error channel") { //
         val out =
           defer(Params(Verify.None)) {
             throw new FooError
@@ -35,6 +35,35 @@ object ErrorSpec extends AsyncAwaitSpec {
             throwFoo()
           }
         assertZIO(out.exit)(dies(isSubtype[FooError](anything)))
+      }
+      +
+      test("Operations order multiple should be correct") {
+        var extern = "foo"
+        val out =
+          defer(Params(Verify.None)) {
+            extern = extern + "bar"
+            extern = extern + "baz"
+            throwFoo()
+            extern = extern + "blin"
+          }
+        assertZIO(out.exit)(dies(isSubtype[FooError](anything))) *>
+          assertTrue(extern == "foobarbaz")
+      }
+      +
+      test("Operations order multiple mixed with effects should be correct") {
+        // Technically this kind of code is utterly forbidden using zio-direct but it is
+        // a useful test to see if blocks are re-composed correctly.
+        var extern = "foo"
+        val out =
+          defer(Params(Verify.None)) {
+            extern = extern + "bar"
+            ZIO.succeed(extern + "effect").run
+            extern = extern + "baz"
+            throwFoo()
+            extern = extern + "blin"
+          }
+        assertZIO(out.exit)(dies(isSubtype[FooError](anything))) *>
+          assertTrue(extern == "foobarbaz")
       }
       +
       // For this whole example to even possibly work incorrectly need to insert an unneeded try element.

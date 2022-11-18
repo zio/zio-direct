@@ -478,7 +478,7 @@ object Example {
   def main(args: Array[String]): Unit = {
 
     val out =
-      defer.info {
+      defer {
         val v = defer {
           val env = ZIO.service[DataSource].run
           env

@@ -18,6 +18,7 @@ import zio.direct.core.norm.WithComputeType
 import zio.direct.core.norm.WithReconstructTree
 import zio.direct.core.norm.WithDecomposeTree
 import zio.direct.core.util.ShowDetails
+import zio.direct.Dsl.Internal.deferred
 
 class Transformer(inputQuotes: Quotes)
     extends WithIR
@@ -118,7 +119,7 @@ class Transformer(inputQuotes: Quotes)
 
     // If there are any remaining run-calls in the tree then fail
     // TODO need to figure out a way to test this
-    Allowed.finalValidtyCheck(output)
+    Allowed.finalValidtyCheck(output, instructions)
 
     computedType.asTypeTuple match {
       case ('[r], '[e], '[a]) =>

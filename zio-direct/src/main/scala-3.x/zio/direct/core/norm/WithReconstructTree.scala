@@ -15,6 +15,7 @@ import zio.direct.core.metaprog.Instructions
 import zio.direct.core.metaprog.Collect
 import zio.direct.core.metaprog.WithZioType
 import zio.direct.core.util.ZioUtil
+import zio.direct.core.util.Unsupported
 
 trait WithReconstructTree {
   self: WithIR with WithZioType with WithComputeType with WithPrintIR with WithInterpolator =>
@@ -108,6 +109,7 @@ trait WithReconstructTree {
 
         case block: IR.Block =>
           val (stmts, term) = compressBlock(List(), block)
+
           // if we are on the top-level we are not inside of any map or flatMap
           // which means that we need to nest any possible exceptions into ZIO.succeed
           // so that they will go into the effect system instead of directly to the outside

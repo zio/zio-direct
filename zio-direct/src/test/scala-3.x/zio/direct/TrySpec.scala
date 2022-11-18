@@ -108,7 +108,7 @@ object TrySpec extends AsyncAwaitSpec {
           // even thought we create the exception inside a success block, the actual
           // 'throw' term is being used so a ZIO.fail(error) is called. therefore
           // we have the error in the fail channel so it is not a defect.
-          val out = defer.verbose {
+          val out = defer {
             try {
               (123, { throw succeed(makeFooError).run })
             } catch {

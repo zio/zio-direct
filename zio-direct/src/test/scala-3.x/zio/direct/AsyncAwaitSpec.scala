@@ -75,7 +75,9 @@ trait AsyncAwaitSpec extends ZIOSpecDefault {
   transparent inline def runLiftFailMsg(errorStringContains: String)(body: String) = {
     val errors =
       typeCheckErrors("defer({" + body + "})").map(_.message)
-    assert(errors)(exists(containsString(errorStringContains)))
+
+    // assert(errors)(exists(containsString(errorStringContains)))
+    zio.test.UseSmartAssert.of(errors, None, None)(exists(containsString(errorStringContains)))(sourceLocation)
   }
 
   inline def sourceLocation: SourceLocation = ${ AsyncAwaitSpec.sourceLocationImpl }

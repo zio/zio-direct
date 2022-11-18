@@ -80,7 +80,7 @@ object PatMatchSpec extends AsyncAwaitSpec {
       suite("without guards") {
         test("pure cases") {
           runLiftTest(3) {
-            "b" match {
+            ("b": String) match {
               case "a" => 2
               case "b" => 3
             }
@@ -98,7 +98,7 @@ object PatMatchSpec extends AsyncAwaitSpec {
         +
         test("impure cases") {
           runLiftTest(3) {
-            "b" match {
+            ("b": String) match {
               case "a" => runBlock(defer(2))
               case "b" => runBlock(defer(3))
             }

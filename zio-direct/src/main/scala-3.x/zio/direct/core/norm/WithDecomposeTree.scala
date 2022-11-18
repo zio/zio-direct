@@ -16,6 +16,9 @@ import zio.direct.core.metaprog.Embedder._
 import zio.direct.core.norm.WithComputeType
 import zio.direct.core.norm.WithReconstructTree
 import zio.direct.core.util.ShowDetails
+import zio.direct.Dsl.Internal.deferred
+import zio.direct.Dsl.Internal.ignore
+import zio.direct.core.util.Unsupported
 
 trait WithDecomposeTree {
   self: WithIR =>
@@ -44,7 +47,7 @@ trait WithDecomposeTree {
           // but as an optimization we can just roll up the thing into an IR.Monad
           // because we know it doesn't need to be transformed anymore
           case Seal('{ deferred($effect) }) =>
-            Some(IR.Monad(effect.asTerm))
+            Some(IR.Monad(effect.asTerm, IR.Monad.Source.PrevDefer))
 
           // Otherwise, if there are no Await calls treat the tree as "Pure" i.e.
           // it will be either embedded within the parent map/flatMap clause or
@@ -219,20 +222,7 @@ trait WithDecomposeTree {
           //   import blah._          // 2nd part, will recurse 2nd time (here)
           //   val b = unlift(ZIO.succeed(value).asInstanceOf[Task[Int]]) // Then will match valdef case
           case head :: BlockN(DecomposeBlock(parts)) =>
-            head match
-              case term: Term =>
-                term.tpe.asType match
-                  case '[ZIO[r, e, a]] if (!(term.tpe =:= TypeRepr.of[Nothing])) =>
-                    report.warning(
-                      s"Found a ZIO term that is not being awaited (type: ${Format.TypeRepr(term.tpe)}). Non-awaited ZIO terms inside of `{ ... }` blocks will never be executed i.e. they will be discarded. " +
-                        s"To execute this term add `.run` at the end or wrap it into an `run(...)` statement." +
-                        s"\n========\n" +
-                        Format.Term(term),
-                      term.asExpr
-                    )
-                  case _ =>
-              case _ =>
-
+            Unsupported.Warn.checkUnmooredZio(head)
             Some(IR.Block(head, parts))
 
           case other =>
@@ -245,6 +235,16 @@ trait WithDecomposeTree {
         term match {
           case Seal('{ unsafe($value) }) =>
             Some(IR.Unsafe(DecomposeTree.orPure(value.asTerm)))
+
+          // If we have a special user-defined "ignore" block, just splice the code. The `ignore` construct
+          // is should ONLY be used to test code.
+          case Seal('{ ignore($code) }) =>
+            code.asTerm.tpe.asType match {
+              case '[ZIO[r, e, a]] =>
+                Some(IR.Monad(code.asTerm, IR.Monad.Source.IgnoreCall))
+              case _ =>
+                Some(IR.Monad(ZioApply.succeed(code.asTerm).asTerm))
+            }
 
           case tryTerm @ Try(tryBlock, caseDefs, finallyBlock) =>
             val tryBlockIR = DecomposeTree.orPure(tryBlock)

@@ -50,6 +50,17 @@ trait WithPrintIR {
           else
             Tree.Apply("SCALA_SYM", Iterator(Tree.Literal(s"/*${sym}*/")))
 
+        // special handling for the IR.Monad case because it's not a case class (since it has "trivia properties")
+        case m: IR.Monad =>
+          Tree.Apply("IR.Monad", Iterator(treeify(m.code), treeify(m.source)))
+
+        // append "IR." to all IR-members
+        case m: IR =>
+          super.treeify(m) match {
+            case Tree.Apply(prefix, body) => Tree.Apply(s"IR.${prefix}", body)
+            case other                    => other
+          }
+
         case zt: ZioType =>
           Tree.Literal(s"ZioType[${Format.TypeRepr(zt.r)}, ${Format.TypeRepr(zt.e)}, ${Format.TypeRepr(zt.a)}]")
 

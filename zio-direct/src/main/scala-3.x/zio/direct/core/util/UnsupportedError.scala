@@ -2,6 +2,7 @@ package zio.direct.core.util
 
 import scala.quoted._
 import zio.direct.core.util.IndentExt._
+import zio.ZIO
 
 object Unsupported {
   private sealed trait Msg {
@@ -57,7 +58,7 @@ object Unsupported {
   }
 
   object Warn {
-    def withTree(using Quotes)(tree: quotes.reflect.Tree, message: String) =
+    def withTree(using Quotes)(tree: quotes.reflect.Tree, message: String) = {
       import quotes.reflect._
       val text =
         s"""|${message}
@@ -67,5 +68,24 @@ object Unsupported {
       tree match
         case t: Term if (t.isExpr) => report.warning(text, t.asExpr)
         case _                     => report.warning(text, tree.pos)
+    }
+
+    def checkUnmooredZio(using Quotes)(tree: quotes.reflect.Tree) = {
+      import quotes.reflect._
+      tree match
+        case term: Term =>
+          term.tpe.asType match
+            case '[ZIO[r, e, a]] if (!(term.tpe =:= TypeRepr.of[Nothing])) =>
+              report.warning(
+                s"Found a ZIO term that is not being awaited (type: ${Format.TypeRepr(term.tpe)}). Non-awaited ZIO terms inside of `{ ... }` blocks will never be executed i.e. they will be discarded. " +
+                  s"To execute this term add `.run` at the end or wrap it into an `run(...)` statement." +
+                  s"\n========\n" +
+                  Format.Term(term),
+                term.asExpr
+              )
+            case _ =>
+        case _ =>
+    }
+
   }
 }
