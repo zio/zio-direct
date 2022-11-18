@@ -39,6 +39,13 @@ trait WithDecomposeTree {
 
       def unapply(expr: Term): Option[IR.Monadic] = {
         val ret = expr match {
+
+          // if there is a nested defer call, the inner tree should already be pure
+          // but as an optimization we can just roll up the thing into an IR.Monad
+          // because we know it doesn't need to be transformed anymore
+          case Seal('{ deferred($effect) }) =>
+            Some(IR.Monad(effect.asTerm))
+
           // Otherwise, if there are no Await calls treat the tree as "Pure" i.e.
           // it will be either embedded within the parent map/flatMap clause or
           // wrapped into a ZIO.succeed.

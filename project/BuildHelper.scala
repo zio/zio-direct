@@ -45,14 +45,6 @@ object BuildHelper {
     "-Ywarn-value-discard"
   )
 
-  private def optimizerOptions(optimize: Boolean) =
-    if (optimize)
-      Seq(
-        "-opt:l:inline",
-        "-opt-inline-from:zio.internal.**"
-      )
-    else Nil
-
   def buildInfoSettings(packageName: String) =
     Seq(
       buildInfoKeys    := Seq[BuildInfoKey](organization, moduleName, name, version, scalaVersion, sbtVersion, isSnapshot),
@@ -130,7 +122,7 @@ object BuildHelper {
     Compile / console / initialCommands := initialCommandsStr
   )
 
-  def extraOptions(scalaVersion: String, optimize: Boolean) =
+  def extraOptions(scalaVersion: String) =
     CrossVersion.partialVersion(scalaVersion) match {
       case Some((3, 0))  =>
         Seq(
@@ -140,7 +132,7 @@ object BuildHelper {
       case Some((2, 13)) =>
         Seq(
           // "-Ywarn-unused:params,-implicits"
-        ) ++ std2xOptions ++ optimizerOptions(optimize)
+        ) ++ std2xOptions
       case Some((2, 12)) =>
         Seq(
           // "-opt-warnings",
@@ -158,7 +150,7 @@ object BuildHelper {
           "-Xsource:2.13",
           // "-Xmax-classfile-name",
           // "242"
-        ) ++ std2xOptions ++ optimizerOptions(optimize)
+        ) ++ std2xOptions
       case Some((2, 11)) =>
         Seq(
           // "-Ypartial-unification",
@@ -220,7 +212,7 @@ object BuildHelper {
   def stdSettings(prjName: String) = Seq(
     name                                   := s"$prjName",
     ThisBuild / scalaVersion               := ScalaDotty,
-    scalacOptions                          := stdOptions ++ extraOptions(scalaVersion.value, optimize = !isSnapshot.value),
+    scalacOptions                          := stdOptions ++ extraOptions(scalaVersion.value),
   )
 
   def macroDefinitionSettings = Seq(

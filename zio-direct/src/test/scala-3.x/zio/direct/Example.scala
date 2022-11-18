@@ -6,6 +6,10 @@ import java.sql.SQLException
 import java.io.IOException
 import zio.direct.core.metaprog.Collect
 import zio.direct.core.metaprog.Verify
+import javax.sql.DataSource
+import zio.direct.Dsl.Params
+import java.sql.Connection
+import zio.Exit.{Failure, Success}
 
 object Example {
   // def funA():Unit = {
@@ -472,19 +476,31 @@ object Example {
   import zio.Console.printLine
 
   def main(args: Array[String]): Unit = {
-    val out = defer.info {
-      val l = succeed(List(1, 2, 3)).run
-      succeed(
-        for (i <- l) {
-          println(i)
-        }
-      )
-    }
 
-    val outRun =
-      zio.Unsafe.unsafe { implicit unsafe =>
-        zio.Runtime.default.unsafe.run(out).getOrThrow()
+    val out =
+      defer.info {
+        val v = defer {
+          val env = ZIO.service[DataSource].run
+          env
+        }
+        v.run
       }
-    println("====== RESULT: " + outRun) // //
+
+    // val out: ZIO[ConfigFoo, Nothing, Unit] =
+    //   defer {
+    //     val x = succeed(1).run
+    //     val y = defer {
+    //       val i = service[ConfigFoo].run
+    //       succeed(3 + i.value + x)
+    //     }.run
+    //     val z = succeed(y.run + 4)
+    //   }
+
+    // .provide(ZLayer.succeed(ConfigFoo(123)))
+    // val outRun =
+    //   zio.Unsafe.unsafe { implicit unsafe =>
+    //     zio.Runtime.default.unsafe.run(out).getOrThrow()
+    //   }
+    // println("====== RESULT: " + outRun) // //
   }
 }

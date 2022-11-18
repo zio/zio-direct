@@ -131,7 +131,7 @@ class Transformer(inputQuotes: Quotes)
             case None =>
               report.info(computedTypeMsg)
           }
-        '{ $output.asInstanceOf[ZIO[r, e, a]] }
+        '{ deferred($output.asInstanceOf[ZIO[r, e, a]]) }
     }
   }
 }

@@ -15,6 +15,8 @@ import zio.direct.core.metaprog.TypeUnion
 
 def unsafe[T](value: T): T = NotDeferredException.fromNamed("unsafe")
 
+def deferred[R, E, A](effect: ZIO[R, E, A]) = effect
+
 object defer {
   transparent inline def apply[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Silent }, '{ Dsl.Params() }) }
   transparent inline def info[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Info }, '{ Dsl.Params() }) }
