@@ -55,6 +55,7 @@ object Extractors {
 
       argsJoined.map((arg, argValDef) => {
         val isTermImplict = arg.symbol.flags.is(Flags.Given) || arg.symbol.flags.is(Flags.Implicit)
+        // Note that if there is no argValDef we treat the term as non-implicit
         val isValDefImplicit = argValDef.exists(vd => vd.flags.is(Flags.Given) || vd.flags.is(Flags.Implicit))
         val isImplicit = isTermImplict || isValDefImplicit
         (arg, { if (isImplicit) ArgType.Implicit else ArgType.Regular })

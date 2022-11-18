@@ -476,19 +476,19 @@ object Example {
   import ZIO._
   import zio.Console.printLine
 
-  def main(args: Array[String]): Unit = {
+  def main(args: Array[String]): Unit = { // //
 
-    val out =
-      defer {
-        ZStream.service[Connection].flatMap { conn =>
-          val autoCommitPrev = conn.getAutoCommit
-          run {
-            ZStream.acquireReleaseWith(ZIO.attempt(conn.setAutoCommit(false)))(_ => {
-              ZIO.succeed(conn.setAutoCommit(autoCommitPrev))
-            }).flatMap(_ => f)
-          }
-        }
-      }
+    // val out =
+    //   defer {
+    //     ZStream.service[Connection].flatMap { conn =>
+    //       val autoCommitPrev = conn.getAutoCommit
+    //       run {
+    //         ZStream.acquireReleaseWith(ZIO.attempt(conn.setAutoCommit(false)))(_ => {
+    //           ZIO.succeed(conn.setAutoCommit(autoCommitPrev))
+    //         })
+    //       }
+    //     }
+    //   }
 
     // val out: ZIO[ConfigFoo, Nothing, Unit] =
     //   defer {

@@ -72,6 +72,7 @@ object Allowed {
     sealed trait Next
     object Next {
       case object Proceed extends Next
+      case class ProceeedSpecific(terms: List[Term]) extends Next
       case object Exit extends Next
     }
 
@@ -112,6 +113,9 @@ object Allowed {
           Unsupported.Error.withTree(v, declsError(s"Illegal DefDef (flags: ${v.symbol.flags.show})", v))
         case v: ValDef if (v.symbol.flags.is(Flags.Mutable) && !v.symbol.flags.is(Flags.Synthetic) && !SymbolOps.isSynthetic(v.symbol)) =>
           Unsupported.Error.withTree(v, declsError(s"Illegal ValDef (flags: ${v.symbol.flags.show})", v))
+        // do not allow implicit inside of defer clauses (if they are not parameters)
+        case v: ValDef if ((v.symbol.flags.is(Flags.Given) || v.symbol.flags.is(Flags.Implicit)) && !v.symbol.flags.is(Flags.Param) && !v.symbol.flags.is(Flags.Synthetic) && !SymbolOps.isSynthetic(v.symbol)) =>
+          Unsupported.Error.withTree(v, declsError(Messages.ImplicitsNotAllowed, v))
 
         // otherwise ignore, the tree traversal will continue
         case _ =>
@@ -140,13 +144,23 @@ object Allowed {
         case Select(qualifier, name) => Next.Proceed
         case This(qual)              => Next.Proceed
         case Super(qual, mix)        => Next.Proceed
-        case Apply(fun, args)        => Next.Proceed
-        case TypeApply(fun, args)    => Next.Proceed
-        case Literal(const)          => Next.Proceed
-        case New(tpt)                => Next.Proceed
-        case Typed(expr, tpt)        => Next.Proceed
-        case Block(stats, expr)      => Next.Proceed
-        case If(cond, thenp, elsep)  => Next.Proceed
+
+        case applyNode @ Apply(fun, args) =>
+          // If we find implicit arguments in the Apply do not check them. It is very important to skip checking of implicit arguments
+          // because they do not interfere with code correctness (implicit defs are forbidden because they are defs, implicit vals
+          // are allowed because they have to be eager anyway. However, there are situations synthesized code pulugs in implicit things
+          // that have defs inside e.g. the LightTypeTag for many zio constructs). In such cases bogus messages of "Illegal DefDef (flags: Flags.Method)."
+          // will happen in user code on terms `def tag: LightTypeTag = tag0.tag` that user haven't even seen! (because they are auto-synthesized by zio code).
+          // Unfortuately this kind erratic behavior is very difficult to actually reproduce in a test because in only appears when the compiler is confused.
+          val nonImplicitArgs = ImplicitArgs.fromFunctionMarked(applyNode).filter { case (_, stat) => !stat.isImplicit }.map(_._1)
+          Next.ProceeedSpecific(fun +: nonImplicitArgs)
+
+        case TypeApply(fun, args)   => Next.Proceed
+        case Literal(const)         => Next.Proceed
+        case New(tpt)               => Next.Proceed
+        case Typed(expr, tpt)       => Next.Proceed
+        case Block(stats, expr)     => Next.Proceed
+        case If(cond, thenp, elsep) => Next.Proceed
         // Anonymous functions run from things inside of Async can have these
         case Closure(meth, tpt) if (meth.symbol.flags.is(Flags.Synthetic)) =>
           Next.Proceed
@@ -171,52 +185,14 @@ object Allowed {
         }
         val nextStep = validate(tree)
         nextStep match {
+          // The user can tell use not to check all further elements, just some of them.
+          case Next.ProceeedSpecific(specificTerms) =>
+            specificTerms.foreach(specificTerm => super.traverseTree(specificTerm)(owner))
+          // This is the most typical, delve into the tree that the user has specified
           case Next.Proceed => super.traverseTree(tree)(owner)
           case Next.Exit    =>
         }
       }
     ).traverseTree(inputTree)(Symbol.spliceOwner)
   end validateBlocksTree
-
-  object ParallelExpression {
-    def unapply(using Quotes)(expr: Expr[_]): Boolean =
-      import quotes.reflect._
-      checkAllowed(expr.asTerm)
-
-    private def checkAllowed(using Quotes)(tree: quotes.reflect.Term): Boolean = {
-      import quotes.reflect._
-      tree match {
-        case Ident(name) =>
-          true
-        case Select(qualifier, name) =>
-          checkAllowed(qualifier)
-        case This(qual) =>
-          true
-        case Super(qual, mix) =>
-          checkAllowed(qual)
-        case applyNode: Apply =>
-          // val nonImplicitArgs = ImplicitArgs.fromFunctionMarked(applyNode).filter { case (_, stat) => !stat.isImplicit }.map(_._1)
-          checkTerms(applyNode.args)
-        case TypeApply(fun, args) =>
-          checkAllowed(fun)
-        case Literal(const) =>
-          true
-        case New(tpt) =>
-          true
-        case Typed(expr, tpt) =>
-          checkAllowed(expr)
-        case tree: NamedArg =>
-          checkAllowed(tree.value)
-        case Repeated(elems, elemtpt) =>
-          checkTerms(elems)
-        case Inlined(call, bindings, expansion) =>
-          checkAllowed(expansion)
-        case _ =>
-          Unsupported.Error.awaitUnsupported(tree)
-      }
-    }
-
-    private def checkTerms(using Quotes)(trees: List[quotes.reflect.Term]): Boolean =
-      trees.forall(x => checkAllowed(x))
-  }
 }
