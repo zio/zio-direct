@@ -10,6 +10,7 @@ import javax.sql.DataSource
 import zio.direct.Dsl.Params
 import java.sql.Connection
 import zio.Exit.{Failure, Success}
+import zio.stream.ZStream
 
 object Example {
   // def funA():Unit = {
@@ -479,11 +480,14 @@ object Example {
 
     val out =
       defer {
-        val v = defer {
-          val env = ZIO.service[DataSource].run
-          env
+        ZStream.service[Connection].flatMap { conn =>
+          val autoCommitPrev = conn.getAutoCommit
+          run {
+            ZStream.acquireReleaseWith(ZIO.attempt(conn.setAutoCommit(false)))(_ => {
+              ZIO.succeed(conn.setAutoCommit(autoCommitPrev))
+            }).flatMap(_ => f)
+          }
         }
-        v.run
       }
 
     // val out: ZIO[ConfigFoo, Nothing, Unit] =

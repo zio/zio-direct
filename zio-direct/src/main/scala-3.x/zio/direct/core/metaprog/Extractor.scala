@@ -17,6 +17,51 @@ object Extractors {
         case _                                    => None
   }
 
+  def firstParamList(using Quotes)(applyNode: quotes.reflect.Apply) =
+    import quotes.reflect._
+    val fn = applyNode.fun
+    for {
+      methodSym <- if (fn.symbol.flags.is(Flags.Method)) Some(fn.symbol) else None
+      firstParamList <- fn.symbol.paramSymss.find(params => params.headOption.exists(_.isValDef))
+    } yield firstParamList
+
+  object ImplicitArgs {
+    sealed trait ArgType {
+      def isImplicit: Boolean
+    }
+    object ArgType {
+      case object Implicit extends ArgType { val isImplicit = true }
+      case object Regular extends ArgType { val isImplicit = false }
+    }
+
+    // Get the arguments from the unapply if they are not implicit. Since implicit-ness is typically defined
+    // on the clause (I think in some rare cases the term itself can be implicit) so if the function-clause
+    // of the Apply is implicit then this list will be empty. Otherwise, it will consist of all the arugments.
+    def fromFunctionMarked(using Quotes)(applyNode: quotes.reflect.Apply) = {
+      import quotes.reflect._
+      val firstParams = Extractors.firstParamList(applyNode)
+      val Apply(_, argsRaw) = applyNode
+
+      // Sometimes we don't know directly from the Term whether it is implicit or not, try to get the
+      // arg val-defs and see if they are marked implicit there. All of this needs to be added to the code
+      // formatting logic.
+      val argsJoined: List[(Term, Option[Symbol])] =
+        firstParams match {
+          case Some(parmValDefs) if parmValDefs.length == argsRaw.length =>
+            argsRaw.zip(parmValDefs.map(Some(_)))
+          case _ =>
+            argsRaw.map(arg => (arg, None))
+        }
+
+      argsJoined.map((arg, argValDef) => {
+        val isTermImplict = arg.symbol.flags.is(Flags.Given) || arg.symbol.flags.is(Flags.Implicit)
+        val isValDefImplicit = argValDef.exists(vd => vd.flags.is(Flags.Given) || vd.flags.is(Flags.Implicit))
+        val isImplicit = isTermImplict || isValDefImplicit
+        (arg, { if (isImplicit) ArgType.Implicit else ArgType.Regular })
+      })
+    }
+  }
+
   extension [T: Type](expr: Expr[T])
     def reseal(using Quotes): Expr[T] =
       import quotes.reflect._

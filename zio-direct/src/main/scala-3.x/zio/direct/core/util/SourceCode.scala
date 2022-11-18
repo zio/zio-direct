@@ -3,6 +3,8 @@ package zio.direct.core.util
 import scala.quoted._
 import scala.annotation.switch
 import scala.util
+import zio.direct.core.metaprog.Extractors
+import zio.direct.core.metaprog.Extractors.ImplicitArgs
 
 trait SyntaxHighlight {
   def highlightKeyword(str: String): String
@@ -499,31 +501,13 @@ object SourceCode {
         printTree(arg)
         this += "}"
 
-      case Apply(fn, argsRaw) =>
-        val firstParamList =
-          for {
-            methodSym <- if (fn.symbol.flags.is(Flags.Method)) Some(fn.symbol) else None
-            firstParamList <- fn.symbol.paramSymss.find(params => params.headOption.exists(_.isValDef))
-          } yield firstParamList
-
-        // Sometimes we don't know directly from the Term whether it is implicit or not, try to get the
-        // arg val-defs and see if they are marked implicit there. All of this needs to be added to the code
-        // formatting logic.
-        val argsJoined: List[(Term, Option[Symbol])] =
-          firstParamList match {
-            case Some(parmValDefs) if parmValDefs.length == argsRaw.length =>
-              argsRaw.zip(parmValDefs.map(Some(_)))
-            case _ =>
-              argsRaw.map(arg => (arg, None))
-          }
-
+      case applyNode @ Apply(fn, argsRaw) =>
+        val firstParams = Extractors.firstParamList(applyNode)
         val args =
-          argsJoined.filter((arg, argValDef) => {
-            val isTermImplict = arg.symbol.flags.is(Flags.Given) || arg.symbol.flags.is(Flags.Implicit)
-            val isValDefImplicit = argValDef.exists(vd => vd.flags.is(Flags.Given) || vd.flags.is(Flags.Implicit))
-            val isImplicit = isTermImplict || isValDefImplicit
-            !isImplicit || showDetails.showImplicitClauses
-          }).map(_._1)
+          if (showDetails.showImplicitClauses)
+            ImplicitArgs.fromFunctionMarked(applyNode).map(_._1)
+          else
+            ImplicitArgs.fromFunctionMarked(applyNode).filter { case (_, stat) => !stat.isImplicit }.map(_._1)
 
         var argsPrefix = ""
         fn match {

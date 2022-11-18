@@ -194,8 +194,9 @@ object Allowed {
           true
         case Super(qual, mix) =>
           checkAllowed(qual)
-        case Apply(fun, args) =>
-          checkTerms(args)
+        case applyNode: Apply =>
+          // val nonImplicitArgs = ImplicitArgs.fromFunctionMarked(applyNode).filter { case (_, stat) => !stat.isImplicit }.map(_._1)
+          checkTerms(applyNode.args)
         case TypeApply(fun, args) =>
           checkAllowed(fun)
         case Literal(const) =>
