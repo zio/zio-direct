@@ -121,3 +121,5 @@ object Example2 {
   }
 
 }
+
+case class ConfigFoo(value: Int)

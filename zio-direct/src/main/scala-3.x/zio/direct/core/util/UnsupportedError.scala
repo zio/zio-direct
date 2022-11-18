@@ -46,7 +46,11 @@ object Unsupported {
 
     def withTree(using Quotes)(tree: quotes.reflect.Tree, message: String) =
       import quotes.reflect._
-      val text = message
+      val text =
+        s"""|${message}
+            |=========
+            |${Format.Tree(tree)}
+            |""".stripMargin
       tree match
         case t: Term if (t.isExpr) => report.errorAndAbort(text, t.asExpr)
         case _                     => report.errorAndAbort(text, tree.pos)
@@ -55,7 +59,11 @@ object Unsupported {
   object Warn {
     def withTree(using Quotes)(tree: quotes.reflect.Tree, message: String) =
       import quotes.reflect._
-      val text = message
+      val text =
+        s"""|${message}
+            |=========
+            |${Format.Tree(tree)}
+            |""".stripMargin
       tree match
         case t: Term if (t.isExpr) => report.warning(text, t.asExpr)
         case _                     => report.warning(text, tree.pos)

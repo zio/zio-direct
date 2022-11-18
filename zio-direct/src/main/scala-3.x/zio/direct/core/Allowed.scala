@@ -78,18 +78,18 @@ object Allowed {
 
     def validate(expr: Tree): Next =
       expr match {
+        // if we have transformed the tree before then we can skip validation of the contents
+        // because the whole block is treated an an effective unit
+        case Seal('{ deferred($effect) }) =>
+          Next.Exit
+
         case CaseDef(pattern, cond, output) =>
           cond match {
             case None              => Next.Proceed
             case Some(PureTree(_)) => Next.Proceed
             case Some(nonpure) =>
-              Unsupported.Error.awaitUnsupported(nonpure, "Match conditionals are not allow to contain `await`. Move the `await` call out of the match-statement.")
+              Unsupported.Error.awaitUnsupported(nonpure, "Match conditionals are not allow to contain `run`. Move the `run` call out of the match-statement.")
           }
-
-        // if we have transformed the tree before then we can skip validation of the contents
-        // because the whole block is treated an an effective unit
-        case Seal('{ deferred($effect) }) =>
-          Next.Exit
 
         case term: Term =>
           validateTerm(term)
