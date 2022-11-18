@@ -131,6 +131,9 @@ object Allowed {
         case asi: Assign =>
           Unsupported.Error.withTree(asi, Messages.AssignmentNotAllowed)
 
+        case _ if (expr.tpe.typeSymbol.fullName.startsWith("scala.collection.mutable")) =>
+          Unsupported.Error.withTree(expr, Messages.MutableCollectionDetected)
+
         // All the kinds of valid things a Term can be in defer blocks
         // Originally taken from TreeMap.transformTerm in Quotes.scala
         case Ident(name)             => Next.Proceed

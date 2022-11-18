@@ -39,6 +39,26 @@ object VariaSpec extends AsyncAwaitSpec {
           """
         }
       }
+      +
+      test("disallow mutable collection use") {
+        import scala.collection.mutable.ArrayBuffer
+        val v = new ArrayBuffer[Int](4)
+        runLiftFailMsg(Messages.MutableCollectionDetected) {
+          """
+          v += 4
+          """
+        }
+      }
+      +
+      test("disallow mutable collection use - declare but not use") {
+        import scala.collection.mutable.ArrayBuffer
+        runLiftFailMsg(Messages.MutableCollectionDetected) {
+          """
+          val v = new ArrayBuffer[Int](4)
+          ZIO.succeed(123).run
+          """
+        }
+      }
     }
   }
 }

@@ -9,6 +9,13 @@ implicit class StringExt(str: String) {
   def trimLeft = str.dropWhile(_.isWhitespace)
 }
 
+val MutableCollectionDetected =
+"""
+Detected the use of a mutable collection inside a defer clause.
+Mutable collections can cause many potential issues as a result of defer-clause
+rewrites so they are not allowed (Unless it is inside of a run-call).
+"""
+
 val DeclarationNotAllowedWithAwaits =
 """
 In Lenient mode, Class, Function, and Mutable-Variable definitions are allowed but only so long as they do not direclty read awaits.
