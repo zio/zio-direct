@@ -80,7 +80,7 @@ object Allowed {
       expr match {
         // if we have transformed the tree before then we can skip validation of the contents
         // because the whole block is treated an an effective unit
-        case Seal('{ deferred($effect) }) =>
+        case Seal('{ deferred[r, e, a]($effect) }) =>
           Next.Exit
 
         case CaseDef(pattern, cond, output) =>

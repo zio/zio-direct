@@ -476,6 +476,16 @@ object Example {
   import zio.Console.printLine
 
   def main(args: Array[String]): Unit = {
+
+    val out =
+      defer.info {
+        val v = defer {
+          val env = ZIO.service[DataSource].run
+          env
+        }
+        v.run
+      }
+
     // val out: ZIO[ConfigFoo, Nothing, Unit] =
     //   defer {
     //     val x = succeed(1).run
@@ -485,51 +495,6 @@ object Example {
     //     }.run
     //     val z = succeed(y.run + 4)
     //   }
-
-    val currentConnection: FiberRef[Option[Connection]] =
-      Unsafe.unsafe { implicit unsafe =>
-        Runtime.default.unsafe.run(zio.Scope.global.extend(FiberRef.make(Option.empty[java.sql.Connection]))).getOrThrow()
-      }
-
-    def stuff[R <: DataSource, A](op: ZIO[R, Throwable, A]) = {
-      val out = defer.verboseTree(Params(Verify.Lenient)) {
-        currentConnection.get.run match {
-          case Some(conn) => op.run
-          case None =>
-            val newConnection = defer {
-              val env = ZIO.service[DataSource].run
-              val connection = scopedBestEffort(attemptBlocking(env.getConnection)).run
-              // Get the current value of auto-commit
-              val prevAutoCommit = attemptBlocking(connection.getAutoCommit).run
-              // Disable auto-commit since we need to be able to roll back. Once everything is done, set it
-              // to whatever the previous value was.
-              ZIO.acquireRelease(attemptBlocking(connection.setAutoCommit(false))) { _ =>
-                attemptBlocking(connection.setAutoCommit(prevAutoCommit)).orDie
-              }.run
-              ZIO.acquireRelease(currentConnection.set(Some(connection))) { _ =>
-                // Note. We are failing the fiber if auto-commit reset fails. For some circumstances this may be too aggresive.
-                // If the connection pool e.g. Hikari resets this property for a recycled connection anyway doing it here
-                // might not be necessary
-                currentConnection.set(None)
-              }.run
-              ZIO.addFinalizerExit {
-                case Success(_)     => blocking(ZIO.succeed(connection.commit()))
-                case Failure(cause) => blocking(ZIO.succeed(connection.rollback()))
-              }.run
-            }
-
-            ZIO.scoped(defer {
-              newConnection.run
-              op.run
-            }).run
-        }
-      }
-    }
-
-    def scopedBestEffort[R, E, A <: AutoCloseable](effect: ZIO[R, E, A]): ZIO[R with Scope, E, A] =
-      ZIO.acquireRelease(effect)(resource =>
-        ZIO.attemptBlocking(resource.close()).tapError(e => ZIO.attempt(println("foo")).ignore).ignore
-      )
 
     // .provide(ZLayer.succeed(ConfigFoo(123)))
     // val outRun =
