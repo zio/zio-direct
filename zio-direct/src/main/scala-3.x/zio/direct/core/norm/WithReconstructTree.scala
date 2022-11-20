@@ -33,6 +33,7 @@ trait WithReconstructTree {
 
     private def computeSymbolType(valSymbol: Option[Symbol], alternativeSource: Term) =
       valSymbol match
+        // TODO Add a verification here that the alternativeSource [a] symbol has has the same type as valSymbol?
         case Some(oldSymbol) =>
           oldSymbol.termRef.widenTermRefByName.asType
         case None =>
@@ -75,19 +76,37 @@ trait WithReconstructTree {
               }
         }
 
+        case IR.Foreach(listIR, listType, elementSymbol, body) =>
+          // For something like
+          //   (list:Iterable[E]).foreach(e => body)
+          // the `sym` is of type E because it is `e`
+          // We need to transform it into something like:
+          //   ZIO.succeed(list).map { (l:Iterable[E] => ZIO.foreach(l)(body) }
+          val monadExpr = apply(listIR)
+          val bodyMonad = apply(body)
+          val elementType = elementSymbol.termRef.widenTermRefByName.asType
+          (listType.asType, elementType) match
+            case ('[l], '[e]) =>
+              '{
+                $monadExpr.asInstanceOf[ZIO[?, ?, l]].flatMap((list: l) =>
+                  ZIO.foreach(list.asInstanceOf[Iterable[e]])((v: e) =>
+                    ${ replaceSymbolInBodyMaybe(using macroQuotes)(bodyMonad.asTerm.changeOwner(('v).asTerm.symbol))(Some(elementSymbol), ('v).asTerm).asExprOf[ZIO[?, ?, ?]] }
+                  )
+                )
+              }
+
         // Pull out the value from IR.Pure and use it directly in the mapping
         case IR.Map(monad, valSymbol, IR.Pure(body)) =>
           val monadExpr = apply(monad)
           def symbolType = computeSymbolType(valSymbol, monadExpr.asTerm)
           symbolType match
-            // TODO check that 'a' is the same as 't' here?
+            // Check that 'a' is the same as 't' here in computeSymbolType
             case '[t] =>
               '{
                 $monadExpr.asInstanceOf[ZIO[?, ?, t]].map((v: t) =>
                   ${ replaceSymbolInBodyMaybe(using macroQuotes)(body)(valSymbol, ('v).asTerm).asExpr }
                 )
-              } // .asInstanceOf[ZIO[?, ?, ?]] // since the body has it's own term not specifying that here
-        // TODO any ownership changes needed in the body?
+              }
 
         case IR.Monad(code) => code.asExprOf[ZIO[?, ?, ?]]
 
@@ -331,7 +350,7 @@ trait WithReconstructTree {
         { (run(foo:Task[t]):t + bar):r }
         { run(foo:t):Task[t].map[r](fooVal:t => (fooVal + bar):r) }
          */
-        case List((monad, oldSymbol)) =>
+        case List((monad, oldSymbol)) => {
           // wrap a body of code that pointed to some identifier whose symbol is prevValSymbol
           def wrapWithLambda[T: Type, R: Type](body: Term, prevValSymbol: Symbol) = {
             val mtpe = MethodType(List("sm"))(_ => List(TypeRepr.of[T]), _ => TypeRepr.of[R])
@@ -346,23 +365,26 @@ trait WithReconstructTree {
           }
 
           val monadExpr = apply(monad)
-          (monadExpr.asTerm.tpe.asType) match
+          (monadExpr.asTerm.tpe.asType) match {
             case '[ZIO[x, y, t]] =>
-              newTree match
+              newTree match {
                 case IR.Pure(newTree) =>
-                  newTree.tpe.asType match
+                  newTree.tpe.widenTermRefByName.asType match {
                     case '[r] =>
                       val lam = wrapWithLambda[t, r](newTree, oldSymbol)
                       apply(IR.Monad('{ ${ monadExpr.asExprOf[ZIO[?, ?, t]] }.map[r](${ lam.asExprOf[t => r] }) }.asTerm))
+                  }
                 case IR.Monad(newTree) =>
-                  newTree.tpe.asType match
+                  newTree.tpe.asType match {
                     case '[ZIO[x1, y1, r]] =>
                       val lam = wrapWithLambda[t, ZIO[x1, y1, r]](newTree, oldSymbol)
-                      // back here
                       // could also work like this?
                       // apply(IR.Monad('{ ${monadExpr.asExprOf[ZIO[Any, Nothing, t]]}.flatMap[Any, Nothing, r](${lam.asExprOf[t => ZIO[Any, Nothing, r]]}) }.asTerm))
                       apply(IR.Monad('{ ${ monadExpr.asExprOf[ZIO[?, ?, t]] }.flatMap(${ lam.asExprOf[t => ZIO[x1, y1, r]] }) }.asTerm))
-
+                  }
+              }
+          }
+        }
         case unlifts =>
           val unliftTriples =
             unlifts.map((monad, monadSymbol) => {

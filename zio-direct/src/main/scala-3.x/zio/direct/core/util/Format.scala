@@ -94,7 +94,7 @@ object Format {
     import quotes.reflect._
     printShortCode(using q)(expr.asTerm, mode)
 
-  def apply(code: String, formatCode: Boolean = true, showErrorTrace: Boolean = true) = {
+  def apply(code: String, formatCode: Boolean = true, showErrorTrace: Boolean = false) = {
     val encosedCode =
       s"""|object DummyEnclosure {
             |  ${code}

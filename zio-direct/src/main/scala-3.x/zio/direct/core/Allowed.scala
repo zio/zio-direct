@@ -18,6 +18,7 @@ object Allowed {
 
   def finalValidtyCheck(expr: Expr[_], instructions: Instructions)(using Quotes) =
     import quotes.reflect._
+    given implicitInstr: Instructions = instructions
     Trees.traverse(expr.asTerm, Symbol.spliceOwner) {
       // If there are code blocks remaining that have arbitrary zio values it means that
       // they will be lost because the transformations for block-stmts to map/flatMap chains are already done.
@@ -29,9 +30,10 @@ object Allowed {
 
   def validateBlocksIn(using Quotes)(expr: Expr[_], instructions: Instructions): Unit =
     import quotes.reflect._
-    validateBlocksTree(expr.asTerm, instructions)
+    given implicitInstr: Instructions = instructions
+    validateBlocksTree(expr.asTerm)
 
-  private def validateAwaitClause(using Quotes)(expr: quotes.reflect.Tree, instructions: Instructions): Unit =
+  private def validateAwaitClause(using qctx: Quotes, instructions: Instructions)(expr: quotes.reflect.Tree): Unit =
     import quotes.reflect._
     Trees.traverse(expr, Symbol.spliceOwner) {
       // Cannot have nested awaits:
@@ -45,7 +47,7 @@ object Allowed {
 
   // TODO this way of traversing the tree is error prone not not very efficient. Re-write this
   // using the TreeTraverser directly and make `traverse` private.
-  private def validateBlocksTree(using Quotes)(inputTree: quotes.reflect.Tree, instructions: Instructions): Unit =
+  private def validateBlocksTree(using qctx: Quotes, instructions: Instructions)(inputTree: quotes.reflect.Tree): Unit =
     import quotes.reflect._
 
     val declsErrorMsg =
@@ -96,18 +98,18 @@ object Allowed {
 
         // should be handled by the tree traverser but put here just in case
         case tree @ RunCall(content) =>
-          validateAwaitClause(content.asTerm, instructions)
+          validateAwaitClause(content.asTerm)
           // Do not need other validations inside the run-clause
           Next.Exit
-
-        // evaluate standard terms i.e. that do not have any kind of special handing such as being side of run(...) calls etc...
-        case term: Term =>
-          validateTerm(term)
 
         // if verification is in "Lenient mode", allow ClassDefs, DefDefs, and ValDefs so long
         // as there are no 'await' calls inside of them
         case PureTree(_) if (instructions.verify == Verify.Lenient) =>
           Next.Exit
+
+        // evaluate standard terms i.e. that do not have any kind of special handing such as being side of run(...) calls etc...
+        case term: Term =>
+          validateTerm(term)
 
         // Do not allow declarations inside of defer blocks. Sometimes when it's a class-constructor
         // etc... there's no Flags.Synthetic but we still need to treat the symbol as though it is synthetic
@@ -171,6 +173,7 @@ object Allowed {
         case Try(block, cases, finalizer)       => Next.Proceed
         case Inlined(call, bindings, expansion) => Next.Proceed
         case SummonFrom(cases)                  => Next.Proceed
+        case v: Repeated                        => Next.Proceed
 
         case otherTree =>
           Unsupported.Error.awaitUnsupported(otherTree)
@@ -181,7 +184,7 @@ object Allowed {
       override def traverseTree(tree: Tree)(owner: Symbol): Unit = {
         tree match {
           case tree @ RunCall(content) =>
-            validateAwaitClause(content.asTerm, instructions)
+            validateAwaitClause(content.asTerm)
           case _ =>
         }
         val nextStep = validate(tree)

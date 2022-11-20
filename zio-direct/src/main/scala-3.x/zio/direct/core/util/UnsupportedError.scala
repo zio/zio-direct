@@ -3,6 +3,7 @@ package zio.direct.core.util
 import scala.quoted._
 import zio.direct.core.util.IndentExt._
 import zio.ZIO
+import zio.direct.core.metaprog.Instructions
 
 object Unsupported {
   private sealed trait Msg {
@@ -13,17 +14,25 @@ object Unsupported {
       def render = msg
     }
 
-    def AwaitUnsupportedTree(using Quotes)(tree: quotes.reflect.Tree, additionalMsg: String = "", example: String = Messages.MoveAwaitOut) =
-      AwaitUnsupported(Format.Tree(tree), additionalMsg, example)
-
-    case class AwaitUnsupported(unsupportedConstruct: String, additionalMsg: String = "", example: String = Messages.MoveAwaitOut) extends Msg {
-      def render =
+    def awaitUnsupportedTree(using qctx: Quotes, instr: Instructions)(tree: quotes.reflect.Tree, additionalMsg: String = "", example: String = Messages.MoveAwaitOut) = {
+      import qctx.reflect._
+      val text =
         s"""|Detected an `await` call inside of an unsupported structure:
-            |${unsupportedConstruct}
+            |${Format.Tree(tree)}
             |""".stripMargin
           + lineIfAnyDefined("============")(additionalMsg, example)
           + lineIfDefined(additionalMsg)
           + lineIfDefined(example)
+
+      lazy val extMessage =
+        s"""|========= (Detail)
+            |${Format(Printer.TreeStructure.show(tree))}
+            |""".stripMargin
+
+      if (instr.info.showReconstructedTree)
+        text + extMessage
+      else
+        text
     }
 
     private def lineIfAnyDefined(strToShow: String)(ifDefined: String*) =
@@ -38,20 +47,32 @@ object Unsupported {
   }
 
   object Error {
-    def awaitUnsupported(using Quotes)(tree: quotes.reflect.Tree, additionalMessage: String = "") =
+    def awaitUnsupported(using Quotes, Instructions)(tree: quotes.reflect.Tree, additionalMessage: String = "")(using instr: Instructions) =
       import quotes.reflect._
-      val text = Msg.AwaitUnsupportedTree(tree, additionalMessage).render
+      val text = Msg.awaitUnsupportedTree(tree, additionalMessage)
       tree match
         case t: Term if (t.isExpr) => report.errorAndAbort(text, t.asExpr)
         case _                     => report.errorAndAbort(text, tree.pos)
 
-    def withTree(using Quotes)(tree: quotes.reflect.Tree, message: String) =
+    def withTree(using Quotes)(tree: quotes.reflect.Tree, message: String)(using instr: Instructions) =
       import quotes.reflect._
       val text =
         s"""|${message}
             |=========
             |${Format.Tree(tree)}
             |""".stripMargin
+
+      lazy val extMessage =
+        s"""|========= (Detail)
+            |${Format(Printer.TreeStructure.show(tree))}
+            |""".stripMargin
+
+      val textOuput =
+        if (instr.info.showReconstructedTree)
+          text + extMessage
+        else
+          text
+
       tree match
         case t: Term if (t.isExpr) => report.errorAndAbort(text, t.asExpr)
         case _                     => report.errorAndAbort(text, tree.pos)

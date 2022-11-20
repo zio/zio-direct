@@ -67,7 +67,7 @@ object Embedder {
    * I think the 2nd variant more performant but keeping 1st one (Trees.replaceIdent(...)) around for now.
    */
   def replaceSymbolIn(using Quotes)(in: quotes.reflect.Term)(oldSymbol: quotes.reflect.Symbol, newSymbolTerm: quotes.reflect.Term) =
-    // alt: Trees.replaceIdent(using macroQuotes)(body)(oldSymbol, newSymbolTerm.symbol)
+    // Trees.replaceIdent(in)(oldSymbol, newSymbolTerm)
     import quotes.reflect._
     BlockN(List(
       ValDef(oldSymbol, Some(newSymbolTerm)),

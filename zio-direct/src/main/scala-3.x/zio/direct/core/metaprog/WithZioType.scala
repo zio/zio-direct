@@ -74,7 +74,7 @@ trait WithZioType {
         case TypeUnion.OrType =>
           (a.widen.asType, b.widen.asType) match
             case ('[at], '[bt]) =>
-              TypeRepr.of[at | bt].simplified.widen
+              TypeRepr.of[at | bt]
         case TypeUnion.LeastUpper =>
           Embedder.computeCommonBaseClass(a.widen, b.widen)
       }

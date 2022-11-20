@@ -28,6 +28,8 @@ trait WithIR {
 
     case class Try(tryBlock: IR, cases: List[IR.Match.CaseDef], resultType: TypeRepr, finallyBlock: Option[IR]) extends Monadic
 
+    case class Foreach(list: IR, listType: TypeRepr, elementSymbol: Symbol, body: IR) extends Monadic
+
     case class FlatMap(monad: Monadic, valSymbol: Option[Symbol], body: IR.Monadic) extends Monadic
     object FlatMap {
       def apply(monad: IR.Monadic, valSymbol: Symbol, body: IR.Monadic) =
@@ -173,6 +175,8 @@ trait WithIR {
           IR.Try(apply(tryBlock), newCases, resultType, newFinallyBlock)
         case IR.FlatMap(monad, valSymbol, body) =>
           IR.FlatMap(apply(monad), valSymbol, apply(body))
+        case IR.Foreach(list, listType, symbolType, body) =>
+          IR.Foreach(apply(list), listType, symbolType, apply(body))
         case IR.Map(monad, valSymbol, body) =>
           IR.Map(apply(monad), valSymbol, apply(body))
         case IR.Fail(error) => IR.Fail(apply(error))
