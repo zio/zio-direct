@@ -82,6 +82,30 @@ object Extractors {
         case other          => None
   }
 
+  object Lambda1 {
+    def unapply(using Quotes)(expr: Expr[_]): Option[(quotes.reflect.Symbol, quoted.Expr[_])] =
+      import quotes.reflect._
+      Lambda1.Term.unapply(expr.asTerm).map((sym, expr) => (sym, expr.asExpr))
+
+    object Term {
+      def unapply(using Quotes)(term: quotes.reflect.Term): Option[(quotes.reflect.Symbol, quotes.reflect.Term)] =
+        import quotes.reflect._
+        Untype(term) match {
+          case Lambda(List(vd @ ValDef(ident, tpeTree, _)), methodBody) => Some((vd.symbol, methodBody))
+          case _                                                        => None
+        }
+    }
+  }
+
+  object Untype {
+    def unapply(using Quotes)(term: quotes.reflect.Term): Option[quotes.reflect.Term] = term match {
+      case TypedMatroshkaTerm(t) => Some(t)
+      case other                 => Some(other)
+    }
+
+    def apply(using Quotes)(term: quotes.reflect.Term) = Untype.unapply(term).get
+  }
+
   object BlockN {
     def unapply(using Quotes)(trees: List[quotes.reflect.Statement]) =
       import quotes.reflect._

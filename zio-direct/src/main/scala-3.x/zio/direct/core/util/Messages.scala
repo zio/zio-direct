@@ -78,7 +78,10 @@ Change it to:
 
 val AssignmentNotAllowed =
 """
-Assignment is generally not allowed inside of defer calls. Please use a ZIO Ref instead.
+Assignment is generally not allowed inside of defer calls,
+as it can cause serious rewrite-correctness issues if
+if it directly reads the result of a `run(...)` call.
+Please use a ZIO Ref instead.
 =========
 For example, instead of this:
 defer {

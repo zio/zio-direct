@@ -35,6 +35,8 @@ trait AsyncAwaitSpec extends ZIOSpecDefault {
   case class ConfigInt(value: Int)
   case class ConfigString(value: String)
   case class ConfigBool(value: Boolean)
+  case class ConfigT[T](value: T)
+  case class ConfigList(value: List[Int])
 
   class FooError extends Exception("foo")
   def throwFoo() = throw new FooError

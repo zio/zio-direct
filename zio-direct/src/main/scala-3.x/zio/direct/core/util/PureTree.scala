@@ -18,6 +18,7 @@ object PureTree:
       case Seal('{ unsafe($value) }) => true
       case Try(_, _, _)              => true
       case Seal('{ throw $e })       => true
+      case _                         => false
     } match {
       case true  => None
       case false => Some(tree)

@@ -476,35 +476,30 @@ object Example {
   import ZIO._
   import zio.Console.printLine
 
-  def main(args: Array[String]): Unit = { // //
+  // val out: ZIO[ConfigFoo, Nothing, Unit] =
+  //   defer {
+  //     val x = succeed(1).run
+  //     val y = defer {
+  //       val i = service[ConfigFoo].run
+  //       succeed(3 + i.value + x)
+  //     }.run
+  //     val z = succeed(y.run + 4) // ..
+  //   }
 
-    // val out =
-    //   defer {
-    //     ZStream.service[Connection].flatMap { conn =>
-    //       val autoCommitPrev = conn.getAutoCommit
-    //       run {
-    //         ZStream.acquireReleaseWith(ZIO.attempt(conn.setAutoCommit(false)))(_ => {
-    //           ZIO.succeed(conn.setAutoCommit(autoCommitPrev))
-    //         })
-    //       }
-    //     }
-    //   }
+  def main(args: Array[String]): Unit = {
 
-    // val out: ZIO[ConfigFoo, Nothing, Unit] =
-    //   defer {
-    //     val x = succeed(1).run
-    //     val y = defer {
-    //       val i = service[ConfigFoo].run
-    //       succeed(3 + i.value + x)
-    //     }.run
-    //     val z = succeed(y.run + 4)
-    //   }
-
-    // .provide(ZLayer.succeed(ConfigFoo(123)))
-    // val outRun =
-    //   zio.Unsafe.unsafe { implicit unsafe =>
-    //     zio.Runtime.default.unsafe.run(out).getOrThrow()
-    //   }
-    // println("====== RESULT: " + outRun) // //
+    val out =
+      defer {
+        val ref = Ref.make(10).run
+        for (elem <- ZIO.succeed(List(1, 2, 3)).run) {
+          ref.getAndUpdate(i => i + elem).run
+        }
+        println(ref.get.run)
+      }
+    val outRun =
+      zio.Unsafe.unsafe { implicit unsafe =>
+        zio.Runtime.default.unsafe.run(out).getOrThrow()
+      }
+    println("====== RESULT: " + outRun)
   }
 }

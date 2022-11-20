@@ -78,6 +78,11 @@ trait WithDecomposeTree {
           case While(cond, body) =>
             Some(IR.While(DecomposeTree.orPure(cond), DecomposeTree.orPure(body)))
 
+          case Seal('{ ($list: Iterable[t]).foreach(${ Lambda1(sym, expr) }) }) =>
+            val monad = DecomposeTree.orPure(list.asTerm)
+            val body = DecomposeTree.orPure(expr.asTerm)
+            Some(IR.Foreach(monad, list.asTerm.tpe, sym, body))
+
           case Seal('{ ($a: Boolean) && ($b: Boolean) }) =>
             // the actual case where they are both cure is handled by the PureTree case
             val (aTerm, bTerm) = DecomposeTree.orPure2(a.asTerm, b.asTerm)
@@ -136,20 +141,20 @@ trait WithDecomposeTree {
               Trees.Transform(term, Symbol.spliceOwner) {
                 case originalTerm @ RunCall(task) =>
                   val tpe = originalTerm.tpe
-                  val sym = Symbol.newVal(Symbol.spliceOwner, "par", tpe, Flags.EmptyFlags, Symbol.noSymbol)
+                  val sym = Symbol.newVal(Symbol.spliceOwner, "runVal", tpe, Flags.EmptyFlags, Symbol.noSymbol)
                   unlifts += ((IR.Monad(task.asTerm), sym))
                   Ref(sym)
 
                 case originalTerm @ DecomposeSingleTermConstruct(monad) =>
                   val tpe = originalTerm.tpe
-                  val sym = Symbol.newVal(Symbol.spliceOwner, "par", tpe, Flags.EmptyFlags, Symbol.noSymbol)
+                  val sym = Symbol.newVal(Symbol.spliceOwner, "singleVal", tpe, Flags.EmptyFlags, Symbol.noSymbol)
                   unlifts += ((monad, sym))
                   Ref(sym)
 
                 case originalTerm @ DecomposeBlock(monad) =>
                   // Take the type from the originalTerm (i.e. the result of the await call since it could be a block etc...)
                   val tpe = originalTerm.tpe
-                  val sym = Symbol.newVal(Symbol.spliceOwner, "par", tpe, Flags.EmptyFlags, Symbol.noSymbol)
+                  val sym = Symbol.newVal(Symbol.spliceOwner, "blockVal", tpe, Flags.EmptyFlags, Symbol.noSymbol)
                   unlifts += ((monad, sym))
                   Ref(sym)
               }
