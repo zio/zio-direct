@@ -6,7 +6,6 @@ import zio.direct.core.metaprog.Embedder._
 import zio.ZIO
 import zio.direct.core.metaprog.WithPrintIR
 import zio.Chunk
-import zio.direct.core.util.ComputeTotalZioType
 import zio.direct.core.util.Format
 import zio.direct.core.util.WithInterpolator
 import zio.Exit.Success
