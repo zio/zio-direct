@@ -59,6 +59,15 @@ object VariaSpec extends AsyncAwaitSpec {
           """
         }
       }
+      +
+      test("disallow implicit defs") {
+        runLiftFailMsg(Messages.ImplicitsNotAllowed) {
+          """
+          implicit val x = 123
+          x
+          """
+        }
+      }
     }
   }
 }

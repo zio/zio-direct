@@ -9,6 +9,11 @@ implicit class StringExt(str: String) {
   def trimLeft = str.dropWhile(_.isWhitespace)
 }
 
+val ImplicitsNotAllowed =
+"""
+Implicits are not allowed inside defer clauses (they are allowed inside of `run(...)` blocks.
+"""
+
 val MutableCollectionDetected =
 """
 Detected the use of a mutable collection inside a defer clause.
