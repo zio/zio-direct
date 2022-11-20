@@ -21,12 +21,12 @@ Mutable collections can cause many potential issues as a result of defer-clause
 rewrites so they are not allowed (Unless it is inside of a run-call).
 """
 
-val DeclarationNotAllowedWithAwaits =
+val DeclarationNotAllowedWithRuns =
 """
-In Lenient mode, Class, Function, and Mutable-Variable definitions are allowed but only so long as they do not direclty read awaits.
+In Lenient mode, Class, Function, and Mutable-Variable definitions are allowed but only so long as they do not direclty read runs.
 """
 
-val AwaitRemainingAfterTransformer =
+val RunRemainingAfterTransformer =
 """
 Invocations of `run(...)` (or `op.run`) were detected even after all the transformations of zio-direct were completed.
 That means that zio-direct cannot successfully process the input you have passed into it. Try to use defer.verbose
@@ -37,13 +37,13 @@ at https://github.com/zio/zio-direct.
 val DeclarationNotAllowed =
 """
 Class, Function, and Mutable-Variable definitions (class X, def X, var X) are not allowed inside of defer blocks unless they in the `run` call.
-Please move them outside of the defer area. (They can be inside of an await)
+Please move them outside of the defer area. (They can be inside of an run)
 """
 
-val AwaitAssignmentNotRecommended =
+val RunAssignmentNotRecommended =
 """
 Using Assignment inside of run(...:ZIO) sections is permitted but not recommended,
-(outside of an `await` call they are forbidden entirely). Consider using ZIO Refs.
+(outside of an `run` call they are forbidden entirely). Consider using ZIO Refs.
 =========
 Instead of doing somethiing like this:
   defer.verbose {
@@ -64,10 +64,10 @@ Consider doing something like this:
 """.trimLeft
 
 // TODO need to test
-val AwaitInAwaitError =
+val RunInRunError =
 """
-An await cannot be inside an await. In order to do this,
-write the content of the outer await into a variable first.
+An run cannot be inside an run. In order to do this,
+write the content of the outer run into a variable first.
 =========
 For example:
   run(run(ZIO.succeed  { if (foo) ZIO.succeed(x) else ZIO.succeed(y) }))
@@ -101,9 +101,9 @@ defer.verbose {
 }
 """
 
-val MoveAwaitOut =
+val MoveRunOut =
 """
-Move the `await` call outside of this structure in order to use it.
+Move the `run` call outside of this structure in order to use it.
 =========
 For example, change this:
   defer {

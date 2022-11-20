@@ -11,10 +11,10 @@ import zio.direct.core.metaprog.Verify
 import zio.direct.core.util.TraceType
 import zio.direct.core.metaprog.TypeUnion
 
-object ParallelSpec extends AsyncAwaitSpec {
+object ParallelSpec extends DeferRunSpec {
 
   val spec = suite("ParallelSpec")(
-    suite("Multi Await Tests") {
+    suite("Multi Run Tests") {
       test("Simple two-thing parallel") {
         val out = defer {
           (succeed(111).run, succeed(222).run)
@@ -30,7 +30,7 @@ object ParallelSpec extends AsyncAwaitSpec {
         assertZIO(provided)(Assertion.equalTo((1, "two")))
       }
       +
-      test("Inferred Environment Should be Correct - single await in parallels") {
+      test("Inferred Environment Should be Correct - single run in parallels") {
         val out = defer {
           (111, service[ConfigString].run.value, 222)
         }

@@ -48,7 +48,7 @@ trait WithComputeType {
           val bodyError = apply(error)
           ZioType(bodyError.r, bodyError.a.widenTermRefByName, TypeRepr.of[Nothing])
 
-        // Things inside Unsafe blocks that are not inside awaits will be wrapepd into ZIO.attempt
+        // Things inside Unsafe blocks that are not inside runs will be wrapepd into ZIO.attempt
         // which will make their lower-bound Throwable in the MonadifyTries phase.
         // Do not need to do that manually here with the `e` type though.
         case ir @ IR.Unsafe(body) =>

@@ -8,7 +8,7 @@ import zio.ZIO
 import zio.ZIO.{unsafe => _, _}
 import java.io.IOException
 
-object TrySpec extends AsyncAwaitSpec {
+object TrySpec extends DeferRunSpec {
 
   val e = new Exception("blah")
   val e1 = new Exception("blahblah")

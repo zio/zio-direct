@@ -10,7 +10,7 @@ import zio.direct.Dsl.Params.apply
 import zio.direct.core.metaprog.Verify
 import zio.direct.Dsl.Params
 
-object ForeachSpec extends AsyncAwaitSpec {
+object ForeachSpec extends DeferRunSpec {
 
   val spec = suite("ForeachSpec")(
     suite("Purity Combos")(

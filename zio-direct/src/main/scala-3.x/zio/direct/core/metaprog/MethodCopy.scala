@@ -15,8 +15,8 @@ object DefDefCopy {
 
   private def polyTypeMaker(using Quotes)(clause: quotes.reflect.TypeParamClause): quotes.reflect.TypeRepr => quotes.reflect.MethodType =
     import quotes.reflect._
-    // TODO what about await clauses in lambdas? Should there be an explicit check to disable them?
-    report.errorAndAbort("Poly types with await-clauses are not supported yet. Please move the await clause out of the function.")
+    // TODO what about run clauses in lambdas? Should there be an explicit check to disable them?
+    report.errorAndAbort("Poly types with run-clauses are not supported yet. Please move the run clause out of the function.")
 
   private def outputTypeMaker(using Quotes)(params: quotes.reflect.ParamClause): quotes.reflect.TypeRepr => quotes.reflect.MethodType | quotes.reflect.PolyType =
     import quotes.reflect._
@@ -44,7 +44,7 @@ object DefDefCopy {
     Symbol.newMethod(defdef.symbol.owner, defdef.name, methodType)
   }
 
-  // TODO check for a given-params clause and error that given-params clauses with awaits are not supported
+  // TODO check for a given-params clause and error that given-params clauses with runs are not supported
   // TODO Also, how to do you create methods with parameters with default values?
   def of(using
       q: Quotes

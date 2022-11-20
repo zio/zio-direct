@@ -25,7 +25,7 @@ object Allowed {
       case Block(stmts, output) =>
         stmts.foreach(Unsupported.Warn.checkUnmooredZio(_))
       case tree @ RunCall(_) =>
-        Unsupported.Error.withTree(tree, Messages.AwaitRemainingAfterTransformer)
+        Unsupported.Error.withTree(tree, Messages.RunRemainingAfterTransformer)
     }
 
   def validateBlocksIn(using Quotes)(expr: Expr[_], instructions: Instructions): Unit =
@@ -33,16 +33,16 @@ object Allowed {
     given implicitInstr: Instructions = instructions
     validateBlocksTree(expr.asTerm)
 
-  private def validateAwaitClause(using qctx: Quotes, instructions: Instructions)(expr: quotes.reflect.Tree): Unit =
+  private def validateRunClause(using qctx: Quotes, instructions: Instructions)(expr: quotes.reflect.Tree): Unit =
     import quotes.reflect._
     Trees.traverse(expr, Symbol.spliceOwner) {
-      // Cannot have nested awaits:
+      // Cannot have nested runs:
       case tree @ RunCall(_) =>
-        Unsupported.Error.withTree(tree, Messages.AwaitInAwaitError)
+        Unsupported.Error.withTree(tree, Messages.RunInRunError)
 
-      // Assignment in an await allowed by not recommenteded
+      // Assignment in an run allowed by not recommenteded
       case asi: Assign if (instructions.verify == Verify.Strict) =>
-        Unsupported.Warn.withTree(asi, Messages.AwaitAssignmentNotRecommended)
+        Unsupported.Warn.withTree(asi, Messages.RunAssignmentNotRecommended)
     }
 
   // TODO this way of traversing the tree is error prone not not very efficient. Re-write this
@@ -53,7 +53,7 @@ object Allowed {
     val declsErrorMsg =
       instructions.verify match {
         case Verify.Strict  => Messages.DeclarationNotAllowed
-        case Verify.Lenient => Messages.DeclarationNotAllowedWithAwaits
+        case Verify.Lenient => Messages.DeclarationNotAllowedWithRuns
         // Verify.None should stop "Allowed" from running so this should not be used
         case Verify.None => "No Verification is being done."
       }
@@ -93,17 +93,17 @@ object Allowed {
             case None              => Next.Proceed
             case Some(PureTree(_)) => Next.Proceed
             case Some(nonpure) =>
-              Unsupported.Error.awaitUnsupported(nonpure, "Match conditionals are not allow to contain `run`. Move the `run` call out of the match-statement.")
+              Unsupported.Error.runUnsupported(nonpure, "Match conditionals are not allow to contain `run`. Move the `run` call out of the match-statement.")
           }
 
         // should be handled by the tree traverser but put here just in case
         case tree @ RunCall(content) =>
-          validateAwaitClause(content.asTerm)
+          validateRunClause(content.asTerm)
           // Do not need other validations inside the run-clause
           Next.Exit
 
         // if verification is in "Lenient mode", allow ClassDefs, DefDefs, and ValDefs so long
-        // as there are no 'await' calls inside of them
+        // as there are no 'run' calls inside of them
         case PureTree(_) if (instructions.verify == Verify.Lenient) =>
           Next.Exit
 
@@ -164,7 +164,7 @@ object Allowed {
         case Typed(expr, tpt)       => Next.Proceed
         case Block(stats, expr)     => Next.Proceed
         case If(cond, thenp, elsep) => Next.Proceed
-        // Anonymous functions run from things inside of Async can have these
+        // Anonymous functions run from things inside of Defer can have these
         case Closure(meth, tpt) if (meth.symbol.flags.is(Flags.Synthetic)) =>
           Next.Proceed
         case Match(selector, cases)             => Next.Proceed
@@ -176,7 +176,7 @@ object Allowed {
         case v: Repeated                        => Next.Proceed
 
         case otherTree =>
-          Unsupported.Error.awaitUnsupported(otherTree)
+          Unsupported.Error.runUnsupported(otherTree)
       }
     end validateTerm
 
@@ -184,7 +184,7 @@ object Allowed {
       override def traverseTree(tree: Tree)(owner: Symbol): Unit = {
         tree match {
           case tree @ RunCall(content) =>
-            validateAwaitClause(content.asTerm)
+            validateRunClause(content.asTerm)
           case _ =>
         }
         val nextStep = validate(tree)

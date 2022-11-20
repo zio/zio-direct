@@ -116,7 +116,7 @@ trait WithReconstructTree {
               ComputeType.fromIR(error).a.widen.asType match
                 case '[a] =>
                   '{ ZIO.fail[a](${ value.asExpr }.asInstanceOf[a]) }
-            // TODO test the case where error is constructed via an await
+            // TODO test the case where error is constructed via an run
             case m: IR.Monadic =>
               ComputeType.fromIR(error).asTypeTuple match
                 case ('[r], '[e], '[a]) =>
@@ -342,7 +342,7 @@ trait WithReconstructTree {
             case IR.Monad(newTree) => newTree.asExprOf[ZIO[?, ?, ?]]
 
         /*
-        For a expression (in a single block-line) that has one await in the middle of things e.g.
+        For a expression (in a single block-line) that has one run in the middle of things e.g.
         { run(foo) + bar }
         Needs to turn into something like:
         { run(foo).map(fooVal => fooVal + bar) }

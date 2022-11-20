@@ -49,7 +49,7 @@ trait WithDecomposeTree {
           case Seal('{ deferred($effect) }) =>
             Some(IR.Monad(effect.asTerm, IR.Monad.Source.PrevDefer))
 
-          // Otherwise, if there are no Await calls treat the tree as "Pure" i.e.
+          // Otherwise, if there are no Run calls treat the tree as "Pure" i.e.
           // it will be either embedded within the parent map/flatMap clause or
           // wrapped into a ZIO.succeed.
           case PureTree(tree) =>
@@ -152,7 +152,7 @@ trait WithDecomposeTree {
                   Ref(sym)
 
                 case originalTerm @ DecomposeBlock(monad) =>
-                  // Take the type from the originalTerm (i.e. the result of the await call since it could be a block etc...)
+                  // Take the type from the originalTerm (i.e. the result of the run call since it could be a block etc...)
                   val tpe = originalTerm.tpe
                   val sym = Symbol.newVal(Symbol.spliceOwner, "blockVal", tpe, Flags.EmptyFlags, Symbol.noSymbol)
                   unlifts += ((monad, sym))

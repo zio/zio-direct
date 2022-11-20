@@ -11,7 +11,7 @@ import zio.direct.Dsl.Params
 import zio.direct.Dsl.Internal._
 import zio.direct.core.util.Messages
 
-object VariaSpec extends AsyncAwaitSpec {
+object VariaSpec extends DeferRunSpec {
   val spec = suite("VariaSpec") {
     suite("odd placements of defer/run") {
       test("defer in defer") {
@@ -26,8 +26,8 @@ object VariaSpec extends AsyncAwaitSpec {
         assertZIO(out.provide(ZLayer.succeed(ConfigInt(3))))(equalTo(4))
       }
       +
-      test("catch await inside await") {
-        val msg = Messages.AwaitRemainingAfterTransformer
+      test("catch run inside run") {
+        val msg = Messages.RunRemainingAfterTransformer
         runLiftFailMsg(msg) {
           """
           val x = succeed(123).run
