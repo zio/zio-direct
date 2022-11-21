@@ -15,6 +15,9 @@ import zio.direct.core.metaprog.Collect
 import zio.direct.core.metaprog.WithZioType
 import zio.direct.core.util.ZioUtil
 import zio.direct.core.util.Unsupported
+import org.scalafmt.util.LogLevel.info
+import zio.direct.core.metaprog.Collect.Sequence
+import zio.direct.core.metaprog.Collect.Parallel
 
 trait WithReconstructTree {
   self: WithIR with WithZioType with WithComputeType with WithPrintIR with WithInterpolator =>
@@ -86,13 +89,23 @@ trait WithReconstructTree {
           val elementType = elementSymbol.termRef.widenTermRefByName.asType
           (listType.asType, elementType) match
             case ('[l], '[e]) =>
-              '{
-                $monadExpr.asInstanceOf[ZIO[?, ?, l]].flatMap((list: l) =>
-                  ZIO.foreach(list.asInstanceOf[Iterable[e]])((v: e) =>
-                    ${ replaceSymbolInBodyMaybe(using macroQuotes)(bodyMonad.asTerm.changeOwner(('v).asTerm.symbol))(Some(elementSymbol), ('v).asTerm).asExprOf[ZIO[?, ?, ?]] }
-                  )
-                )
-              }
+              instructions.collect match
+                case Sequence =>
+                  '{
+                    $monadExpr.asInstanceOf[ZIO[?, ?, l]].flatMap((list: l) =>
+                      ZIO.foreach(list.asInstanceOf[Iterable[e]])((v: e) =>
+                        ${ replaceSymbolInBodyMaybe(using macroQuotes)(bodyMonad.asTerm.changeOwner(('v).asTerm.symbol))(Some(elementSymbol), ('v).asTerm).asExprOf[ZIO[?, ?, ?]] }
+                      )
+                    )
+                  }
+                case Parallel =>
+                  '{
+                    $monadExpr.asInstanceOf[ZIO[?, ?, l]].flatMap((list: l) =>
+                      ZIO.foreachPar(list.asInstanceOf[Iterable[e]])((v: e) =>
+                        ${ replaceSymbolInBodyMaybe(using macroQuotes)(bodyMonad.asTerm.changeOwner(('v).asTerm.symbol))(Some(elementSymbol), ('v).asTerm).asExprOf[ZIO[?, ?, ?]] }
+                      )
+                    )
+                  }
 
         // Pull out the value from IR.Pure and use it directly in the mapping
         case IR.Map(monad, valSymbol, IR.Pure(body)) =>

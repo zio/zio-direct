@@ -16,6 +16,21 @@ import zio.direct.Dsl.Internal.ignore
 
 object Allowed {
 
+  object FromMutablePackage {
+    def check(using Quotes)(tpe: quotes.reflect.TypeRepr) = {
+      import quotes.reflect._
+      val fullName = tpe.typeSymbol.fullName
+      // if (fullName.startsWith("scala.Array"))
+      //   println(s"------------ (${tpe.widenTermRefByName <:< TypeRepr.of[scala.Array[_]]}) Full Name Type is: ${Format.TypeRepr(tpe.widenTermRefByName)}")
+
+      fullName.startsWith("scala.collection.mutable") ||
+      tpe <:< TypeRepr.of[scala.collection.Iterator[_]] ||
+      tpe <:< TypeRepr.of[scala.Array[_]] ||
+      tpe <:< TypeRepr.of[java.util.Collection[_]] ||
+      tpe <:< TypeRepr.of[java.util.Map[_, _]]
+    }
+  }
+
   def finalValidtyCheck(expr: Expr[_], instructions: Instructions)(using Quotes) =
     import quotes.reflect._
     given implicitInstr: Instructions = instructions
@@ -138,7 +153,7 @@ object Allowed {
         case asi: Assign =>
           Unsupported.Error.withTree(asi, Messages.AssignmentNotAllowed)
 
-        case _ if (expr.tpe.typeSymbol.fullName.startsWith("scala.collection.mutable")) =>
+        case _ if (FromMutablePackage.check(expr.tpe)) =>
           Unsupported.Error.withTree(expr, Messages.MutableCollectionDetected)
 
         // All the kinds of valid things a Term can be in defer blocks

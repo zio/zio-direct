@@ -23,7 +23,28 @@ rewrites so they are not allowed (Unless it is inside of a run-call).
 
 val DeclarationNotAllowedWithRuns =
 """
-In Lenient mode, Class, Function, and Mutable-Variable definitions are allowed but only so long as they do not direclty read runs.
+In Lenient mode, Class, Function, and Mutable-Variable definitions are allowed but only so
+long as they do not direclty read runs. If you want to assign the value `run(...)` block
+to a variable, read into a val first.
+=========
+Instead of doing somethiing like this:
+  defer {
+    var i = ZIO.succeed(10).run
+    while (i - 2 >= 0) {
+      println(s"Currently: $i")
+      i = ZIO.succeed(i - 1).run
+    }
+  }
+Consider doing something like this:
+  defer {
+    var initial = ZIO.succeed(10).run
+    var i = initial
+    while (i - 2 > 0) {
+      println("Value:" + i)
+      val update = ZIO.succeed(i - 1).run
+      i = update
+    }
+  }
 """
 
 val RunRemainingAfterTransformer =
