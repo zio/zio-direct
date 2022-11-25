@@ -87,7 +87,7 @@ trait WithReconstructTree {
           val monadExpr = apply(listIR)
           val bodyMonad = apply(body)
           val elementType = elementSymbol.termRef.widenTermRefByName.asType
-          (listType.asType, elementType) match
+          (listType.widen.asType, elementType) match
             case ('[l], '[e]) =>
               instructions.collect match
                 case Sequence =>

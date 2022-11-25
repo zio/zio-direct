@@ -426,10 +426,7 @@ object Example {
   //   //       ).asInstanceOf[PartialFunction[Any, ZIO[Any, Throwable, Int]]]
   //   //     )
 
-  //   val outRun =
-  //     zio.Unsafe.unsafe { implicit unsafe =>
-  //       zio.Runtime.default.unsafe.run(out).getOrThrow()
-  //     }
+
   //   println("====== RESULT: " + outRun) // //
   // }
 
@@ -523,7 +520,7 @@ object Example {
     }
 
     // defer.info(Opts.withVerifyLenient.withParallel)
-    def sort(l: Int, r: Int): ZIO[Any, Nothing, Unit] = defer.info(Params(Verify.Lenient)) {
+    def sort(l: Int, r: Int): ZIO[Any, Nothing, Unit] = defer(Params(Verify.Lenient)) {
       val pivot = arr((l + r) / 2)
       val i = Ref.make(l).run
       val j = Ref.make(r).run

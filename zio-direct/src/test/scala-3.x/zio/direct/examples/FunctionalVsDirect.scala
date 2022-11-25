@@ -25,7 +25,7 @@ object CorrectnessExamples {
         class Database {
           def nextRow(): Row = ???
           def hasNextRow(): Boolean = ???
-          def nextRowLocked(): Boolean = ???
+          def lockNextRow(): Boolean = ???
         }
         object Database {
           def open: Database = ???
@@ -41,7 +41,7 @@ object CorrectnessExamples {
         defer(Params(Verify.None)) {
           val db = Database.open
           while (db.hasNextRow()) {
-            if (!db.nextRowLocked()) doSomethingWith(db.nextRow()) else waitT()
+            if (!db.lockNextRow()) doSomethingWith(db.nextRow()) else waitT()
           }
         }
       }
@@ -53,7 +53,7 @@ object CorrectnessExamples {
         class Database {
           def nextRow(): ZIO[Any, Throwable, Row] = ???
           def hasNextRow(): Boolean = ???
-          def nextRowLocked(): Boolean = ???
+          def lockNextRow(): Boolean = ???
         }
         object Database {
           def open: ZIO[Any, Throwable, Database] = ???
@@ -65,34 +65,34 @@ object CorrectnessExamples {
 
       // code using defer incorrectly code
       {
-        defer(Params(Verify.None)) {
+        defer.info(Params(Verify.None)) {
           val db = Database.open.run
           while (db.hasNextRow()) {
-            if (!db.nextRowLocked()) doSomethingWith(db.nextRow().run) else waitT()
+            if (db.lockNextRow()) doSomethingWith(db.nextRow().run) else waitT()
           }
         }
       }
       // wrong rewrite
       {
-        Database.open.flatMap { db =>
-          def whileFun(): ZIO[Any, Throwable, Unit] =
-            if (db.hasNextRow())
-              db.nextRow().flatMap { row =>
-                // Too late to check if row is locked, we already READ IT!!
-                if (!db.nextRowLocked()) doSomethingWith(row) else waitT()
-                whileFun()
-              }
-            else
-              ZIO.unit
-          whileFun()
-        }
+Database.open.flatMap { db =>
+  def whileFun(): ZIO[Any, Throwable, Unit] =
+    if (db.hasNextRow())
+      db.nextRow().flatMap { row =>
+        // Too late to check if row is locked, we already READ IT!!
+        if (db.lockNextRow()) doSomethingWith(row) else waitT()
+        whileFun()
+      }
+    else
+      ZIO.unit
+  whileFun()
+}
       }
       // force user to write to vals first
       {
         defer(Params(Verify.None)) {
           val db = Database.open.run
           while (db.hasNextRow()) {
-            if (!db.nextRowLocked())
+            if (db.lockNextRow())
               // Write it into a value first!
               val nextRow = db.nextRow().run
               doSomethingWith(nextRow)
@@ -107,7 +107,7 @@ object CorrectnessExamples {
           def whileFun(): ZIO[Any, Throwable, Unit] =
             if (db.hasNextRow())
               (
-                if (!db.nextRowLocked())
+                if (!db.lockNextRow())
                   db.nextRow().map(nextRow => doSomethingWith(nextRow))
                 else
                   ZIO.succeed(waitT())

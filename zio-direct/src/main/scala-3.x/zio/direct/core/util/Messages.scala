@@ -23,9 +23,9 @@ rewrites so they are not allowed (Unless it is inside of a run-call).
 
 val DeclarationNotAllowedWithRuns =
 """
-In Lenient mode, Class, Function, and Mutable-Variable definitions are allowed but only so
-long as they do not direclty read runs. If you want to assign the value `run(...)` block
-to a variable, read into a val first.
+In Lenient mode, Class, Function, and Mutable-Variable, and Lazy-Variable definitions are
+allowed but only so long as they do not direclty read runs. If you want to assign the
+value `run(...)` block to a variable, read into a val first.
 =========
 Instead of doing somethiing like this:
   defer {
@@ -57,8 +57,10 @@ at https://github.com/zio/zio-direct.
 
 val DeclarationNotAllowed =
 """
-Class, Function, and Mutable-Variable definitions (class X, def X, var X) are not allowed inside of defer blocks unless they in the `run` call.
-Please move them outside of the defer area. (They can be inside of an run)
+Class, Function, and Mutable-Variable. Lazy-Variable definitions
+(class X, def X, var X, lazy val X) are not allowed inside of defer blocks unless
+they in the `run` call. Please move them outside of the defer area.
+(They can be inside of an `run(...)` call.)
 """
 
 val RunAssignmentNotRecommended =
@@ -100,8 +102,10 @@ Change it to:
 val AssignmentNotAllowed =
 """
 Assignment is generally not allowed inside of defer calls,
-as it can cause serious rewrite-correctness issues if
-if it directly reads the result of a `run(...)` call.
+because it can cause correctness problems with the
+synthesized code if it directly reads the result
+of a `run(...)` call or interacts with other
+effects in `run(...)` clauses.
 Please use a ZIO Ref instead.
 =========
 For example, instead of this:

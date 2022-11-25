@@ -45,6 +45,8 @@ trait WithComputeType {
           apply(tail)
 
         case ir @ IR.Fail(error) =>
+          // The error type often is a single expression e.g. someFunctionThatThrowsError()
+          // so we need to widen it into the underlying type
           val bodyError = apply(error)
           ZioType(bodyError.r, bodyError.a.widenTermRefByName, TypeRepr.of[Nothing])
 

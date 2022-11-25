@@ -6,7 +6,8 @@ import zio.ZIO
 import zio.direct._
 import zio.direct.Dsl.Params
 import zio.direct.core.metaprog.Verify
-import java.io.File
+import java.io.IOException
+import zio.Ref
 
 object IntroductionExamples {
 
@@ -15,6 +16,7 @@ object IntroductionExamples {
    */
   object Sequence {
     object ImperativeObjectModel {
+      class File {}
       def read(file: File): String = ???
       def write(file: File, content: String): Unit = ???
       def fileA: File = ???
@@ -29,6 +31,7 @@ object IntroductionExamples {
     }
 
     object FunctionalObjectModel {
+      class File {}
       def read(file: File): ZIO[Any, Throwable, String] = ???
       def write(file: File, content: String): ZIO[Any, Throwable, Unit] = ???
       def fileA: File = ???
@@ -101,6 +104,9 @@ object IntroductionExamples {
         }
       }
     }
+
+
+
     {
       object FunctionalObjectModel {
         class Row {}
@@ -114,6 +120,22 @@ object IntroductionExamples {
         }
         def doSomethingWith(row: Row): Unit = ???
         def waitT(): Unit = ()
+        def rows: List[Row] = ???
+      }
+
+      {
+        import FunctionalObjectModel._
+        for {
+          db <- Database.open()
+          te <- db.transactionsEnabled()
+          lf <- db.lazyFetchEnabled()
+          _ <- {
+            if (lf)
+              db.bulkInsert(rows)
+            else
+              ZIO.unit
+          }
+        } yield ()
       }
 
       import FunctionalObjectModel._
@@ -139,7 +161,10 @@ object IntroductionExamples {
         val rows: List[Row] = ???
         defer {
           val db = Database.open().run
-          if (db.transactionsEnabled().run && db.lazyFetchEnabled().run) {
+          if (
+            db.transactionsEnabled().run &&
+            db.lazyFetchEnabled().run
+          ) {
             db.bulkInsert(rows).run
           }
         }
@@ -148,14 +173,103 @@ object IntroductionExamples {
   }
 
   /**
+   * **************************** Exceptions *************************************
+   */
+  object Exceptions {
+    object ImperetiveObjectModel {
+      class Json {}
+      class JsonFile {
+        def readToJson(): Json = ???
+        def close(): Unit = ???
+      }
+      object JsonFile {
+        def open(path: String): JsonFile = ???
+      }
+      def path: String = ???
+
+      class DecodingException extends Exception("Decoding Error")
+      def handleIO(e: Exception): Unit = ???
+      def handleDE(e: Exception): Unit = ???
+    }
+    {
+      import ImperetiveObjectModel._
+
+      var file: JsonFile = null
+      try {
+        file = JsonFile.open(path)
+        file.readToJson()
+      } catch {
+        case e: IOException       => handleIO(e)
+        case e: DecodingException => handleDE(e)
+      } finally {
+        file.close()
+      }
+    }
+
+    object FunctionalObjectModel {
+      class Json {}
+      class JsonFile {
+        def readToJson(): ZIO[Any, Throwable, Json] = ???
+        def close(): ZIO[Any, Throwable, Unit] = ???
+      }
+      object JsonFile {
+        def from(path: String): JsonFile = ???
+      }
+      def path: String = ???
+
+      class DecodingException extends Exception("Decoding Error")
+      def handleIO(e: Exception): ZIO[Any, Throwable, Unit] = ???
+      def handleDE(e: Exception): ZIO[Any, Throwable, Unit] = ???
+    }
+
+    {
+      import FunctionalObjectModel._
+
+      ZIO.succeed(JsonFile.from(path)).flatMap { jsonFile =>
+        jsonFile.readToJson()
+          .catchSome {
+            case e: IOException       => handleIO(e)
+            case e: DecodingException => handleDE(e)
+          }.ensuring {
+            jsonFile.close().orDie
+          }
+      }
+    }
+    // Using Defer
+    {
+      import FunctionalObjectModel._
+
+      defer {
+        val file = JsonFile.from(path)
+        try {
+          file.readToJson().run
+        } catch {
+          case e: IOException       => handleIO(e).run
+          case e: DecodingException => handleDE(e).run
+        } finally {
+          file.close().run
+        }
+      }
+    }
+
+  }
+
+  /**
    * **************************** WHILE *************************************
    */
   object While {
 
-    def imperativeSimpleExample(): Unit = {
-      val path = "src/test/resources/file_example.txt"
-      def makeFile() = new BufferedReader(new FileReader(path))
-      val file = makeFile()
+    object ImperetiveObjectModel {
+      class File {
+        def readLine(): String = ???
+        def close(): Unit = ???
+      }
+      def makeFile(): File = ???
+    }
+
+    {
+      import ImperetiveObjectModel._
+      val file: File = makeFile()
       val buffer = new StringBuffer()
 
       var line: String = file.readLine()
@@ -166,18 +280,63 @@ object IntroductionExamples {
 
       file.close()
     }
-    def functionalSimpleExample(): Unit = {
-      val path = "src/test/resources/file_example.txt"
-      def makeFile() = new BufferedReader(new FileReader(path))
-      ZIO.attempt(makeFile()).flatMap { file =>
+
+    // More similar to functional case
+    {
+      import ImperetiveObjectModel._
+      val file: File = makeFile()
+      val buffer = new StringBuffer()
+
+      var line: String = file.readLine()
+
+      def whileFun(): Unit =
+        if (line != null) {
+          buffer.append(line)
+          line = file.readLine()
+          whileFun()
+        } else {
+          ()
+        }
+
+      file.close()
+    }
+
+    object FunctionalObjectModel {
+      class File {
+        def readLine(): ZIO[Any, Throwable, String] = ???
+        def close(): ZIO[Any, Throwable, Unit] = ???
+      }
+      def makeFile(): ZIO[Any, Throwable, File] = ???
+    }
+
+    {
+      import FunctionalObjectModel._
+      makeFile().flatMap { file =>
         val buffer = new StringBuffer()
 
-        ZIO.attempt(file.readLine()).flatMap { line0 =>
+        defer(Params(Verify.Lenient)) {
+          val line0 = file.readLine().run
+          var line: String = line0
+          while (line != null) {
+            buffer.append(line)
+            val lineN = file.readLine().run
+            line = lineN
+          }
+        }
+      }
+    }
+
+    {
+      import FunctionalObjectModel._
+      makeFile().flatMap { file =>
+        val buffer = new StringBuffer()
+
+        file.readLine().flatMap { line0 =>
           var line = line0
           def whileFun(): ZIO[Any, Throwable, Unit] =
             if (line != null)
               buffer.append(line)
-              ZIO.attempt(file.readLine()).flatMap { lineN =>
+              file.readLine().flatMap { lineN =>
                 line = lineN
                 whileFun()
               }
@@ -186,7 +345,64 @@ object IntroductionExamples {
           whileFun()
         }
       }
+    }
 
+    {
+      import FunctionalObjectModel._
+
+      makeFile().flatMap { file =>
+        val buffer = new StringBuffer()
+        defer(Params(Verify.Lenient)) {
+          val line0 = file.readLine().run
+          var line: String = line0
+          while (line != null) {
+            buffer.append(line)
+            val lineN = file.readLine().run
+            line = lineN
+          }
+        }
+      }
     }
   }
+
+  /**
+   * **************************** Foreach *************************************
+   */
+  object Foreach {
+    object ImperativeObjectModel {
+      def postUpdate(url: String): String = ???
+      def getWebsites(): List[String] = ???
+    }
+    {
+      import ImperativeObjectModel._
+      for (site <- getWebsites()) {
+        postUpdate(site)
+      }
+    }
+
+    object FunctionalObjectMpdel {
+      def postUpdate(url: String): ZIO[Any, Throwable, String] = ???
+      def getWebsites(): ZIO[Any, Throwable, List[String]] = ???
+    }
+    // using regular functional
+    {
+      import FunctionalObjectMpdel._
+      getWebsites()
+        .flatMap { websites =>
+          ZIO.foreach(websites)(
+            postUpdate(_)
+          )
+        }
+    }
+    // using defer
+    {
+      import FunctionalObjectMpdel._
+      defer {
+        for (site <- getWebsites().run) {
+          postUpdate(site).run
+        }
+      }
+    }
+  }
+
 }
