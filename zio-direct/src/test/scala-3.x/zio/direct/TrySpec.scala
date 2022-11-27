@@ -7,6 +7,8 @@ import zio.direct.core.util.debug.PrintMac
 import zio.ZIO
 import zio.ZIO.{unsafe => _, _}
 import java.io.IOException
+import zio.direct.core.metaprog.Verify
+import zio.direct.Dsl.Params
 
 object TrySpec extends DeferRunSpec {
 
@@ -138,7 +140,7 @@ object TrySpec extends DeferRunSpec {
     test("pure") {
       var called = false
       def c(): Unit = called = true
-      runLiftTest(true) {
+      runLiftTestLenient(true) {
         val _ =
           try {
             runBlock(defer(1))
@@ -151,7 +153,7 @@ object TrySpec extends DeferRunSpec {
     test("without catch") {
       var called = false
       def c() = called = true
-      runLiftTest(true) {
+      runLiftTestLenient(true) {
         try runBlock(defer(1))
         finally {
           c()
@@ -164,7 +166,7 @@ object TrySpec extends DeferRunSpec {
       def c() = called = true
       // runLiftTest(true)
       val out =
-        defer {
+        defer(Params(Verify.Lenient)) {
           val _ =
             try 1
             catch {
@@ -175,7 +177,7 @@ object TrySpec extends DeferRunSpec {
             }
           called
         }
-      assertTrue(true == true)
+      assertTrue(called == true)
     }
   }
 }

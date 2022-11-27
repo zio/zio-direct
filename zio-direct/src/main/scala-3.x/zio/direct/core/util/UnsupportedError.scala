@@ -4,6 +4,7 @@ import scala.quoted._
 import zio.direct.core.util.IndentExt._
 import zio.ZIO
 import zio.direct.core.metaprog.Instructions
+import zio.direct.core.metaprog.InfoBehavior
 
 object Unsupported {
   private sealed trait Msg {
@@ -54,7 +55,10 @@ object Unsupported {
         case t: Term if (t.isExpr) => report.errorAndAbort(text, t.asExpr)
         case _                     => report.errorAndAbort(text, tree.pos)
 
-    def withTree(using Quotes)(tree: quotes.reflect.Tree, message: String)(using instr: Instructions) =
+    def withTree(using qctx: Quotes, instr: Instructions)(tree: quotes.reflect.Tree, message: String): Nothing =
+      withTree(using qctx)(tree, message, instr.info)
+
+    def withTree(using Quotes)(tree: quotes.reflect.Tree, message: String, info: InfoBehavior): Nothing =
       import quotes.reflect._
       val text =
         s"""|${message}
@@ -68,7 +72,7 @@ object Unsupported {
             |""".stripMargin
 
       val textOuput =
-        if (instr.info.showReconstructedTree)
+        if (info.showReconstructedTree)
           text + extMessage
         else
           text

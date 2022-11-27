@@ -9,6 +9,7 @@ import zio.direct.core.metaprog.Verify
 
 object CorrectnessExamples {
 
+
   class Boom extends Exception("Boom!")
   object Boom {
     def apply() = new Boom()
@@ -25,7 +26,7 @@ object CorrectnessExamples {
         class Database {
           def nextRow(): Row = ???
           def hasNextRow(): Boolean = ???
-          def nextRowLocked(): Boolean = ???
+          def lockNextRow(): Boolean = ???
         }
         object Database {
           def open: Database = ???
@@ -41,7 +42,7 @@ object CorrectnessExamples {
         defer(Params(Verify.None)) {
           val db = Database.open
           while (db.hasNextRow()) {
-            if (!db.nextRowLocked()) doSomethingWith(db.nextRow()) else waitT()
+            if (!db.lockNextRow()) doSomethingWith(db.nextRow()) else waitT()
           }
         }
       }
@@ -53,7 +54,7 @@ object CorrectnessExamples {
         class Database {
           def nextRow(): ZIO[Any, Throwable, Row] = ???
           def hasNextRow(): Boolean = ???
-          def nextRowLocked(): Boolean = ???
+          def lockNextRow(): Boolean = ???
         }
         object Database {
           def open: ZIO[Any, Throwable, Database] = ???
@@ -68,7 +69,7 @@ object CorrectnessExamples {
         defer(Params(Verify.None)) {
           val db = Database.open.run
           while (db.hasNextRow()) {
-            if (!db.nextRowLocked()) doSomethingWith(db.nextRow().run) else waitT()
+            if (db.lockNextRow()) doSomethingWith(db.nextRow().run) else waitT()
           }
         }
       }
@@ -79,7 +80,7 @@ object CorrectnessExamples {
             if (db.hasNextRow())
               db.nextRow().flatMap { row =>
                 // Too late to check if row is locked, we already READ IT!!
-                if (!db.nextRowLocked()) doSomethingWith(row) else waitT()
+                if (db.lockNextRow()) doSomethingWith(row) else waitT()
                 whileFun()
               }
             else
@@ -92,7 +93,7 @@ object CorrectnessExamples {
         defer(Params(Verify.None)) {
           val db = Database.open.run
           while (db.hasNextRow()) {
-            if (!db.nextRowLocked())
+            if (db.lockNextRow())
               // Write it into a value first!
               val nextRow = db.nextRow().run
               doSomethingWith(nextRow)
@@ -107,7 +108,7 @@ object CorrectnessExamples {
           def whileFun(): ZIO[Any, Throwable, Unit] =
             if (db.hasNextRow())
               (
-                if (!db.nextRowLocked())
+                if (!db.lockNextRow())
                   db.nextRow().map(nextRow => doSomethingWith(nextRow))
                 else
                   ZIO.succeed(waitT())

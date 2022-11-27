@@ -87,7 +87,7 @@ trait WithReconstructTree {
           val monadExpr = apply(listIR)
           val bodyMonad = apply(body)
           val elementType = elementSymbol.termRef.widenTermRefByName.asType
-          (listType.asType, elementType) match
+          (listType.widen.asType, elementType) match
             case ('[l], '[e]) =>
               instructions.collect match
                 case Sequence =>
@@ -346,7 +346,7 @@ trait WithReconstructTree {
     end reconstructIf
 
     def reconstructParallel(value: IR.Parallel): Expr[ZIO[?, ?, ?]] =
-      val IR.Parallel(unlifts, newTree) = value
+      val IR.Parallel(_, unlifts, newTree) = value
       unlifts.toList match {
         case List() =>
           newTree match

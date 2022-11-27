@@ -6,6 +6,8 @@ import fansi.Str
 import zio.direct.core.util.Format
 import zio.ZIO
 import scala.tools.nsc.PipelineMain.Pipeline
+import zio.direct.core.util.Unsupported
+import zio.direct.core.util.Messages
 
 trait WithIR {
   implicit val macroQuotes: Quotes
@@ -88,7 +90,7 @@ trait WithIR {
     case class And(left: IR, right: IR) extends Monadic
     case class Or(left: IR, right: IR) extends Monadic
 
-    case class Parallel(monads: List[(IR.Monadic, Symbol)], body: IR.Leaf) extends Monadic
+    case class Parallel(originalExpr: Term, monads: List[(IR.Monadic, Symbol)], body: IR.Leaf) extends Monadic
   }
 
   /**
@@ -149,7 +151,9 @@ trait WithIR {
       override def apply(ir: IR.Monadic): IR.Monadic =
         ir match
           case IR.Map(monad, valSymbol, pure) => IR.FlatMap(apply(monad), valSymbol, monadify(pure))
-          case _                              => super.apply(ir)
+          case v @ IR.Parallel(origExpr, monads, body) =>
+            Unsupported.Error.withTree(origExpr, Messages.ParallelNotAllowedInRun, InfoBehavior.Info)
+          case _ => super.apply(ir)
     }
   }
 
@@ -189,10 +193,10 @@ trait WithIR {
         case IR.If(cond, ifTrue, ifFalse) => IR.If(cond, apply(ifTrue), apply(ifFalse))
         case IR.And(left, right)          => IR.And(apply(left), apply(right))
         case IR.Or(left, right)           => IR.Or(apply(left), apply(right))
-        case IR.Parallel(monads, body) =>
+        case IR.Parallel(orig, monads, body) =>
           val newMonads = monads.map((monad, sym) => (apply(monad), sym))
           val newBody = apply(body)
-          IR.Parallel(newMonads, newBody)
+          IR.Parallel(orig, newMonads, newBody)
         case IR.Unsafe(body) =>
           IR.Unsafe(body)
 

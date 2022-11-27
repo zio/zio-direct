@@ -157,7 +157,7 @@ trait WithDecomposeTree {
                   unlifts += ((monad, sym))
                   Ref(sym)
               }
-            Some(IR.Parallel(unlifts.toList, IR.Pure(newTree)))
+            Some(IR.Parallel(term, unlifts.toList, IR.Pure(newTree)))
         }
         ret
       }
