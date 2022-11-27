@@ -238,21 +238,21 @@ object IntroductionExamples {
       }
     }
     // Using Defer
-    // {
-    //   import FunctionalObjectModel._
+    {
+      import FunctionalObjectModel._
 
-    //   defer {
-    //     val file = JsonFile.from(path)
-    //     try {
-    //       file.readToJson().run
-    //     } catch {
-    //       case e: IOException       => handleIO(e).run
-    //       case e: DecodingException => handleDE(e).run
-    //     } finally {
-    //       file.close().run
-    //     }
-    //   }
-    // }
+      defer {
+        val file = JsonFile.from(path)
+        try {
+          file.readToJson().run
+        } catch {
+          case e: IOException       => handleIO(e).run
+          case e: DecodingException => handleDE(e).run
+        } finally {
+          file.close().run
+        }
+      }
+    }
 
   }
 

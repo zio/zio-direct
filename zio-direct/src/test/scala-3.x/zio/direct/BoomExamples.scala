@@ -26,9 +26,4 @@ object BoomExamples {
 // def `"pureCode"`() = throw new Boom()
 // defer { `"pureCode"`() }
 
-//   def runNow[A](op: ZIO[Any, Throwable, A]) =
-//     zio.Unsafe.unsafe { implicit unsafe =>
-//       zio.Runtime.default.unsafe.run(op).getOrThrow()
-//     }
-
 }

@@ -11,6 +11,7 @@ import zio.direct.Dsl.Params
 import java.sql.Connection
 import zio.Exit.{Failure, Success}
 import zio.stream.ZStream
+import zio.direct.examples.RunNow
 
 object Example {
   // def funA():Unit = {
@@ -472,66 +473,32 @@ object Example {
   import ZIO._
   import zio.Console.printLine
 
-  // val out: ZIO[ConfigFoo, Nothing, Unit] =
-  //   defer {
-  //     val x = succeed(1).run
-  //     val y = defer {
-  //       val i = service[ConfigFoo].run
-  //       succeed(3 + i.value + x)
-  //     }.run
-  //     val z = succeed(y.run + 4) // ..
-  //   }
-
   def main(args: Array[String]): Unit = {
 
-    val out =
-      defer(Params(Collect.Parallel)) {
-        val ref = Ref.make(10).run
-        for (elem <- ZIO.succeed(List(1, 2, 3)).run) {
-          ref.getAndUpdate(i => i + elem).run
-        }
-        println(ref.get.run)
-      }
-    val outRun =
-      zio.Unsafe.unsafe { implicit unsafe =>
-        zio.Runtime.default.unsafe.run(out).getOrThrow()
-      }
-    println("====== RESULT: " + outRun)
-
-    // val arr = Array(3, 2, 8, 5, 7, 2, 3, 8, 9, 4, 5, 8, 2, 3, 4, 7, 6, 5, 9, 2, 3, 8, 4, 7, 5, 6, 2, 0, 8, 3)
-    // val out = quicksortImperative(arr)
-
-    // val outRun =
-    //   zio.Unsafe.unsafe { implicit unsafe =>
-    //     zio.Runtime.default.unsafe.run(out).getOrThrow()
-    //   }
-    // println("====== RESULT: " + outRun)
-
-    // println(arr.toList)
+val arr = Array(3, 2, 8, 5, 7, 2, 3, 8, 9, 4, 5, 8, 2, 3, 4, 7, 6, 5, 9, 2, 3, 8, 4, 7, 5, 6, 2, 0, 8, 3)
+RunNow(quicksortDefer(arr))
+println(arr.toList)
+// List(0, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 4, 5, 5, 5, 5, 6, 6, 7, 7, 7, 8, 8, 8, 8, 8, 9, 9)
 
   }
 
-  def quicksortImperative(arr: Array[Int]) = { // // // // // // // //
-    def swap(i: Int, j: Int) = {
+  def quicksortDefer(arr: Array[Int]): ZIO[Any, Nothing, Unit] = {
+    def swap(i: Int, j: Int) =
       val temp = arr(i)
       arr(i) = arr(j)
       arr(j) = temp
-    }
 
-    // defer.info(Opts.withVerifyLenient.withParallel)
     def sort(l: Int, r: Int): ZIO[Any, Nothing, Unit] = defer(Params(Verify.Lenient)) {
       val pivot = arr((l + r) / 2)
       val i = Ref.make(l).run
       val j = Ref.make(r).run
-      while (i.get.run <= j.get.run) {
+      while (i.get.run <= j.get.run)
         while (arr(i.get.run) < pivot) i.getAndUpdate(i => i + 1).run
         while (arr(j.get.run) > pivot) j.getAndUpdate(j => j - 1).run
-        if (i.get.run <= j.get.run) {
+        if (i.get.run <= j.get.run)
           swap(i.get.run, j.get.run)
           i.getAndUpdate(i => i + 1).run
           j.getAndUpdate(j => j - 1).run
-        }
-      }
 
       if (l < j.get.run)
         val jv = j.get.run
@@ -543,7 +510,7 @@ object Example {
     sort(0, arr.length - 1)
   }
 
-  def quicksortImperative2(a: Array[Int]): Unit = {
+  def quicksortImperative(a: Array[Int]): Unit = {
     def swap(i: Int, j: Int): Unit = {
       val t = a(i)
       a(i) = a(j)
