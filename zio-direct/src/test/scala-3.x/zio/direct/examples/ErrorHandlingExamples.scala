@@ -37,8 +37,8 @@ object ErrorHandlingExamples {
   //   new InputStreamReader(file)
   // }
 
-  val out: ZIO[Scope, Throwable, Unit] = //
-    defer {
+  val out: ZIO[Scope, Throwable, Unit] = // //
+    defer.verbose {
       try {
         unsafe {
           val input = S3Object.openInputStream("foo/bar").run

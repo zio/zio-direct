@@ -26,6 +26,8 @@ trait WithIR {
 
     case class While(cond: IR, body: IR) extends Monadic
 
+    case class ValDef(originalStmt: macroQuotes.reflect.Block, symbol: Symbol, assignment: IR, bodyUsingVal: IR) extends Monadic
+
     case class Unsafe(body: IR) extends Monadic
 
     case class Try(tryBlock: IR, cases: List[IR.Match.CaseDef], resultType: TypeRepr, finallyBlock: Option[IR]) extends Monadic
@@ -177,6 +179,8 @@ trait WithIR {
           val newCases = cases.map(apply(_))
           val newFinallyBlock = finallyBlock.map(apply(_))
           IR.Try(apply(tryBlock), newCases, resultType, newFinallyBlock)
+        case IR.ValDef(orig, symbol, assignment, bodyUsingVal) =>
+          IR.ValDef(orig, symbol, apply(assignment), apply(bodyUsingVal))
         case IR.FlatMap(monad, valSymbol, body) =>
           IR.FlatMap(apply(monad), valSymbol, apply(body))
         case IR.Foreach(list, listType, symbolType, body) =>
