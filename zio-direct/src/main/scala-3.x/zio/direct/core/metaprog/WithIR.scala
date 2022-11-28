@@ -8,6 +8,7 @@ import zio.ZIO
 import scala.tools.nsc.PipelineMain.Pipeline
 import zio.direct.core.util.Unsupported
 import zio.direct.core.util.Messages
+import zio.direct.core.metaprog.Extractors.BlockN
 
 trait WithIR {
   implicit val macroQuotes: Quotes
@@ -155,6 +156,16 @@ trait WithIR {
           case IR.Map(monad, valSymbol, pure) => IR.FlatMap(apply(monad), valSymbol, monadify(pure))
           case v @ IR.Parallel(origExpr, monads, body) =>
             Unsupported.Error.withTree(origExpr, Messages.ParallelNotAllowedInRun, InfoBehavior.Info)
+          case b @ IR.Block(head, tail) =>
+            // basically the only thing that can be inside of a block head-statement is a ValDef
+            // or a Term of pure-code. Since val-defs are handled separately as an IR.ValDef basically
+            // there should be nothing on than a pure-term in this slot
+            val wrappedHead =
+              head match {
+                case term: Term => monadify(IR.Pure(term))
+                case _          => monadify(IR.Pure(macroQuotes.reflect.Block(List(head), '{ () }.asTerm)))
+              }
+            IR.FlatMap(wrappedHead, None, tail)
           case _ => super.apply(ir)
     }
   }
