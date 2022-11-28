@@ -5,7 +5,7 @@ import zio.test._
 import zio.direct.core.util.debug.PrintMac
 import zio._
 
-object PatMatchSpec extends AsyncAwaitSpec {
+object PatMatchSpec extends DeferRunSpec {
 
   val spec = suite("PatMatchSpec")(
     suite("unlifted scrutinee")(

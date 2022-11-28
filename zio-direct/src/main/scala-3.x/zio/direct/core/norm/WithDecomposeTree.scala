@@ -10,7 +10,6 @@ import zio.ZIO
 import scala.collection.mutable
 import zio.Chunk
 import zio.direct.core.util.PureTree
-import zio.direct.core.util.ComputeTotalZioType
 import zio.direct.core.metaprog.WithPrintIR
 import zio.direct.core.metaprog.Embedder._
 import zio.direct.core.norm.WithComputeType
@@ -49,7 +48,7 @@ trait WithDecomposeTree {
           case Seal('{ deferred($effect) }) =>
             Some(IR.Monad(effect.asTerm, IR.Monad.Source.PrevDefer))
 
-          // Otherwise, if there are no Await calls treat the tree as "Pure" i.e.
+          // Otherwise, if there are no Run calls treat the tree as "Pure" i.e.
           // it will be either embedded within the parent map/flatMap clause or
           // wrapped into a ZIO.succeed.
           case PureTree(tree) =>
@@ -152,13 +151,13 @@ trait WithDecomposeTree {
                   Ref(sym)
 
                 case originalTerm @ DecomposeBlock(monad) =>
-                  // Take the type from the originalTerm (i.e. the result of the await call since it could be a block etc...)
+                  // Take the type from the originalTerm (i.e. the result of the run call since it could be a block etc...)
                   val tpe = originalTerm.tpe
                   val sym = Symbol.newVal(Symbol.spliceOwner, "blockVal", tpe, Flags.EmptyFlags, Symbol.noSymbol)
                   unlifts += ((monad, sym))
                   Ref(sym)
               }
-            Some(IR.Parallel(unlifts.toList, IR.Pure(newTree)))
+            Some(IR.Parallel(term, unlifts.toList, IR.Pure(newTree)))
         }
         ret
       }

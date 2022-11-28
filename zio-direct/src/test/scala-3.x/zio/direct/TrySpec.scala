@@ -7,8 +7,10 @@ import zio.direct.core.util.debug.PrintMac
 import zio.ZIO
 import zio.ZIO.{unsafe => _, _}
 import java.io.IOException
+import zio.direct.core.metaprog.Verify
+import zio.direct.Dsl.Params
 
-object TrySpec extends AsyncAwaitSpec {
+object TrySpec extends DeferRunSpec {
 
   val e = new Exception("blah")
   val e1 = new Exception("blahblah")
@@ -138,7 +140,7 @@ object TrySpec extends AsyncAwaitSpec {
     test("pure") {
       var called = false
       def c(): Unit = called = true
-      runLiftTest(true) {
+      runLiftTestLenient(true) {
         val _ =
           try {
             runBlock(defer(1))
@@ -151,7 +153,7 @@ object TrySpec extends AsyncAwaitSpec {
     test("without catch") {
       var called = false
       def c() = called = true
-      runLiftTest(true) {
+      runLiftTestLenient(true) {
         try runBlock(defer(1))
         finally {
           c()
@@ -164,7 +166,7 @@ object TrySpec extends AsyncAwaitSpec {
       def c() = called = true
       // runLiftTest(true)
       val out =
-        defer {
+        defer(Params(Verify.Lenient)) {
           val _ =
             try 1
             catch {
@@ -175,7 +177,8 @@ object TrySpec extends AsyncAwaitSpec {
             }
           called
         }
-      assertTrue(true == true)
+
+      assertZIO(out)(equalTo(true))
     }
   }
 }

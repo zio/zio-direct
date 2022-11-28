@@ -4,10 +4,10 @@ import zio.direct.{run => runBlock}
 import zio.test._
 import zio.direct.core.util.debug.PrintMac
 
-object BlockSpec extends AsyncAwaitSpec {
+object BlockSpec extends DeferRunSpec {
   def spec =
     suite("BlockSpec")(
-      suite("assigned await") {
+      suite("assigned run") {
         test("only") {
           val i = defer(1)
           runLiftTest(1) {
@@ -44,7 +44,7 @@ object BlockSpec extends AsyncAwaitSpec {
           }
         }
       },
-      suite("unassigned await") {
+      suite("unassigned run") {
         test("only") {
           val i = defer(1)
           runLiftTest(1) {

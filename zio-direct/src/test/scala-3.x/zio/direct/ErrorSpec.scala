@@ -9,7 +9,7 @@ import zio.direct.core.metaprog.Collect
 import zio.direct.core.metaprog.Verify
 import zio.direct.Dsl.Params
 
-object ErrorSpec extends AsyncAwaitSpec {
+object ErrorSpec extends DeferRunSpec {
 
   val spec = suite("ErrorSpec")(
     suite("Different Kinds of ways that errors can be thrown") {

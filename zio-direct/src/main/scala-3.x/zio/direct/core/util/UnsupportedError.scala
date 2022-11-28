@@ -4,6 +4,7 @@ import scala.quoted._
 import zio.direct.core.util.IndentExt._
 import zio.ZIO
 import zio.direct.core.metaprog.Instructions
+import zio.direct.core.metaprog.InfoBehavior
 
 object Unsupported {
   private sealed trait Msg {
@@ -14,10 +15,10 @@ object Unsupported {
       def render = msg
     }
 
-    def awaitUnsupportedTree(using qctx: Quotes, instr: Instructions)(tree: quotes.reflect.Tree, additionalMsg: String = "", example: String = Messages.MoveAwaitOut) = {
+    def runUnsupportedTree(using qctx: Quotes, instr: Instructions)(tree: quotes.reflect.Tree, additionalMsg: String = "", example: String = Messages.MoveRunOut) = {
       import qctx.reflect._
       val text =
-        s"""|Detected an `await` call inside of an unsupported structure:
+        s"""|Detected an `run` call inside of an unsupported structure:
             |${Format.Tree(tree)}
             |""".stripMargin
           + lineIfAnyDefined("============")(additionalMsg, example)
@@ -47,14 +48,17 @@ object Unsupported {
   }
 
   object Error {
-    def awaitUnsupported(using Quotes, Instructions)(tree: quotes.reflect.Tree, additionalMessage: String = "")(using instr: Instructions) =
+    def runUnsupported(using Quotes, Instructions)(tree: quotes.reflect.Tree, additionalMessage: String = "")(using instr: Instructions) =
       import quotes.reflect._
-      val text = Msg.awaitUnsupportedTree(tree, additionalMessage)
+      val text = Msg.runUnsupportedTree(tree, additionalMessage)
       tree match
         case t: Term if (t.isExpr) => report.errorAndAbort(text, t.asExpr)
         case _                     => report.errorAndAbort(text, tree.pos)
 
-    def withTree(using Quotes)(tree: quotes.reflect.Tree, message: String)(using instr: Instructions) =
+    def withTree(using qctx: Quotes, instr: Instructions)(tree: quotes.reflect.Tree, message: String): Nothing =
+      withTree(using qctx)(tree, message, instr.info)
+
+    def withTree(using Quotes)(tree: quotes.reflect.Tree, message: String, info: InfoBehavior): Nothing =
       import quotes.reflect._
       val text =
         s"""|${message}
@@ -68,7 +72,7 @@ object Unsupported {
             |""".stripMargin
 
       val textOuput =
-        if (instr.info.showReconstructedTree)
+        if (info.showReconstructedTree)
           text + extMessage
         else
           text
@@ -98,7 +102,7 @@ object Unsupported {
           term.tpe.asType match
             case '[ZIO[r, e, a]] if (!(term.tpe =:= TypeRepr.of[Nothing])) =>
               report.warning(
-                s"Found a ZIO term that is not being awaited (type: ${Format.TypeRepr(term.tpe)}). Non-awaited ZIO terms inside of `{ ... }` blocks will never be executed i.e. they will be discarded. " +
+                s"Found a ZIO term that is not being runed (type: ${Format.TypeRepr(term.tpe)}). Non-runed ZIO terms inside of `{ ... }` blocks will never be executed i.e. they will be discarded. " +
                   s"To execute this term add `.run` at the end or wrap it into an `run(...)` statement." +
                   s"\n========\n" +
                   Format.Term(term),

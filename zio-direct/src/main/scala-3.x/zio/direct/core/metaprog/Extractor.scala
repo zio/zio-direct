@@ -12,9 +12,11 @@ object Extractors {
     def unapply(using Quotes)(tree: quotes.reflect.Tree): Option[Expr[ZIO[?, ?, ?]]] =
       import quotes.reflect._
       tree match
-        case Seal('{ run[r, e, a]($task) })       => Some(task)
-        case Seal('{ ($task: ZIO[r, e, a]).run }) => Some(task)
-        case _                                    => None
+        case Seal('{ run[r, e, a]($task) }) =>
+          Some(task)
+        case Seal('{ ($task: ZIO[r, e, a]).run }) =>
+          Some(task)
+        case _ => None
   }
 
   def firstParamList(using Quotes)(applyNode: quotes.reflect.Apply) =

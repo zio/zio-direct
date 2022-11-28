@@ -10,7 +10,6 @@ import zio.ZIO
 import scala.collection.mutable
 import zio.Chunk
 import zio.direct.core.util.PureTree
-import zio.direct.core.util.ComputeTotalZioType
 import zio.direct.core.util.WithInterpolator
 import zio.direct.core.metaprog.WithPrintIR
 import zio.direct.core.metaprog.Embedder._
@@ -114,7 +113,7 @@ class Transformer(inputQuotes: Quotes)
         |""".stripMargin
       )
 
-    // // TODO verify that there are no await calls left. Otherwise throw an error
+    // // TODO verify that there are no run calls left. Otherwise throw an error
     val ownerPositionOpt = topLevelOwner.pos
 
     // If there are any remaining run-calls in the tree then fail

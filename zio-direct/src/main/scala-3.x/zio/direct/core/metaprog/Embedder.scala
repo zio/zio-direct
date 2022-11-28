@@ -32,6 +32,7 @@ object Embedder {
     // e.g. Zio.Apply('{ 1 }) or a union of singleton types e.g. Zio.Apply('{ if (blah) 1 else 2 })
     // (the latter is typed as `1 | 2`)
     def succeed(using Quotes)(term: quotes.reflect.Term) =
+      // TODO widenByTermRef just in case?
       import quotes.reflect._
       term.tpe.asType match
         case '[t] =>

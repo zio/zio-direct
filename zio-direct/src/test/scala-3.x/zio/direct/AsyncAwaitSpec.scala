@@ -12,7 +12,7 @@ import zio.direct.Dsl.Params
 import zio.direct.core.util.Format
 import zio.internal.stacktracer.SourceLocation
 
-object AsyncAwaitSpec {
+object DeferRunSpec {
   def sourceLocationImpl(using Quotes): Expr[SourceLocation] = {
     import quotes.reflect._
     val (name, line) = Symbol.spliceOwner.pos.map(p => (p.sourceFile.path, p.startLine)).getOrElse("", 0)
@@ -30,7 +30,7 @@ object AsyncAwaitSpec {
       '{ false }
 }
 
-trait AsyncAwaitSpec extends ZIOSpecDefault {
+trait DeferRunSpec extends ZIOSpecDefault {
   // various config parameters to test zio dependency
   case class ConfigInt(value: Int)
   case class ConfigString(value: String)
@@ -47,9 +47,9 @@ trait AsyncAwaitSpec extends ZIOSpecDefault {
   def makeBarError = new BarError
 
   val errorMsg =
-    "Detected an `await` call inside of an unsupported structure"
+    "Detected an `run` call inside of an unsupported structure"
 
-  transparent inline def isType[T](inline input: Any) = ${ AsyncAwaitSpec.isType[T]('input) }
+  transparent inline def isType[T](inline input: Any) = ${ DeferRunSpec.isType[T]('input) }
   transparent inline def assertIsType[T](inline input: Any) = {
     assertTrue(isType[T](input))
   }
@@ -82,7 +82,7 @@ trait AsyncAwaitSpec extends ZIOSpecDefault {
     zio.test.UseSmartAssert.of(errors, None, None)(exists(containsString(errorStringContains)))(sourceLocation)
   }
 
-  inline def sourceLocation: SourceLocation = ${ AsyncAwaitSpec.sourceLocationImpl }
+  inline def sourceLocation: SourceLocation = ${ DeferRunSpec.sourceLocationImpl }
 
   transparent inline def runLiftFail(body: String) = {
     val expression = "defer {\n" + body + "\n}"

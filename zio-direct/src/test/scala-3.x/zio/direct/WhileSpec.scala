@@ -9,7 +9,7 @@ import ZIO._
 import zio.direct.core.metaprog.Verify
 import zio.direct.Dsl.Params
 
-object WhileSpec extends AsyncAwaitSpec {
+object WhileSpec extends DeferRunSpec {
   val spec = suite("WhileSpec") {
     suite("run condition") {
       test("pure body") {

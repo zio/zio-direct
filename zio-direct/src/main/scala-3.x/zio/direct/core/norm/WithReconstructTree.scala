@@ -6,7 +6,6 @@ import zio.direct.core.metaprog.Embedder._
 import zio.ZIO
 import zio.direct.core.metaprog.WithPrintIR
 import zio.Chunk
-import zio.direct.core.util.ComputeTotalZioType
 import zio.direct.core.util.Format
 import zio.direct.core.util.WithInterpolator
 import zio.Exit.Success
@@ -16,6 +15,9 @@ import zio.direct.core.metaprog.Collect
 import zio.direct.core.metaprog.WithZioType
 import zio.direct.core.util.ZioUtil
 import zio.direct.core.util.Unsupported
+import org.scalafmt.util.LogLevel.info
+import zio.direct.core.metaprog.Collect.Sequence
+import zio.direct.core.metaprog.Collect.Parallel
 
 trait WithReconstructTree {
   self: WithIR with WithZioType with WithComputeType with WithPrintIR with WithInterpolator =>
@@ -85,15 +87,25 @@ trait WithReconstructTree {
           val monadExpr = apply(listIR)
           val bodyMonad = apply(body)
           val elementType = elementSymbol.termRef.widenTermRefByName.asType
-          (listType.asType, elementType) match
+          (listType.widen.asType, elementType) match
             case ('[l], '[e]) =>
-              '{
-                $monadExpr.asInstanceOf[ZIO[?, ?, l]].flatMap((list: l) =>
-                  ZIO.foreach(list.asInstanceOf[Iterable[e]])((v: e) =>
-                    ${ replaceSymbolInBodyMaybe(using macroQuotes)(bodyMonad.asTerm.changeOwner(('v).asTerm.symbol))(Some(elementSymbol), ('v).asTerm).asExprOf[ZIO[?, ?, ?]] }
-                  )
-                )
-              }
+              instructions.collect match
+                case Sequence =>
+                  '{
+                    $monadExpr.asInstanceOf[ZIO[?, ?, l]].flatMap((list: l) =>
+                      ZIO.foreach(list.asInstanceOf[Iterable[e]])((v: e) =>
+                        ${ replaceSymbolInBodyMaybe(using macroQuotes)(bodyMonad.asTerm.changeOwner(('v).asTerm.symbol))(Some(elementSymbol), ('v).asTerm).asExprOf[ZIO[?, ?, ?]] }
+                      )
+                    )
+                  }
+                case Parallel =>
+                  '{
+                    $monadExpr.asInstanceOf[ZIO[?, ?, l]].flatMap((list: l) =>
+                      ZIO.foreachPar(list.asInstanceOf[Iterable[e]])((v: e) =>
+                        ${ replaceSymbolInBodyMaybe(using macroQuotes)(bodyMonad.asTerm.changeOwner(('v).asTerm.symbol))(Some(elementSymbol), ('v).asTerm).asExprOf[ZIO[?, ?, ?]] }
+                      )
+                    )
+                  }
 
         // Pull out the value from IR.Pure and use it directly in the mapping
         case IR.Map(monad, valSymbol, IR.Pure(body)) =>
@@ -116,7 +128,7 @@ trait WithReconstructTree {
               ComputeType.fromIR(error).a.widen.asType match
                 case '[a] =>
                   '{ ZIO.fail[a](${ value.asExpr }.asInstanceOf[a]) }
-            // TODO test the case where error is constructed via an await
+            // TODO test the case where error is constructed via an run
             case m: IR.Monadic =>
               ComputeType.fromIR(error).asTypeTuple match
                 case ('[r], '[e], '[a]) =>
@@ -334,7 +346,7 @@ trait WithReconstructTree {
     end reconstructIf
 
     def reconstructParallel(value: IR.Parallel): Expr[ZIO[?, ?, ?]] =
-      val IR.Parallel(unlifts, newTree) = value
+      val IR.Parallel(_, unlifts, newTree) = value
       unlifts.toList match {
         case List() =>
           newTree match
@@ -342,7 +354,7 @@ trait WithReconstructTree {
             case IR.Monad(newTree) => newTree.asExprOf[ZIO[?, ?, ?]]
 
         /*
-        For a expression (in a single block-line) that has one await in the middle of things e.g.
+        For a expression (in a single block-line) that has one run in the middle of things e.g.
         { run(foo) + bar }
         Needs to turn into something like:
         { run(foo).map(fooVal => fooVal + bar) }

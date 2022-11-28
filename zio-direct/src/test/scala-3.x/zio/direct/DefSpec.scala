@@ -5,7 +5,7 @@ import zio.test._
 import zio.direct.core.util.debug.PrintMac
 import zio.ZIO
 
-object DefSpec extends AsyncAwaitSpec {
+object DefSpec extends DeferRunSpec {
   def spec = suite("DefSpec")(
     suiteAll("lenient mode") {
       suiteAll("pure") {
@@ -15,7 +15,7 @@ object DefSpec extends AsyncAwaitSpec {
             runBlock(defer(1)) + a
           }
         }
-        test("no awaits in functions, even in lenient mode") {
+        test("no runs in functions, even in lenient mode") {
           runLiftFailLenientMsg("In Lenient mode") {
             """
             def a = runBlock(ZIO.succeed(2))
@@ -117,9 +117,9 @@ object DefSpec extends AsyncAwaitSpec {
       test("nested class - pure but using defer - not allowed") {
         runLiftFailMsg(errorMsgContains) {
           """
-          def awaitInt(i: Int) = runBlock(defer(i + 1))
+          def runInt(i: Int) = runBlock(defer(i + 1))
           class A {
-            def a(i: Int) = defer(awaitInt(i))
+            def a(i: Int) = defer(runInt(i))
           }
           runBlock((new A).a(1)) + "blah"
           """

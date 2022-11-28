@@ -29,7 +29,12 @@ object PrintMac {
     }
 
     // Trees.traverse(any.asTerm, Symbol.spliceOwner) {
-    //   case v: ValDef => println(s"Flags: ${v.symbol.flags.is(Flags.Mutable)}")
+    //   case v: Ident => println(
+    //       s"""|Symbol Flags (${v.show}): ${v.symbol.flags.show}
+    //           |Term Symbol Flags (${v.show}): ${v.tpe.termSymbol.flags.show}
+    //           |Type Symbol Flags (${v.show}): ${v.tpe.typeSymbol.flags.show}
+    //           |""".stripMargin
+    //     )
     // }
 
     any
