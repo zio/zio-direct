@@ -34,19 +34,11 @@ object TailoredForZio {
   // lenient mode is still correct
   // low commitment API
 
-
-
-
-
-
-
   {
     val out =
       defer {
-        val custUrl: String =
-          ZIO.service[CustomerConfig].run.url
-        val distUrl: String =
-          ZIO.service[DistributorConfig].run.url
+        val custUrl: String = ZIO.service[CustomerConfig].run.url
+        val distUrl: String = ZIO.service[DistributorConfig].run.url
         (
           parseCustomer(httpGetCustomer(custUrl).run),
           parseDistrubutor(httpGetDistributor(distUrl).run)

@@ -75,18 +75,18 @@ object CorrectnessExamples {
       }
       // wrong rewrite
       {
-        Database.open.flatMap { db =>
-          def whileFun(): ZIO[Any, Throwable, Unit] =
-            if (db.hasNextRow())
-              db.nextRow().flatMap { row =>
-                // Too late to check if row is locked, we already READ IT!!
-                if (db.lockNextRow()) doSomethingWith(row) else waitT()
-                whileFun()
-              }
-            else
-              ZIO.unit
-          whileFun()
-        }
+Database.open.flatMap { db =>
+  def whileFun(): ZIO[Any, Throwable, Unit] =
+    if (db.hasNextRow())
+      db.nextRow().flatMap { row =>
+        // Too late to check if row is locked, we already READ IT!!
+        if (db.lockNextRow()) doSomethingWith(row) else waitT()
+        whileFun()
+      }
+    else
+      ZIO.unit
+  whileFun()
+}
       }
       // force user to write to vals first
       {

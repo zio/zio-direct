@@ -38,7 +38,7 @@ object ErrorHandlingExamples {
   // }
 
   val out: ZIO[Scope, Throwable, Unit] = //
-    defer.verbose {
+    defer {
       try {
         unsafe {
           val input = S3Object.openInputStream("foo/bar").run

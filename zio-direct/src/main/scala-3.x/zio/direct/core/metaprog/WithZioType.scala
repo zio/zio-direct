@@ -10,7 +10,7 @@ trait WithZioType {
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._
 
-  protected case class ZioType(r: TypeRepr, e: TypeRepr, a: TypeRepr) {
+  protected case class ZioType private (r: TypeRepr, e: TypeRepr, a: TypeRepr) {
     def show = s"ZioType(${Format.TypeRepr(r)}, ${Format.TypeRepr(e)}, ${Format.TypeRepr(a)})"
 
     def transformR(f: TypeRepr => TypeRepr) =
@@ -37,6 +37,13 @@ trait WithZioType {
       ZioType(r, e, tpe)
   }
   protected object ZioType {
+    def fromMulti(rs: List[TypeRepr], es: List[TypeRepr], as: List[TypeRepr])(implicit typeUnion: TypeUnion) =
+      ZioType(
+        ZioType.andN(rs),
+        ZioType.orN(es)(typeUnion),
+        ZioType.orN(as)
+      )
+
     def fromZIO(zio: Term) =
       zio.tpe.asType match
         case '[ZIO[r, e, a]] =>
@@ -50,18 +57,25 @@ trait WithZioType {
     def fromPure(term: Term) =
       ZioType(TypeRepr.of[Any], TypeRepr.of[Nothing], term.tpe)
 
+    def apply(r: TypeRepr, e: TypeRepr, a: TypeRepr) =
+      new ZioType(r.widenTermRefByName, e.widenTermRefByName, a.widenTermRefByName)
+
     def composeN(zioTypes: List[ZioType])(implicit typeUnion: TypeUnion): ZioType =
       val (rs, es, as) = zioTypes.map(zt => (zt.r, zt.e, zt.a)).unzip3
       ZioType(andN(rs), orN(es), andN(as))
 
-    def andN(types: List[TypeRepr]) =
-      if (types.length > 0)
+    private def andN(types: List[TypeRepr]) =
+      if (types.length == 1)
+        types.head
+      else if (types.length > 1)
         types.reduce(and(_, _))
       else
         TypeRepr.of[Any]
 
-    def orN(types: List[TypeRepr])(implicit typeUnion: TypeUnion) =
-      if (types.length > 0)
+    private def orN(types: List[TypeRepr])(implicit typeUnion: TypeUnion) =
+      if (types.length == 1)
+        types.head
+      else if (types.length > 1)
         types.reduce(or(_, _))
       else
         TypeRepr.of[Nothing]
@@ -69,7 +83,7 @@ trait WithZioType {
     def compose(a: ZioType, b: ZioType)(implicit typeUnion: TypeUnion): ZioType =
       ZioType(and(a.r, b.r), or(a.e, b.e), or(a.a, b.a))
 
-    def or(a: TypeRepr, b: TypeRepr)(implicit typeUnion: TypeUnion) =
+    private def or(a: TypeRepr, b: TypeRepr)(implicit typeUnion: TypeUnion) =
       typeUnion match {
         case TypeUnion.OrType =>
           (a.widen.asType, b.widen.asType) match
@@ -79,7 +93,7 @@ trait WithZioType {
           Embedder.computeCommonBaseClass(a.widen, b.widen)
       }
 
-    def and(a: TypeRepr, b: TypeRepr) =
+    private def and(a: TypeRepr, b: TypeRepr) =
       // if either type is Any, specialize to the thing that is narrower
       val out =
         (a.widen.asType, b.widen.asType) match

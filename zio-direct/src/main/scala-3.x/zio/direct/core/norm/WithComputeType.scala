@@ -100,11 +100,11 @@ trait WithComputeType {
         case ir @ IR.Foreach(monad, _, _, body) =>
           val monadType = apply(monad)
           val bodyType = apply(body)
-          ZioType(
-            ZioType.and(bodyType.r, monadType.r),
-            ZioType.or(bodyType.e, monadType.e)(instructions.typeUnion),
-            TypeRepr.of[Unit]
-          )
+          ZioType.fromMulti(
+            List(bodyType.r, monadType.r),
+            List(bodyType.e, monadType.e),
+            List(TypeRepr.of[Unit])
+          )(using instructions.typeUnion)
 
         case ir @ IR.Parallel(_, monadics, body) =>
           val monadTypes =
@@ -121,11 +121,11 @@ trait WithComputeType {
           //   R-Parameter: ConfA & ConfB, E-Parameter: ExA | ExB, A-Parameter: (A, B)
           // In some cases the above function will be a flatMap and wrapped into a ZIO.attempt or ZIO.succeed
           //   so we include the body-type error and environment just in case
-          ZioType(
-            ZioType.andN(bodyType.r +: monadTypes.map(_.r)),
-            ZioType.orN(bodyType.e +: monadTypes.map(_.e))(instructions.typeUnion),
-            bodyType.a
-          )
+          ZioType.fromMulti(
+            bodyType.r +: monadTypes.map(_.r),
+            bodyType.e +: monadTypes.map(_.e),
+            List(bodyType.a)
+          )(using instructions.typeUnion)
       }
   }
 }

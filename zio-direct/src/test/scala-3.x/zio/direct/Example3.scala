@@ -104,7 +104,7 @@ object Example3 {
     //   new InputStreamReader(file)
     // }
 
-    defer.verbose {
+    defer {
       try {
         unsafe {
           val input = S3Object.openInputStream("foo/bar").run
