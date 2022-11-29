@@ -3,10 +3,10 @@ import Dependencies._
 
 inThisBuild(
   List(
-    organization  := "dev.zio",
-    homepage      := Some(url("https://zio.github.io/zio-direct/")),
-    licenses      := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
-    developers    := List(
+    organization := "dev.zio",
+    homepage := Some(url("https://zio.github.io/zio-direct/")),
+    licenses := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
+    developers := List(
       Developer(
         "deusaquilus",
         "Alexander Ioffe",
@@ -36,35 +36,33 @@ lazy val root = (project in file("."))
   )
   .settings(
     crossScalaVersions := Nil,
-    publish / skip     := true
+    publish / skip := true
   )
 
 lazy val `zio-direct` = project
-    .in(file("zio-direct"))
-    .settings(stdSettings("zio-direct"))
-    .settings(crossProjectSettings)
-    .settings(dottySettings)
-    .settings(buildInfoSettings("zio.direct"))
-    .enablePlugins(BuildInfoPlugin)
-    .settings(
-      Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat,
-      scalaVersion := ScalaDotty,
-      resolvers ++= Seq(
-        Resolver.mavenLocal,
-        "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots",
-        "Sonatype OSS Releases" at "https://oss.sonatype.org/content/repositories/releases"
-      ),
-      testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework"),
-      libraryDependencies ++= Seq(
-        pprint,
-        zio,
-        `quill-util`,
-        `zio-test`,
-        `zio-test-sbt`
-      )
+  .in(file("zio-direct"))
+  .settings(stdSettings("zio-direct"))
+  .settings(crossProjectSettings)
+  .settings(dottySettings)
+  .settings(buildInfoSettings("zio.direct"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(
+    Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat,
+    scalaVersion := ScalaDotty,
+    resolvers ++= Seq(
+      Resolver.mavenLocal,
+      "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots",
+      "Sonatype OSS Releases" at "https://oss.sonatype.org/content/repositories/releases"
+    ),
+    testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework"),
+    libraryDependencies ++= Seq(
+      pprint,
+      zio,
+      `quill-util`,
+      `zio-test`,
+      `zio-test-sbt`
     )
-
-
+  )
 
 lazy val docs = project
   .in(file("zio-direct-docs"))
@@ -74,21 +72,16 @@ lazy val docs = project
     excludeDependencies ++= Seq(
       "com.geirsson" % "metaconfig-core_2.13",
       "com.geirsson" % "metaconfig-typesafe-config_2.13",
-      "org.typelevel" % "paiges-core_2.13",
+      "org.typelevel" % "paiges-core_2.13"
     ),
-    crossScalaVersions                         := Seq(ScalaDotty),
-    scalaVersion                               := ScalaDotty,
-    publish / skip                             := true,
-    moduleName                                 := "zio-direct-docs",
+    crossScalaVersions := Seq(ScalaDotty),
+    scalaVersion := ScalaDotty,
+    publish / skip := true,
+    moduleName := "zio-direct-docs",
     scalacOptions -= "-Yno-imports",
-    scalacOptions -= "-Xfatal-warnings",
-    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(`zio-direct`),
-    ScalaUnidoc / unidoc / target              := (LocalRootProject / baseDirectory).value / "website" / "static" / "api",
-    cleanFiles += (ScalaUnidoc / unidoc / target).value,
-    docusaurusCreateSite                       := docusaurusCreateSite.dependsOn(Compile / unidoc).value,
-    docusaurusPublishGhpages                   := docusaurusPublishGhpages.dependsOn(Compile / unidoc).value
+    scalacOptions -= "-Xfatal-warnings"
   )
   .dependsOn(`zio-direct`)
-  .enablePlugins(MdocPlugin, DocusaurusPlugin, ScalaUnidocPlugin)
+  .enablePlugins(WebsitePlugin)
 
 addCommandAlias("fmt", "all scalafmt test:scalafmt")
