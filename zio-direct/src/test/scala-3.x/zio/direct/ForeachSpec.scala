@@ -22,7 +22,7 @@ object ForeachSpec extends DeferRunSpec {
               v += i
             }
           }
-        assertZIO(out)(equalTo(())) *>
+        assertZIO(out)(equalTo(())) andAssert
           assert(v)(equalTo(7))
       },
       test("List Impure, body Pure") {
@@ -33,7 +33,7 @@ object ForeachSpec extends DeferRunSpec {
               v += i
             }
           }
-        assertZIO(out)(equalTo(())) *>
+        assertZIO(out)(equalTo(())) andAssert
           assert(v)(equalTo(7))
       },
       test("List Pure, body Impure") {
@@ -44,7 +44,7 @@ object ForeachSpec extends DeferRunSpec {
               ZIO.succeed(v += i).run
             }
           }
-        assertZIO(out)(equalTo(())) *>
+        assertZIO(out)(equalTo(())) andAssert
           assert(v)(equalTo(7))
       },
       test("List Impure, body Impure") {
@@ -55,7 +55,7 @@ object ForeachSpec extends DeferRunSpec {
               ZIO.succeed(v += i).run
             }
           }
-        assertZIO(out)(equalTo(())) *>
+        assertZIO(out)(equalTo(())) andAssert
           assert(v)(equalTo(7))
       }
     ),
@@ -72,7 +72,7 @@ object ForeachSpec extends DeferRunSpec {
           out.provide(
             ZLayer.succeed(ConfigT(List(1, 2, 3)))
           )
-        assertZIO(provided)(equalTo(())) *>
+        assertZIO(provided)(equalTo(())) andAssert
           assert(v)(equalTo(7))
       },
       test("Dependency in body") {
@@ -89,7 +89,7 @@ object ForeachSpec extends DeferRunSpec {
           out.provide(
             ZLayer.succeed(ConfigInt(1))
           )
-        assertZIO(provided)(equalTo(())) *>
+        assertZIO(provided)(equalTo(())) andAssert
           assert(v)(equalTo(10))
       },
       test("Dependency in both") {
@@ -107,7 +107,7 @@ object ForeachSpec extends DeferRunSpec {
             ZLayer.succeed(ConfigT(List(1, 2, 3))),
             ZLayer.succeed(ConfigInt(1))
           )
-        assertZIO(provided)(equalTo(())) *>
+        assertZIO(provided)(equalTo(())) andAssert
           assert(v)(equalTo(10))
       }
     ),
@@ -120,7 +120,7 @@ object ForeachSpec extends DeferRunSpec {
               ZIO.succeed(v += i).run
             }
           }
-        assertZIO(out.exit)(dies(isSubtype[FooError](anything))) *>
+        assertZIO(out.exit)(dies(isSubtype[FooError](anything))) andAssert
           assert(v)(equalTo(1))
       },
       test("Throw in List fail") {
@@ -131,7 +131,7 @@ object ForeachSpec extends DeferRunSpec {
               ZIO.succeed(v += i).run
             }
           }
-        assertZIO(out.exit)(dies(isSubtype[FooError](anything))) *>
+        assertZIO(out.exit)(dies(isSubtype[FooError](anything))) andAssert
           assert(v)(equalTo(1))
       }
     )

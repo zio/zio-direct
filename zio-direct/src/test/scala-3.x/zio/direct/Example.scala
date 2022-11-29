@@ -14,76 +14,8 @@ import zio.stream.ZStream
 import zio.direct.examples.RunNow
 
 object Example {
-  // def funA():Unit = {
-  //   // Works?
-  //   // PrintMac( lift {
-  //   //   val a = unlift(ZIO.succeed(123).asInstanceOf[Task[Int]])
-  //   //   unlift(ZIO.succeed(2).asInstanceOf[Task[Any]])
-  //   // })
 
-  //   // PrintMac
-  //   // val out =
-  //   // (lift {
-  //   //   val a = unlift(ZIO.succeed(123).asInstanceOf[Task[Int]])
-  //   //   unlift(ZIO.succeed(2).asInstanceOf[Task[Int]])
-  //   //   a
-  //   // })
-
-  //   class Blah(input: Int) {
-  //     def value: Int = input
-  //   }
-  //   // PrintMac(defer {
-  //   //   val (a, a1) = run(ZIO.succeed((123, 456)))
-  //   //   val blah = new Blah(2)
-  //   //   import blah._
-  //   //   val b = run(ZIO.succeed(value))
-  //   //   a + b
-  //   // })
-
-  //   val out =
-  //     defer {
-  //       val (a, a1) = run(ZIO.succeed((123, 456)))
-  //       val blah = new Blah(2)
-  //       import blah._
-  //       val b = run(ZIO.succeed(value))
-  //       a + b
-  //     }
-
-  //   val outRun =
-  //     zio.Unsafe.unsafe { implicit unsafe =>
-  //       zio.Runtime.default.unsafe.run(out).getOrThrow()
-  //     }
-  //   println("====== RESULT: " + outRun)
-  // }
-
-  // def funB():Unit = {
-
-  //   class Blah(input: Int):
-  //     def value: Int = input
-  //   class Blah0(input: Int):
-  //     def value0: Int = input
-  //   class Blah1(input: Int):
-  //     def value1: Int = input
-
-  //   val out =
-  //     defer {
-  //       val blah0 = new Blah0(123)
-  //       import blah0._
-  //       val blah1 = new Blah1(456)
-  //       import blah1._
-  //       val (a, a1) = run(ZIO.succeed((blah0.value0, blah1.value1)))
-  //       val blah = new Blah(2)
-  //       import blah._
-  //       val b = run(ZIO.succeed(value))
-  //       a + a1 + b
-  //     }
-
-  //   val outRun =
-  //     zio.Unsafe.unsafe { implicit unsafe =>
-  //       zio.Runtime.default.unsafe.run(out).getOrThrow()
-  //     }
-  //   println("====== RESULT: " + outRun)
-  // }
+  // TODO zio-direct test with scope
 
   // def funC(): Unit = {
   //   val out =
@@ -348,67 +280,6 @@ object Example {
   //     println("====== RESULT: " + outRun)
   // }
 
-  // TODO try without catch should not be allowed? what about finally?
-  // TODO test this, as well as the failure case of this
-  // def funI() = { //
-  //   val out =
-  //     defer.verbose {
-  //       try {
-  //         // unsafe {
-  //         // val x = 123
-  //         // throw new RuntimeException("foo")
-  //         // 456
-
-  //         // TODO add test for this
-  //         // val x = 123
-  //         // (run(ZIO.succeed(x)), {
-  //         //   val a = run(ZIO.succeed(888)) //
-  //         //   a
-  //         // }, run(ZIO.succeed(456)))
-
-  //         // TODO add test for this (should throw an exception that is not caught)
-  //         // val x = 123
-  //         // (run(ZIO.succeed(x)), {
-  //         //   val a = run(ZIO.succeed(888))
-  //         //   4/0
-  //         // }, run(ZIO.succeed(456)))
-
-  //         // TODO add test for this (should throw an exception that IS caught)
-  //         // val x = 123
-  //         // unsafe {
-  //         //   (
-  //         //     run(ZIO.succeed(x)), {
-  //         //       val a = run(ZIO.succeed(888))
-  //         //       4 / 0
-  //         //     },
-  //         //     run(ZIO.succeed(456))
-  //         //   )
-  //         // }
-
-  //         val x = 123
-  //         unsafe {
-  //           (
-  //             run(ZIO.succeed(x)), {
-  //               val a = ZIO.succeed(888).run
-  //               4 / 0
-  //             },
-  //             ZIO.succeed(456).run
-  //           )
-  //         }
-
-  //         // TODO example like this with single run to test the other Parallel case
-
-  //         // Note, before going further need to touch-up Format again to make sure output trees are palletable
-  //         // (maybe in future add an option to not hide tree complexity)
-
-  //         // TODO Add a test for this
-  //         // val a = run(ZIO.succeed(888))
-  //         // run(ZIO.attempt(1/0))
-  //       } catch {
-  //         case _ => (999, 999, 888)
-  //       }
-  //     }
-
   //   // val out2 =
   //   //   ZIO
   //   //     .succeed[Int](888)
@@ -475,9 +346,9 @@ object Example {
 
   def main(args: Array[String]): Unit = {
 
-val arr = Array(3, 2, 8, 5, 7, 2, 3, 8, 9, 4, 5, 8, 2, 3, 4, 7, 6, 5, 9, 2, 3, 8, 4, 7, 5, 6, 2, 0, 8, 3)
-RunNow(quicksortDefer(arr))
-println(arr.toList)
+    val arr = Array(3, 2, 8, 5, 7, 2, 3, 8, 9, 4, 5, 8, 2, 3, 4, 7, 6, 5, 9, 2, 3, 8, 4, 7, 5, 6, 2, 0, 8, 3)
+    RunNow(quicksortDefer(arr))
+    println(arr.toList)
 // List(0, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 4, 5, 5, 5, 5, 6, 6, 7, 7, 7, 8, 8, 8, 8, 8, 9, 9)
 
   }

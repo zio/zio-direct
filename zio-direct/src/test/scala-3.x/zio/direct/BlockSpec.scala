@@ -3,6 +3,8 @@ package zio.direct
 import zio.direct.{run => runBlock}
 import zio.test._
 import zio.direct.core.util.debug.PrintMac
+import zio.ZIO
+import zio.test.Assertion._
 
 object BlockSpec extends DeferRunSpec {
   def spec =
@@ -114,6 +116,33 @@ object BlockSpec extends DeferRunSpec {
             x
             """
           }
+        }
+        +
+        test("block in tuple") {
+          runLiftTest((1, 2, 3)) {
+            val x = 1
+            (
+              runBlock(ZIO.succeed(x)), {
+                val a = runBlock(ZIO.succeed(2))
+                a
+              },
+              runBlock(ZIO.succeed(3))
+            )
+          }
+        }
+        +
+        test("block in tuple dies") {
+          val out = defer {
+            val x = 1
+            (
+              runBlock(ZIO.succeed(x)), {
+                val a = runBlock(ZIO.succeed(2))
+                throwFoo()
+              },
+              runBlock(ZIO.succeed(3))
+            )
+          }
+          assertZIO(out.exit)(dies(isSubtype[FooError](anything)))
         }
       }
     )

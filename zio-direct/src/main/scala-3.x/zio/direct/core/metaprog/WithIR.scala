@@ -155,7 +155,7 @@ trait WithIR {
         ir match
           case IR.Map(monad, valSymbol, pure) => IR.FlatMap(apply(monad), valSymbol, monadify(pure))
           case v @ IR.Parallel(origExpr, monads, body) =>
-            Unsupported.Error.withTree(origExpr, Messages.ParallelNotAllowedInRun, InfoBehavior.Info)
+            Unsupported.Error.withTree(origExpr, Messages.UnsafeNotAllowedParallel, InfoBehavior.Info)
           case b @ IR.Block(head, tail) =>
             // basically the only thing that can be inside of a block head-statement is a ValDef
             // or a Term of pure-code. Since val-defs are handled separately as an IR.ValDef basically

@@ -113,7 +113,7 @@ trait WithReconstructTree {
                     $monadExpr.asInstanceOf[ZIO[?, ?, l]].flatMap((list: l) =>
                       ZIO.foreach(list.asInstanceOf[Iterable[e]])((v: e) =>
                         ${ replaceSymbolInBodyMaybe(using macroQuotes)(bodyMonad.asTerm.changeOwner(('v).asTerm.symbol))(Some(elementSymbol), ('v).asTerm).asExprOf[ZIO[?, ?, ?]] }
-                      )
+                      ).map(_ => ())
                     )
                   }
                 case Parallel =>
@@ -121,7 +121,7 @@ trait WithReconstructTree {
                     $monadExpr.asInstanceOf[ZIO[?, ?, l]].flatMap((list: l) =>
                       ZIO.foreachPar(list.asInstanceOf[Iterable[e]])((v: e) =>
                         ${ replaceSymbolInBodyMaybe(using macroQuotes)(bodyMonad.asTerm.changeOwner(('v).asTerm.symbol))(Some(elementSymbol), ('v).asTerm).asExprOf[ZIO[?, ?, ?]] }
-                      )
+                      ).map(_ => ())
                     )
                   }
 
