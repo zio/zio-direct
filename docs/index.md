@@ -1,7 +1,10 @@
 ---
-id: overview_index
-title: "Summary"
+id: index
+title:  "Introduction to ZIO Direct Style"
+sidebar_label: "ZIO Direct Style"
 ---
+
+ZIO Direct style is a library that allows using directly-style i.e. imperative programming with ZIO effects.
 
 ## Getting started
 
