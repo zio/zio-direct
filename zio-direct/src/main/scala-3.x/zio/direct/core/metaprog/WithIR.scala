@@ -8,6 +8,7 @@ import zio.ZIO
 import scala.tools.nsc.PipelineMain.Pipeline
 import zio.direct.core.util.Unsupported
 import zio.direct.core.util.Messages
+import zio.direct.core.metaprog.Extractors.BlockN
 
 trait WithIR {
   implicit val macroQuotes: Quotes
@@ -25,6 +26,8 @@ trait WithIR {
     case class Fail(error: IR) extends Monadic
 
     case class While(cond: IR, body: IR) extends Monadic
+
+    case class ValDef(originalStmt: macroQuotes.reflect.Block, symbol: Symbol, assignment: IR, bodyUsingVal: IR) extends Monadic
 
     case class Unsafe(body: IR) extends Monadic
 
@@ -152,7 +155,17 @@ trait WithIR {
         ir match
           case IR.Map(monad, valSymbol, pure) => IR.FlatMap(apply(monad), valSymbol, monadify(pure))
           case v @ IR.Parallel(origExpr, monads, body) =>
-            Unsupported.Error.withTree(origExpr, Messages.ParallelNotAllowedInRun, InfoBehavior.Info)
+            Unsupported.Error.withTree(origExpr, Messages.UnsafeNotAllowedParallel, InfoBehavior.Info)
+          case b @ IR.Block(head, tail) =>
+            // basically the only thing that can be inside of a block head-statement is a ValDef
+            // or a Term of pure-code. Since val-defs are handled separately as an IR.ValDef basically
+            // there should be nothing on than a pure-term in this slot
+            val wrappedHead =
+              head match {
+                case term: Term => monadify(IR.Pure(term))
+                case _          => monadify(IR.Pure(macroQuotes.reflect.Block(List(head), '{ () }.asTerm)))
+              }
+            IR.FlatMap(wrappedHead, None, tail)
           case _ => super.apply(ir)
     }
   }
@@ -177,6 +190,8 @@ trait WithIR {
           val newCases = cases.map(apply(_))
           val newFinallyBlock = finallyBlock.map(apply(_))
           IR.Try(apply(tryBlock), newCases, resultType, newFinallyBlock)
+        case IR.ValDef(orig, symbol, assignment, bodyUsingVal) =>
+          IR.ValDef(orig, symbol, apply(assignment), apply(bodyUsingVal))
         case IR.FlatMap(monad, valSymbol, body) =>
           IR.FlatMap(apply(monad), valSymbol, apply(body))
         case IR.Foreach(list, listType, symbolType, body) =>

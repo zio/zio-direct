@@ -78,6 +78,24 @@ trait WithReconstructTree {
               }
         }
 
+        case IR.ValDef(origStmt, symbol, assignment, bodyUsingVal) =>
+          (assignment, bodyUsingVal) match {
+            // E.g: { val x = 123; somethingPure } - If it is a totally pure value, just return the original statement
+            // case (_: IR.Pure, _: IR.Pure) => Some(origStmt)
+            case (_: IR.Pure, _: IR.Pure) =>
+              apply(IR.Pure(origStmt))
+            // The following cases are possible:
+            // 0. Pure/Pure     - { val x = 123; somethingPure }
+            // 1. Pure/Impure   - { val x = 123; somethingMonadic }
+            // 2. Impure/Pure   - { val x = succeed(123).run; somethingPure }
+            // 3. Impure/Impure - { val x = succeed(123).run; somethingMonadic }
+            case (_, pureBody: IR.Pure) =>
+              // remove the 1st case by making the assingment monadic (wrap it if needed)
+              apply(IR.Map(IR.Monad(apply(assignment).asTerm), symbol, pureBody))
+            case (_, monadicBody: IR.Monadic) =>
+              apply(IR.FlatMap(IR.Monad(apply(assignment).asTerm), symbol, monadicBody))
+          }
+
         case IR.Foreach(listIR, listType, elementSymbol, body) =>
           // For something like
           //   (list:Iterable[E]).foreach(e => body)
@@ -95,7 +113,7 @@ trait WithReconstructTree {
                     $monadExpr.asInstanceOf[ZIO[?, ?, l]].flatMap((list: l) =>
                       ZIO.foreach(list.asInstanceOf[Iterable[e]])((v: e) =>
                         ${ replaceSymbolInBodyMaybe(using macroQuotes)(bodyMonad.asTerm.changeOwner(('v).asTerm.symbol))(Some(elementSymbol), ('v).asTerm).asExprOf[ZIO[?, ?, ?]] }
-                      )
+                      ).map(_ => ())
                     )
                   }
                 case Parallel =>
@@ -103,7 +121,7 @@ trait WithReconstructTree {
                     $monadExpr.asInstanceOf[ZIO[?, ?, l]].flatMap((list: l) =>
                       ZIO.foreachPar(list.asInstanceOf[Iterable[e]])((v: e) =>
                         ${ replaceSymbolInBodyMaybe(using macroQuotes)(bodyMonad.asTerm.changeOwner(('v).asTerm.symbol))(Some(elementSymbol), ('v).asTerm).asExprOf[ZIO[?, ?, ?]] }
-                      )
+                      ).map(_ => ())
                     )
                   }
 

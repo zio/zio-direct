@@ -55,7 +55,7 @@ to examine the tree structure in order to understand what is wrong or submit a b
 at https://github.com/zio/zio-direct.
 """
 
-val ParallelNotAllowedInRun =
+val UnsafeNotAllowedParallel =
 """
 Statements that mix `run(...)` calls with other expressions in the same line are not allowed in
 `unsafe { ... }` blocks. Only code that does either a run, or a simple statement is allowed

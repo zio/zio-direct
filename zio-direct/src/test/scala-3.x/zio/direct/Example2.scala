@@ -39,12 +39,6 @@ object Example2 {
 
     def isFoo(str: String) = str == "foo"
 
-    // var x = "foo"
-    // if (arbitrary) x = "bar"
-    // if (x == "foo") "isFoo"
-    // else if (x == "bar") "isBar"
-    // else "isSomethingElse"
-
     val out0 =
       for {
         x <- Ref.make("foo")
@@ -67,59 +61,6 @@ object Example2 {
       else "isSomethingElse"
     }
 
-    // val out =
-    //   defer.info {
-    //     if (isTrue("woo").run && isTrue("faa").run) {
-    //       "is foo and faa"
-    //     } else {
-    //       "is NOT foo and faa"
-    //     }
-    // }
-
-    /*
-
-    stuff(
-      stuff(
-        succeed("something"),
-        succed("somethingElse")
-      ),
-      succeed("somethingElse")
-    )
-     */
-
-    // val out =
-    //   ZIO.collectAll(Chunk.fromIterable(List(
-    //     ZIO.sleep(2.seconds) *> succeed({ queryWebsite(url) }),
-    //     ZIO.sleep(2.seconds) *> succeed({ queryWebsite(url) }),
-    //     ZIO.sleep(2.seconds) *> succeed({ queryWebsite(url) })
-    //   )))
-
-    /*
-
-    a.flatMap { av =>
-      if (av)
-        a1.map { a1v =>
-          if (a1v) {
-            b
-          } else {
-            c
-          }
-        }
-      else
-        c
-    }
-
-    if (a && a1) b else c
-
-     */
-
-    val outRun =
-      zio.Unsafe.unsafe { implicit unsafe =>
-        zio.Runtime.default.unsafe.run(out).getOrThrow()
-      }
-    println("====== RESULT: " + outRun)
   }
 
 }
-
-case class ConfigFoo(value: Int)

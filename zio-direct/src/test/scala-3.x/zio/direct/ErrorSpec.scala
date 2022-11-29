@@ -13,7 +13,7 @@ object ErrorSpec extends DeferRunSpec {
 
   val spec = suite("ErrorSpec")(
     suite("Different Kinds of ways that errors can be thrown") {
-      test("Directly thrown error should always go to error channel") { //
+      test("Directly thrown error should always go to error channel") {
         val out =
           defer(Params(Verify.None)) {
             throw new FooError
@@ -46,7 +46,7 @@ object ErrorSpec extends DeferRunSpec {
             throwFoo()
             extern = extern + "blin"
           }
-        assertZIO(out.exit)(dies(isSubtype[FooError](anything))) *>
+        assertZIO(out.exit)(dies(isSubtype[FooError](anything))) andAssert
           assertTrue(extern == "foobarbaz")
       }
       +
@@ -62,7 +62,7 @@ object ErrorSpec extends DeferRunSpec {
             throwFoo()
             extern = extern + "blin"
           }
-        assertZIO(out.exit)(dies(isSubtype[FooError](anything))) *>
+        assertZIO(out.exit)(dies(isSubtype[FooError](anything))) andAssert
           assertTrue(extern == "foobarbaz")
       }
       +
@@ -81,7 +81,7 @@ object ErrorSpec extends DeferRunSpec {
               case _ => 333
             }
           }
-        assertZIO(out.exit)(dies(isSubtype[FooError](anything))) *>
+        assertZIO(out.exit)(dies(isSubtype[FooError](anything))) andAssert
           assertTrue(extern == 2)
       }
       +
@@ -97,7 +97,7 @@ object ErrorSpec extends DeferRunSpec {
               case _ => 333
             }
           }
-        assertZIO(out.provide(ZLayer.succeed(ConfigInt(1))).exit)(dies(isSubtype[FooError](anything))) *>
+        assertZIO(out.provide(ZLayer.succeed(ConfigInt(1))).exit)(dies(isSubtype[FooError](anything))) andAssert
           assertTrue(extern == 2)
       }
     }

@@ -42,9 +42,25 @@ trait DeferRunSpec extends ZIOSpecDefault {
   def throwFoo() = throw new FooError
   def makeFooError = new FooError
 
+  def wantStringThrowFoo(): String = throw new FooError
+
   class BarError extends Exception("foo")
   def throwBar() = throw new BarError
   def makeBarError = new BarError
+
+  implicit class TestZIOOps(result: ZIO[Any, _, TestResult]) {
+    def andAssert(otherResult: TestResult) =
+      for {
+        r <- result
+      } yield r && otherResult
+  }
+
+  implicit class TestZIOOps2(result: TestResult) {
+    def andAssert(otherResult: ZIO[Any, _, TestResult]) =
+      for {
+        r <- otherResult
+      } yield result && r
+  }
 
   val errorMsg =
     "Detected an `run` call inside of an unsupported structure"
@@ -58,20 +74,31 @@ trait DeferRunSpec extends ZIOSpecDefault {
     val deferBody = defer(body)
     // Not sure why but If I don't cast to .asInstanceOf[ZIO[Any, Nothing, ?]]
     // zio says it expects a layer of scala.Nothing
-    assertZIO(deferBody.asInstanceOf[ZIO[Any, ?, ?]])(Assertion.equalTo(expected))
+
+    // Not sure why but this cases errors in BlockSpec. Need to debug zio-test to find out the issue
+    // assertZIO(deferBody.asInstanceOf[ZIO[Any, ?, ?]])(Assertion.equalTo(expected))
+
+    deferBody.asInstanceOf[ZIO[Any, ?, ?]].flatMap { v =>
+      zio.test.UseSmartAssert.of(v, None, None)(Assertion.equalTo(expected))(sourceLocation)
+    }
   }
 
   inline def runLiftTestLenient[T](expected: T)(inline body: T) = {
     val deferBody = defer(Params(Verify.Lenient))(body)
     // Not sure why but If I don't cast to .asInstanceOf[ZIO[Any, Nothing, ?]]
     // zio says it expects a layer of scala.Nothing
-    assertZIO(deferBody.asInstanceOf[ZIO[Any, ?, ?]])(Assertion.equalTo(expected))
+
+    deferBody.asInstanceOf[ZIO[Any, ?, ?]].flatMap { v =>
+      zio.test.UseSmartAssert.of(v, None, None)(Assertion.equalTo(expected))(sourceLocation)
+    }
   }
 
   transparent inline def runLiftFailLenientMsg(errorStringContains: String)(body: String) = {
     val errors =
       typeCheckErrors("defer(zio.direct.Dsl.Params(zio.direct.core.metaprog.Verify.Lenient)) {" + body + "}").map(_.message)
-    assert(errors)(exists(containsString(errorStringContains)))
+
+    // assert(errors)(exists(containsString(errorStringContains)))
+    zio.test.UseSmartAssert.of(errors, None, None)(exists(containsString(errorStringContains)))(sourceLocation)
   }
 
   transparent inline def runLiftFailMsg(errorStringContains: String)(body: String) = {

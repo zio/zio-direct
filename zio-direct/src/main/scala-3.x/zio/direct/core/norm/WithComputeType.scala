@@ -35,6 +35,19 @@ trait WithComputeType {
         case ir @ IR.FlatMap(monad, valSymbol, body) =>
           apply(monad).flatMappedWith(apply(body))
 
+        // Eventually a ValDef will be turned into a flatMap so if we still have one,
+        // the type-computation essentially is the same as the one for the flatMap
+        //   val symbol = assignment
+        //   bodyUsingVal
+        // Basically becomes:
+        //   assignment.flatMap { symbol =>
+        //     bodyUsingVal
+        //   }
+        // Theis essentially means that `assignment` is the monad-equivalent
+        // of flatMap and the bodyUsingVal is the body-equivalent.
+        case ir @ IR.ValDef(_, symbol, assignment, bodyUsingVal) =>
+          apply(assignment).flatMappedWith(apply(bodyUsingVal))
+
         case ir @ IR.Map(monad, valSymbol, IR.Pure(term)) =>
           apply(monad).mappedWith(term)
 

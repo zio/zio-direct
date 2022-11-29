@@ -37,15 +37,16 @@ object ErrorHandlingExamples {
   //   new InputStreamReader(file)
   // }
 
-  val out: ZIO[Scope, Throwable, Unit] = //
-    defer {
+  val out: ZIO[Scope, Throwable, Unit] = // // //
+    defer.verbose {
       try {
         unsafe {
           val input = S3Object.openInputStream("foo/bar").run
-          val reader = InputStreamReader(input)
+          // TODO write a test with this case and where InputStreamReader is written into a ValDef
+          InputStreamReader(input)
           val conn = Database.openConnection().run
           val ps = conn.prepareStatement("INSERT ? INTO Someplace")
-          ps.setClob(1, reader)
+          // ps.setClob(1, null)
           ps.execute()
         }
       } catch {

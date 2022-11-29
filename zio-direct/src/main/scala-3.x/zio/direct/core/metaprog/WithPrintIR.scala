@@ -54,6 +54,10 @@ trait WithPrintIR {
         case m: IR.Monad =>
           Tree.Apply("IR.Monad", Iterator(treeify(m.code), treeify(m.source)))
 
+        // Need to ignore the 'orig' code element of ValDef since it would add too much info to the tree
+        case v: IR.ValDef =>
+          Tree.Apply("IR.ValDef", Iterator(treeify(v.symbol), treeify(v.assignment), treeify(v.bodyUsingVal)))
+
         // append "IR." to all IR-members
         case m: IR =>
           super.treeify(m) match {

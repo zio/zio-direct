@@ -68,6 +68,34 @@ object VariaSpec extends DeferRunSpec {
           """
         }
       }
+      +
+      test("deconstruct and import") {
+        class Blah(val value: Int)
+        runLiftTest(4) {
+          val (a, a1) = runBlock(ZIO.succeed((1, 2)))
+          val blah = new Blah(3)
+          import blah._
+          val b = runBlock(ZIO.succeed(value))
+          a + b
+        }
+      }
+      +
+      test("deconstruct and multiple import") {
+        class Blah(val value: Int)
+        class Blah0(val value0: Int)
+        class Blah1(val value1: Int)
+        runLiftTest(6) {
+          val blah0 = new Blah0(1)
+          import blah0._
+          val blah1 = new Blah1(2)
+          import blah1._
+          val (a, a1) = ZIO.succeed((value0, value1)).run
+          val blah = new Blah(3)
+          import blah._
+          val b = ZIO.succeed(value).run
+          a + a1 + b
+        }
+      }
     }
   }
 }

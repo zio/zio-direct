@@ -90,7 +90,7 @@ object TrySpec extends DeferRunSpec {
               }
             }
 
-          assertIsType[ZIO[Any, Exception, Int]](out) *>
+          assertIsType[ZIO[Any, Exception, Int]](out) andAssert
             assertZIO(out)(equalTo(1))
         }
         +
@@ -102,7 +102,7 @@ object TrySpec extends DeferRunSpec {
               case `e` => (111, 222)
             }
           }
-          assertIsType[ZIO[Any, FooError, Tuple2[Int, Int]]](out) *>
+          assertIsType[ZIO[Any, FooError, Tuple2[Int, Int]]](out) andAssert
             assertZIO(out.exit)(fails(isSubtype[FooError](anything)))
         }
         +
@@ -117,8 +117,9 @@ object TrySpec extends DeferRunSpec {
               case `e` => (111, 222)
             }
           }
-          assertIsType[ZIO[Any, FooError, Tuple2[Int, Int]]](out) *>
-            assertZIO(out.exit)(fails(isSubtype[FooError](anything)))
+
+          assertZIO(out.exit)(fails(isSubtype[FooError](anything))) andAssert
+            assertIsType[ZIO[Any, FooError, Tuple2[Int, Int]]](out)
         }
         +
         test("catch impure parallel block - both sides") {
@@ -129,7 +130,7 @@ object TrySpec extends DeferRunSpec {
               case `e` => (111, 222)
             }
           }
-          assertIsType[ZIO[Any, FooError | BarError, Tuple2[Int, Int]]](out) *>
+          assertIsType[ZIO[Any, FooError | BarError, Tuple2[Int, Int]]](out) andAssert
             assertZIO(out.exit)(fails(isSubtype[FooError](anything)))
 
         }
@@ -178,7 +179,7 @@ object TrySpec extends DeferRunSpec {
           called
         }
 
-      assertZIO(out)(equalTo(true))
+      assertZIO(out)(equalTo(true)) // //
     }
   }
 }

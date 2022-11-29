@@ -382,13 +382,13 @@ object IntroductionExamples {
       }
     }
 
-    object FunctionalObjectMpdel {
+    object FunctionalObjectModel {
       def postUpdate(url: String): ZIO[Any, Throwable, String] = ???
       def getWebsites(): ZIO[Any, Throwable, List[String]] = ???
     }
     // using regular functional
     {
-      import FunctionalObjectMpdel._
+      import FunctionalObjectModel._
       getWebsites()
         .flatMap { websites =>
           ZIO.foreach(websites)(
@@ -398,7 +398,7 @@ object IntroductionExamples {
     }
     // using defer
     {
-      import FunctionalObjectMpdel._
+      import FunctionalObjectModel._
       defer {
         for (site <- getWebsites().run) {
           postUpdate(site).run

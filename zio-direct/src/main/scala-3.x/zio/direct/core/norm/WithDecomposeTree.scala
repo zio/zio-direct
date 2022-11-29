@@ -48,6 +48,10 @@ trait WithDecomposeTree {
           case Seal('{ deferred($effect) }) =>
             Some(IR.Monad(effect.asTerm, IR.Monad.Source.PrevDefer))
 
+          // Since ValDef needs to be decomposed even if it's not a tree, need to do this before PureTree
+          case block @ Block(parts, lastPart) =>
+            DecomposeBlock.unapply(block)
+
           // Otherwise, if there are no Run calls treat the tree as "Pure" i.e.
           // it will be either embedded within the parent map/flatMap clause or
           // wrapped into a ZIO.succeed.
@@ -91,9 +95,6 @@ trait WithDecomposeTree {
             // the actual case where they are both cure is handled by the PureTree case
             val (aTerm, bTerm) = DecomposeTree.orPure2(a.asTerm, b.asTerm)
             Some(IR.Or(aTerm, bTerm))
-
-          case block @ Block(parts, lastPart) =>
-            DecomposeBlock.unapply(block)
 
           case Match(m @ DecomposeTree(monad), caseDefs) =>
             // Since in Scala 3 we cannot just create a arbitrary symbol and pass it around.
@@ -185,14 +186,31 @@ trait WithDecomposeTree {
           // (e.g. it can actually be stuff.flatMap(v => val x = v; stuff-that-uses-x))
           // TODO A zero-args DefDef (i.e. a ByName can essentially be treated as a ValDef so we can use that too)
 
-          case ValDefStatement(symbol, DecomposeTree(monad)) :: tail =>
+          // A ValDef statement is basically a block because it consists of
+          //   {
+          //   val x = run(monad)
+          //   otherStuff
+          //   }
+          // The entire above block is represented by the valdef:
+          //   IR.ValDef({val x...}, x, monad, otherStuff)
+          case (origStmt @ ValDefStatement(symbol, assignmentTerm)) :: tail =>
+            val assignment =
+              assignmentTerm match {
+                case DecomposeTree(monad) => monad
+                case _                    => IR.Pure(assignmentTerm)
+              }
+            val restOfBlock: Block = BlockN(origStmt +: tail)
             val out =
               BlockN(tail) match
                 case DecomposeTree(monadBody) =>
-                  IR.FlatMap(monad, symbol, monadBody)
+                  IR.ValDef(restOfBlock, symbol, assignment, monadBody)
                 case pureBody =>
-                  IR.Map(monad, symbol, IR.Pure(pureBody))
+                  IR.ValDef(restOfBlock, symbol, assignment, IR.Pure(pureBody))
             Some(out)
+
+          // If the rest of the structure is a pure tree then exit
+          case BlockN(PureTree(tree)) =>
+            None
 
           case DecomposeTree(monad) :: tail =>
             tail match {
