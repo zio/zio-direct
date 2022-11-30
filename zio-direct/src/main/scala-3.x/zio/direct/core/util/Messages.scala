@@ -12,14 +12,14 @@ implicit class StringExt(str: String) {
 val ImplicitsNotAllowed =
 """
 Implicits are not allowed inside defer clauses (they are allowed inside of `run(...)` blocks.
-"""
+""".trimLeft
 
 val MutableCollectionDetected =
 """
 Detected the use of a mutable collection inside a defer clause.
 Mutable collections can cause many potential issues as a result of defer-clause
 rewrites so they are not allowed (Unless it is inside of a run-call).
-"""
+""".trimLeft
 
 val DeclarationNotAllowedWithRuns =
 """
@@ -45,7 +45,7 @@ Consider doing something like this:
       i = update
     }
   }
-"""
+""".trimLeft
 
 val RunRemainingAfterTransformer =
 """
@@ -53,7 +53,7 @@ Invocations of `run(...)` (or `op.run`) were detected even after all the transfo
 That means that zio-direct cannot successfully process the input you have passed into it. Try to use defer.verbose
 to examine the tree structure in order to understand what is wrong or submit a bug-report
 at https://github.com/zio/zio-direct.
-"""
+""".trimLeft
 
 val UnsafeNotAllowedParallel =
 """
@@ -71,7 +71,7 @@ There are certain exceptions to this rule such as if there are pure-values
 that come only after the effect execution (e.g. `ZIO.succeed(123).run + 456`)
 and in such cases compilation will succeed and nothing further needs to be done.
 Follow the above rule whenever errors occur.
-"""
+""".trimLeft
 
 val MutableAndLazyVariablesNotAllowed =
 """
@@ -89,7 +89,7 @@ defer {
   ZIO.succeed { val y = x; y }.run
 }
 This rule is enfoced for the sake of correctness.
-"""
+""".trimLeft
 
 val DeclarationNotAllowed =
 """
@@ -97,7 +97,7 @@ Class, Function, and Mutable-Variable. Lazy-Variable definitions
 (class X, def X, var X, lazy val X) are not allowed inside of defer blocks unless
 they are inside of a ZIO effect in a `run(ZIO)` call.
 Please move them outside of the defer area.
-"""
+""".trimLeft
 
 val RunAssignmentNotRecommended =
 """
