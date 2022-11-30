@@ -21,19 +21,4 @@ object Example {
 
   case class ConfigString(value: String)
 
-  //   // Correct issue but error is misleading
-  val out = (defer {
-    if (
-      run({
-        for {
-          env <- ZIO.service[ConfigString]
-          value <- ZIO.succeed(env.value)
-        } yield (value)
-      }) == "blah"
-    )
-      "foo"
-    else
-      "barr"
-  })
-
 }

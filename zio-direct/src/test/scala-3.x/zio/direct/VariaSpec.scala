@@ -76,6 +76,36 @@ object VariaSpec extends DeferRunSpec {
         assertZIO(out)(equalTo("fooAbarB"))
       }
       +
+      test("multi zios in run") {
+        val out = defer {
+          if (
+            runBlock({
+              for {
+                env <- ZIO.service[ConfigInt]
+                value <- ZIO.succeed(env.value)
+              } yield (value)
+            }) == 123
+          )
+            "foo"
+          else
+            "bar"
+        }
+        val providedA =
+          out.provide(
+            ZLayer.succeed(ConfigInt(123))
+          )
+        val providedB =
+          out.provide(
+            ZLayer.succeed(ConfigInt(456))
+          )
+        for {
+          a <- providedA
+          b <- providedB
+        } yield {
+          assert(a)(equalTo("foo")) && assert(b)(equalTo("bar"))
+        }
+      }
+      +
       test("catch run inside run") {
         val msg = Messages.RunRemainingAfterTransformer
         runLiftFailMsg(msg) {
