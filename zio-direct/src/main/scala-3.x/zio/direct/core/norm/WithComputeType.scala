@@ -96,8 +96,11 @@ trait WithComputeType {
           // than we do by getting the information from outputType because outputType is limited
           // by Scala's ability to understand the try-catch. For example, if we infer from outputType,
           // the error-type will never be more concrete that `Throwable`.
+          // (Note, widen the error type because even if it's a concrete int type
+          // e.g. `catch { case e: Throwable => 111 }` we don't necessarily know
+          // that this error will actually happen therefore it's not sensical to make it a singleton type)
           val caseDefType =
-            ZioType.composeN(caseDefs.map(caseDef => apply(caseDef.rhs)))(instructions.typeUnion)
+            ZioType.composeN(caseDefs.map(caseDef => apply(caseDef.rhs)))(instructions.typeUnion).transformA(_.widen)
           // Could also compute from outputType but this has worse results, see comment above.
           // val caseDefType =
           //   outputType.asType match
