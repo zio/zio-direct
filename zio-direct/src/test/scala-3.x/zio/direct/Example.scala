@@ -36,22 +36,4 @@ object Example {
       "barr"
   })
 
-  //   // val out =
-  //   //   defer.info {
-  //   //     val (x, y) = (run(ZIO.succeed("foo")), run(ZIO.succeed("bar")))
-  //   //     val (x1, y1) = (run(ZIO.succeed("foo2" + x)), run(ZIO.succeed("bar2" + y)))
-  //   //     x + x1 + y + y1
-  //   //   }
-
-  //   // Noisy exception
-  //   // val out =
-  //   //   defer.info {
-  //   //     val tup = (run(ZIO.succeed("foo")), run(ZIO.succeed("bar")))
-  //   //     val configValue =
-  //   //       run(ZIO.service[Config]) match {
-  //   //         case Config(value) => value
-  //   //       }
-  //   //     tup._1 + config.value + tup._2
-  //   //   }
-
 }

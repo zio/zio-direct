@@ -66,6 +66,16 @@ object VariaSpec extends DeferRunSpec {
         assertZIO(provided)(equalTo(7))
       }
       +
+      test("double tuple deconstruct") {
+        val out =
+          defer {
+            val (x, y) = (ZIO.succeed("foo").run, ZIO.succeed("bar").run)
+            val (x1, y1) = (ZIO.succeed("A" + x).run, ZIO.succeed("B" + y).run)
+            x + x1 + y + y1
+          }
+        assertZIO(out)(equalTo("fooAbarB"))
+      }
+      +
       test("catch run inside run") {
         val msg = Messages.RunRemainingAfterTransformer
         runLiftFailMsg(msg) {
