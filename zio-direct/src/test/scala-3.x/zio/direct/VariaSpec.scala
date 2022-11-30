@@ -17,6 +17,13 @@ object VariaSpec extends DeferRunSpec {
   case class Config3(value: Int)
   case class Config4(value: Int)
 
+  class SomeService private (var isOpen: Boolean) {
+    def close(): Unit = { isOpen = false }
+  }
+  object SomeService {
+    def open() = new SomeService(true)
+  }
+
   val spec = suite("VariaSpec") {
     suite("odd placements of defer/run") {
       test("defer in defer") {
@@ -66,6 +73,17 @@ object VariaSpec extends DeferRunSpec {
         assertZIO(provided)(equalTo(7))
       }
       +
+      test("using scope") {
+        val out =
+          defer {
+            val value = ZIO.acquireRelease(ZIO.succeed(SomeService.open()))(svc => ZIO.succeed(svc.close())).run
+            value.isOpen
+          }
+        val withScope =
+          scoped { out }
+        assertZIO(withScope)(equalTo(true))
+      }
+      +
       test("double tuple deconstruct") {
         val out =
           defer {
@@ -73,7 +91,7 @@ object VariaSpec extends DeferRunSpec {
             val (x1, y1) = (ZIO.succeed("A" + x).run, ZIO.succeed("B" + y).run)
             x + x1 + y + y1
           }
-        assertZIO(out)(equalTo("fooAbarB"))
+        assertZIO(out)(equalTo("fooAfoobarBbar"))
       }
       +
       test("multi zios in run") {
@@ -176,6 +194,7 @@ object VariaSpec extends DeferRunSpec {
           a + a1 + b
         }
       }
+      +
       test("disallow implicit mutable use") {
         var x = 1
         runLiftFailMsg(Messages.MutableAndLazyVariablesNotAllowed) {

@@ -191,7 +191,7 @@ object TrySpec extends DeferRunSpec {
           called
         }
 
-      assertZIO(out)(equalTo(true)) // //
+      assertZIO(out)(equalTo(true))
     }
   }
 }

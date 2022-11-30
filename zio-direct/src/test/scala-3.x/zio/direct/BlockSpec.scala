@@ -116,7 +116,6 @@ object BlockSpec extends DeferRunSpec {
         }
       },
       suite("complex") {
-        // test is not working
         test("tuple val pattern") {
           runLiftTest(3) {
             val (a, b) = (runBlock(defer(1)), runBlock(defer(2)))
