@@ -8,6 +8,7 @@ import zio._
 import ZIO._
 import zio.direct.core.metaprog.Verify
 import zio.direct.Dsl.Params
+import scala.collection.mutable.ArrayBuffer
 
 object WhileSpec extends DeferRunSpec {
   val spec = suite("WhileSpec") {
@@ -46,6 +47,35 @@ object WhileSpec extends DeferRunSpec {
             i
           }
         assertZIO(out)(equalTo(3))
+      }
+      +
+      test("double in tuple - strange case") {
+        var i = 0
+        val buff1 = new ArrayBuffer[Int]()
+        val buff2 = new ArrayBuffer[Int]()
+        def incrementA() = {
+          i += 1
+          buff1.addOne(i)
+          i
+        }
+        def incrementB() = {
+          i += 1
+          buff2.addOne(i)
+          i
+        }
+        val out =
+          defer(Params(Verify.Lenient)) {
+            while (i < 3)
+              (succeed(incrementA()).run, succeed(incrementB()).run)
+            i
+          }
+        for {
+          a <- out
+        } yield (
+          assert(a)(equalTo(4)) &&
+            assert(buff1.toList)(equalTo(List(1, 3))) &&
+            assert(buff2.toList)(equalTo(List(2, 4)))
+        )
       }
       +
       test("using ref") {

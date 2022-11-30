@@ -14,7 +14,7 @@ object ReferentialTransparency {
     val bool = run(List(true, false))
     (int, bool)
   }
-// List((1, true), (1, false), (2, true), (2, false))
+  // List((1, true), (1, false), (2, true), (2, false))
 
   for {
     int <- List(1, 2)
@@ -44,20 +44,20 @@ object ReferentialTransparency {
     int <- List(1, 2)
   } yield (int, bool)
 
-defer {
-  val int = List(1, 2).run
-  val bool = List(true, false).run
-  val bool1 = bool
-  val int1 = int
-  (int, bool)
-}
+  defer {
+    val int = List(1, 2).run
+    val bool = List(true, false).run
+    val bool1 = bool
+    val int1 = int
+    (int, bool)
+  }
 
-defer {
-  val bool = List(true, false).run
-  val int = List(1, 2).run
-  val bool1 = bool
-  val int1 = int
-  (int, bool)
-}
+  defer {
+    val bool = List(true, false).run
+    val int = List(1, 2).run
+    val bool1 = bool
+    val int1 = int
+    (int, bool)
+  }
 
 }

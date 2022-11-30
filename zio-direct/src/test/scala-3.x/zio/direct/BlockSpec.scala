@@ -94,6 +94,26 @@ object BlockSpec extends DeferRunSpec {
             i.run
           }
         }
+        +
+        test("using previous defers") {
+          val i = defer(1)
+          val j = defer(2)
+          val out =
+            defer {
+              val v = runBlock(i)
+              v + runBlock(j)
+            }
+          assertZIO(out)(Assertion.equalTo(3))
+        }
+        +
+        test("using external function") {
+          def a(i: Int, s: String) = i + s.toInt
+          val out =
+            defer {
+              runBlock(defer(a(1, "2"))) + a(0, "1")
+            }
+          assertZIO(out)(Assertion.equalTo(4))
+        }
       },
       suite("complex") {
         // test is not working

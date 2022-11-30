@@ -102,10 +102,13 @@ object Unsupported {
           term.tpe.asType match
             case '[ZIO[r, e, a]] if (!(term.tpe =:= TypeRepr.of[Nothing])) =>
               report.warning(
-                s"Found a ZIO term that is not being runed (type: ${Format.TypeRepr(term.tpe)}). Non-runed ZIO terms inside of `{ ... }` blocks will never be executed i.e. they will be discarded. " +
-                  s"To execute this term add `.run` at the end or wrap it into an `run(...)` statement." +
-                  s"\n========\n" +
-                  Format.Term(term),
+                s"""|Found a ZIO term that will not be executed (type: ${Format.TypeRepr(term.tpe)})
+                    |since it has no `.run` (or wrapped in a `run(...)` block). Non-executed ZIO terms
+                    |inside of `defer { ... }` blocks will never be executed i.e. they will be discarded.
+                    |To execute this term add `.run` at the end or wrap it into an `run(...)` statement.
+                    |========
+                    |${Format.Term(term)}
+                    |""".stripMargin,
                 term.asExpr
               )
             case _ =>
