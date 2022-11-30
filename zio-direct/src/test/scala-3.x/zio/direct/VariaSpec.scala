@@ -12,6 +12,11 @@ import zio.direct.Dsl.Internal._
 import zio.direct.core.util.Messages
 
 object VariaSpec extends DeferRunSpec {
+  case class Config1(value: Int)
+  case class Config2(value: Int)
+  case class Config3(value: Int)
+  case class Config4(value: Int)
+
   val spec = suite("VariaSpec") {
     suite("odd placements of defer/run") {
       test("defer in defer") {
@@ -24,6 +29,41 @@ object VariaSpec extends DeferRunSpec {
             v.run.value + 1
           }
         assertZIO(out.provide(ZLayer.succeed(ConfigInt(3))))(equalTo(4))
+      }
+      +
+      test("four services") {
+        val out =
+          defer {
+            val (x, y) = (ZIO.service[Config1].run.value, ZIO.service[Config2].run.value)
+            val config = ZIO.service[Config3].run
+            x + config.value + y + ZIO.service[Config4].run.value
+          }
+        val provided =
+          out.provide(
+            ZLayer.succeed(Config1(1)),
+            ZLayer.succeed(Config2(2)),
+            ZLayer.succeed(Config3(3)),
+            ZLayer.succeed(Config4(4))
+          )
+        assertZIO(provided)(equalTo(10))
+      }
+      +
+      test("services with match statement") {
+        val out =
+          defer {
+            val configValue =
+              ZIO.service[Config1].run match {
+                case Config1(value) => value + ZIO.service[Config2].run.value
+              }
+            configValue + ZIO.service[Config3].run.value
+          }
+        val provided =
+          out.provide(
+            ZLayer.succeed(Config1(1)),
+            ZLayer.succeed(Config2(2)),
+            ZLayer.succeed(Config3(4))
+          )
+        assertZIO(provided)(equalTo(7))
       }
       +
       test("catch run inside run") {

@@ -43,14 +43,6 @@ object Example {
   //   //     x + x1 + y + y1
   //   //   }
 
-  //   // Make a test for this
-  //   // val out =
-  //   //   defer.verbose {
-  //   //     val (x, y) = (run(ZIO.succeed("foo")), run(ZIO.succeed("bar")))
-  //   //     val config = run(ZIO.service[Config])
-  //   //     x + config.value + y
-  //   //   }
-
   //   // Noisy exception
   //   // val out =
   //   //   defer.info {
@@ -61,49 +53,5 @@ object Example {
   //   //       }
   //   //     tup._1 + config.value + tup._2
   //   //   }
-
-  //   // val out =
-  //   //   defer.info {
-  //   //     val tup = (run(ZIO.succeed("foo")), run(ZIO.succeed("bar")))
-  //   //     val configValue =
-  //   //       run(ZIO.service[Config]) match {
-  //   //         case Config(value) => run(ZIO.succeed(value))
-  //   //       }
-  //   //     tup._1 + configValue + tup._2
-  //   //   }
-
-  //   val out =
-  //     defer {
-  //       def a(i: Int, s: String) = run(defer(i)) + s.toInt
-  //       a(1, "2") + run(defer(1))
-  //     }
-
-  //   val provided = out //.provide(ZLayer.succeed(Config("x")))
-
-  //   val outRun =
-  //     zio.Unsafe.unsafe { implicit unsafe =>
-  //       zio.Runtime.default.unsafe.run(provided).getOrThrow()
-  //     }
-  //   println("====== RESULT: " + outRun)
-  // }
-
-  // def funH(): Unit = { //
-  //   val out =
-  //     defer.verbose {
-  //       val msg =
-  //         defer(
-  //           try {
-  //             //run(ZIO.attempt("foo"))
-  //             run(ZIO.attempt { throw new IOException("blah") })
-  //           } catch {
-  //             case e: IOException => e.getMessage()
-  //           } finally {
-  //             println("============ Recovering ========")
-  //           }
-  //         )
-  //       val msgResult = run(msg)
-
-  //       run(ZIO.succeed(msgResult))
-  //     }
 
 }
