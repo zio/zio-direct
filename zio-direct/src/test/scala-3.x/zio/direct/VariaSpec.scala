@@ -5,7 +5,7 @@ import zio.test._
 import zio.test.Assertion._
 import zio.direct.core.util.debug.PrintMac
 import zio._
-import ZIO._
+import ZIO.{unsafe => _, _}
 import zio.direct.core.metaprog.Verify
 import zio.direct.Dsl.Params
 import zio.direct.Dsl.Internal._
@@ -94,6 +94,23 @@ object VariaSpec extends DeferRunSpec {
           import blah._
           val b = ZIO.succeed(value).run
           a + a1 + b
+        }
+      }
+      test("disallow implicit mutable use") {
+        var x = 1
+        runLiftFailMsg(Messages.MutableAndLazyVariablesNotAllowed) {
+          """
+          val y = x
+          """
+        }
+      }
+      +
+      test("disallow implicit mutable use") {
+        var x = 1
+        runLiftFailMsg(Messages.DeclarationNotAllowed) {
+          """
+          lazy val x = 123
+          """
         }
       }
     }
