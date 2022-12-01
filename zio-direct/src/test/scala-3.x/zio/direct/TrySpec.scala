@@ -94,19 +94,31 @@ object TrySpec extends DeferRunSpec {
             assertZIO(out)(equalTo(1))
         }
         +
-        test("catch pure parallel block - oneside") {
+        test("not caught error in parallel block - error should be fail-channel") {
           val out = defer {
             try {
               (123, { throw new FooError })
             } catch {
-              case `e` => (111, 222)
+              case `e` => 111
             }
           }
-          assertIsType[ZIO[Any, FooError, Tuple2[Int, Int]]](out) andAssert
+          assertIsType[ZIO[Any, FooError, Int]](out) andAssert
             assertZIO(out.exit)(fails(isSubtype[FooError](anything)))
         }
         +
-        test("catch impure parallel block - one side") {
+        test("not caught error in parallel block (fail-channel)") {
+          val out = defer {
+            try {
+              (123, attempt(throw new FooError).run)
+            } catch {
+              case `e` => 111
+            }
+          }
+          assertIsType[ZIO[Any, Throwable, Int]](out) andAssert
+            assertZIO(out.exit)(fails(isSubtype[FooError](anything)))
+        }
+        +
+        test("not caught error in parallel block (die-channel) - one side") {
           // even thought we create the exception inside a success block, the actual
           // 'throw' term is being used so a ZIO.fail(error) is called. therefore
           // we have the error in the fail channel so it is not a defect.
@@ -122,7 +134,7 @@ object TrySpec extends DeferRunSpec {
             assertIsType[ZIO[Any, FooError, Tuple2[Int, Int]]](out)
         }
         +
-        test("catch impure parallel block - both sides") {
+        test("not caught error in parallel block (die-channel) - both sides") {
           val out = defer {
             try {
               ({ throw ZIO.succeed(makeFooError).run }, { throw ZIO.succeed(makeBarError).run })
@@ -179,7 +191,7 @@ object TrySpec extends DeferRunSpec {
           called
         }
 
-      assertZIO(out)(equalTo(true)) // //
+      assertZIO(out)(equalTo(true))
     }
   }
 }
