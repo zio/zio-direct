@@ -11,11 +11,88 @@ Direct-Style programming in ZIO based on the Monadless paradigm.
 # Documentation
 [ZIO Direct Microsite](https://zio.github.io/zio-direct/)
 
-ZIO-Direct allows direct style programming with ZIO. This provides a more powerful alternative to for-comprehensions and a more natural programming style for many applications. Simply add the `.run` suffix to any ZIO effect in order to retrieve it's value.
+ZIO-Direct allows direct style programming with ZIO. This library provides a *syntactic sugar* that is more powerful than for-comprehensions as well as more natural to use. Simply add the `.run` suffix to any ZIO effect in order to retrieve it's value.
 
-ZIO-Direct works by using by using macros to rewrite sequential code into flatMap-chains. The values resulting in `.run` calls from the ZIO effects are not actually awaited. Instead, they are rolled-up into a chain of flatMaps. The above-code is transformed into something like this.
+ZIO-Direct works by using by using macros to rewrite sequential code into flatMap-chains. The values resulting in `.run` calls from the ZIO effects are not actually awaited. Instead, they are rolled-up into a chain of flatMaps.
 
-Let's have a look at a non-trivial example.
+For example, in imperative programming operations typically are done in a simple set of steps.
+```scala
+object FileOps:
+  def read(file: File): String
+  def write(file: File, content: String): Unit
+
+val textA = read(fileA)
+val textB = read(fileB)
+write(fileC, textA + textB)
+```
+
+Using functional programming, the equivalent of this functionality is a set of nested flatMap-chains.
+```scala
+object FileOps
+  def read(file: File): ZIO[Any, Throwable, String]
+  def write(file: File, content: String): ZIO[Any, Throwable, Unit]
+
+read(fileA).flatMap { textA =>
+  read(fileB).flatMap { textB =>
+    write(fileC, textA + textB)
+  }
+}
+```
+
+In order to avoid this complexity scala provides a for-comprehension syntactic sugar.
+```scala
+for {
+  textA <- read(fileA)
+  textB <- read(fileB)
+  _ <- write(fileC, textA + textB)
+} yield ()
+```
+
+Unfortunately this syntactic sugar is limited in many cases, for example, inserting a conditional value inside is impossible.
+```scala
+for {
+  textA <- read(fileA)
+  // Not a possible syntax
+  if (fileA.contains("some string")) {
+    textB <- read(fileB)
+    _ <- write(fileC, textA + textB)
+  }
+} yield ()
+```
+
+ZIO-Direct offers an equivalent syntactic sugar that is more ergonomic and allows many constructs that for-comprehensions do not.
+```scala
+defer {
+  val textA = read(fileA).run
+  if (fileA.contains("some string")) {
+    val textB = read(fileB).run
+    write(fileC, textA + textB).run
+  }
+}
+```
+
+
+# ZIO-Tailored
+ZIO-Direct is specifically tailored to ZIO capabilities as it supports Environment and Error composition in ZIO effects similar to the for-comprehension.
+
+```scala
+val out: ZIO[CustomerConfig & DistributorConfig, CustomerGetException | DistrubutorGetException, (Customer, Distributor)] =
+  defer {
+    // Get a customer-configuration object from the environment and extract its .url field
+    val custUrl: String = ZIO.service[CustomerConfig].run.url
+    // Get a distributor-configuration from the environment and extract its .url field
+    val distUrl: String = ZIO.service[DistributorConfig].run.url
+    (
+      // Use the two configurations to make an HTTP-call
+      parseCustomer(httpGetCustomer(custUrl).run),
+      parseDistrubutor(httpGetDistributor(distUrl).run)
+    )
+  }
+```
+
+# Branching and Looping Support
+Unlike the for-comprehension, ZIO-Direct supports branching and looping in the use of flatMaps composition.
+Let's have a look at a another non-trivial example.
 
 ```scala
 class Database:
