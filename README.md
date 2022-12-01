@@ -9,7 +9,9 @@ Direct-Style programming in ZIO based on the Monadless paradigm.
 
 
 # Documentation
-[ZIO Direct Microsite](https://zio.github.io/zio-direct/)
+
+Talk at Functional Scala 2022
+https://www.slideshare.net/deusaquilus/ziodirect-functional-scala-2022
 
 ZIO-Direct allows direct style programming with ZIO. This library provides a *syntactic sugar* that is more powerful than for-comprehensions as well as more natural to use. Simply add the `.run` suffix to any ZIO effect in order to retrieve it's value.
 
