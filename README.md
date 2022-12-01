@@ -13,6 +13,12 @@ Direct-Style programming in ZIO based on the Monadless paradigm.
 Talk at Functional Scala 2022
 https://www.slideshare.net/deusaquilus/ziodirect-functional-scala-2022
 
+To use zio-direct, add the following to your `build.sbt` file.
+
+```scala
+libraryDependencies += "dev.zio" % "zio-direct_3" % "1.0.0-RC1"
+```
+
 ZIO-Direct allows direct style programming with ZIO. This library provides a *syntactic sugar* that is more powerful than for-comprehensions as well as more natural to use. Simply add the `.run` suffix to any ZIO effect in order to retrieve it's value.
 
 ZIO-Direct works by using by using macros to rewrite sequential code into flatMap-chains. The values resulting in `.run` calls from the ZIO effects are not actually awaited. Instead, they are rolled-up into a chain of flatMaps.
