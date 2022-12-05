@@ -78,8 +78,8 @@ object Unsupported {
           text
 
       tree match
-        case t: Term if (t.isExpr) => report.errorAndAbort(text, t.asExpr)
-        case _                     => report.errorAndAbort(text, tree.pos)
+        case t: Term if (t.isExpr) => report.errorAndAbort(textOuput, t.asExpr)
+        case _                     => report.errorAndAbort(textOuput, tree.pos)
   }
 
   object Warn {

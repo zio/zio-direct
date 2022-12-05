@@ -52,38 +52,6 @@ object SyntaxHighlight {
   }
 }
 
-trait ShowDetails {
-  def showImplicitFunctionParams: Boolean
-  def showImplicitClauses: Boolean
-  def showBoundsTypes: Boolean
-  def showTypeParams: Boolean
-  def showAsInstanceOf: Boolean
-}
-
-object ShowDetails {
-  object Compact extends ShowDetails {
-    def showImplicitFunctionParams: Boolean = false
-    def showImplicitClauses: Boolean = false
-    def showBoundsTypes: Boolean = false
-    def showTypeParams: Boolean = false
-    def showAsInstanceOf: Boolean = false
-  }
-  object Standard extends ShowDetails {
-    def showImplicitFunctionParams: Boolean = false
-    def showImplicitClauses: Boolean = false
-    def showBoundsTypes: Boolean = false
-    def showTypeParams: Boolean = false
-    def showAsInstanceOf: Boolean = true
-  }
-  object Verbose extends ShowDetails {
-    def showImplicitFunctionParams: Boolean = true
-    def showImplicitClauses: Boolean = true
-    def showBoundsTypes: Boolean = true
-    def showTypeParams: Boolean = true
-    def showAsInstanceOf: Boolean = true
-  }
-}
-
 /**
  * Printer for fully elaborated representation of the source code. Futher customized based on SourceCode in the Dotty repo.
  * In many situations if symbol.owner cannot be found the compiler will fail with a NoDenotation.owner error. This typically
@@ -321,9 +289,9 @@ object SourceCode {
               case DefDef("apply" | "unapply" | "writeReplace", _, _, _) if d.symbol.ownerSafe.flags.is(Flags.Module) => true
               case DefDef(n, _, _, _) if d.symbol.ownerSafe.flags.is(Flags.Case) =>
                 n == "copy" ||
-                  n.matches("copy\\$default\\$[1-9][0-9]*") || // default parameters for the copy method
-                  n.matches("_[1-9][0-9]*") || // Getters from Product
-                  n == "productElementName"
+                n.matches("copy\\$default\\$[1-9][0-9]*") || // default parameters for the copy method
+                n.matches("_[1-9][0-9]*") || // Getters from Product
+                n == "productElementName"
               case _ => false
             })
           }

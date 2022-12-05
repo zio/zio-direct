@@ -1,222 +1,210 @@
-// package zio.direct.core.metaprog
+package zio.direct.core.metaprog
 
-// import scala.quoted._
-// import pprint._
-// import fansi.Str
-// import zio.direct.core.util.Format
-// import zio.ZIO
-// import scala.tools.nsc.PipelineMain.Pipeline
-// import zio.direct.core.util.Unsupported
-// import zio.direct.core.util.Messages
-// import zio.direct.core.metaprog.Extractors.BlockN
+//import zio.direct.core.util.Format
+//import zio.direct.core.util.Unsupported
+import scala.reflect.macros.whitebox.Context
+import zio.ZIO
 
-// trait WithIR {
-//   implicit val macroQuotes: Quotes
-//   import macroQuotes.reflect._
+trait MacroBase {
+  val c: Context
+  type Uni = c.universe.type
+  // NOTE: u needs to be lazy otherwise sets value from c before c can be initialized by higher level classes
+  lazy val u: Uni = c.universe
 
-//   protected sealed trait IR
-//   protected object IR {
-//     sealed trait Monadic extends IR
-//     sealed trait Leaf extends IR {
-//       def code: Term
-//     }
+  import c.universe._
 
-//     // TODO It's possible to do `throw run(function)` so need to support IR
-//     // being passed into a throw.
-//     case class Fail(error: IR) extends Monadic
+  def isZIO(tpe: Type) =
+    tpe <:< typeOf[ZIO[Any, Any, Any]] && !(tpe =:= typeOf[Nothing])
 
-//     case class While(cond: IR, body: IR) extends Monadic
+  object report {
+    def errorAndAbort(msg: String) = c.abort(c.enclosingPosition, msg)
+    def errorAndAbort(msg: String, tree: Tree) = c.abort(tree.pos, msg)
 
-//     case class ValDef(originalStmt: macroQuotes.reflect.Block, symbol: Symbol, assignment: IR, bodyUsingVal: IR) extends Monadic
+    def warning(msg: String) = c.warning(c.enclosingPosition, msg)
+    def warning(msg: String, tree: Tree) = c.warning(tree.pos, msg)
 
-//     case class Unsafe(body: IR) extends Monadic
+    def info(msg: String) = c.info(c.enclosingPosition, msg, true)
+    def info(msg: String, tree: Tree) = c.info(tree.pos, msg, true)
+  }
+}
 
-//     case class Try(tryBlock: IR, cases: List[IR.Match.CaseDef], resultType: TypeRepr, finallyBlock: Option[IR]) extends Monadic
+trait WithIR extends MacroBase {
+  import c.universe._
 
-//     case class Foreach(list: IR, listType: TypeRepr, elementSymbol: Symbol, body: IR) extends Monadic
+  protected sealed trait IR
+  // can't be sealed or type-checking on IR.Monadic causes this: https://github.com/scala/bug/issues/4440
+  object IR {
+    sealed trait Monadic extends IR
+    sealed trait Leaf extends IR {
+      def code: c.universe.Tree
+    }
 
-//     case class FlatMap(monad: Monadic, valSymbol: Option[Symbol], body: IR.Monadic) extends Monadic
-//     object FlatMap {
-//       def apply(monad: IR.Monadic, valSymbol: Symbol, body: IR.Monadic) =
-//         new FlatMap(monad, Some(valSymbol), body)
-//     }
-//     case class Map(monad: Monadic, valSymbol: Option[Symbol], body: IR.Pure) extends Monadic
-//     object Map {
-//       def apply(monad: Monadic, valSymbol: Symbol, body: IR.Pure) =
-//         new Map(monad, Some(valSymbol), body)
-//     }
+    case class Fail(error: IR) extends Monadic
 
-//     class Monad private (val code: Term, val source: Monad.Source) extends Monadic with Leaf {
-//       private val id = Monad.Id(code)
-//       override def equals(other: Any): Boolean =
-//         other match {
-//           case v: Monad => id == v.id
-//           case _        => false
-//         }
-//     }
-//     object Monad {
-//       def apply(code: Term, source: Monad.Source = Monad.Source.Pipeline) =
-//         new Monad(code, source)
+    case class While(cond: IR, body: IR) extends Monadic
 
-//       def unapply(value: Monad) =
-//         Some(value.code)
+    case class ValDef(originalStmt: c.universe.Block, symbol: Symbol, assignment: IR, bodyUsingVal: IR) extends Monadic
 
-//       sealed trait Source
-//       case object Source {
-//         case object Pipeline extends Source
-//         // Indicates that this IR.Monad came from a previous Defer clause. This is useful to see inside the tree
-//         case object PrevDefer extends Source
-//         case object IgnoreCall extends Source
-//       }
+    case class Unsafe(body: IR) extends Monadic
 
-//       private case class Id(code: Term)
-//     }
+    case class Try(tryBlock: IR, cases: List[IR.Match.CaseDef], resultType: c.universe.Type, finallyBlock: Option[IR]) extends Monadic
 
-//     // TODO Function to collapse inner blocks into one block because you can have Block(term, Block(term, Block(monad)))
-//     case class Block(head: Statement, tail: Monadic) extends Monadic
+    case class Foreach(list: IR, listType: c.universe.Type, elementSymbol: Symbol, body: IR) extends Monadic
 
-//     // TODO scrutinee can be monadic or Match output can be monadic, how about both?
-//     // scrutinee can be Monadic or Pure. Not using union type so that perhaps can backward-compat with Scala 2
-//     case class Match(scrutinee: IR, caseDefs: List[IR.Match.CaseDef]) extends Monadic
-//     object Match {
-//       case class CaseDef(pattern: Tree, guard: Option[Term], rhs: Monadic)
-//     }
+    case class FlatMap(monad: Monadic, valSymbol: Option[Symbol], body: IR.Monadic) extends Monadic
+    object FlatMap {
+      def apply(monad: IR.Monadic, valSymbol: Symbol, body: IR.Monadic) =
+        new FlatMap(monad, Some(valSymbol), body)
+    }
+    case class Map(monad: Monadic, valSymbol: Option[Symbol], body: IR.Pure) extends Monadic
+    object Map {
+      def apply(monad: Monadic, valSymbol: Symbol, body: IR.Pure) =
+        new Map(monad, Some(valSymbol), body)
+    }
 
-//     // Since we ultimately transform If statements into Task[Boolean] segments, they are monadic
-//     // TODO during transformation, decided cases based on if ifTrue/ifFalse is monadic or not
-//     case class If(cond: IR, ifTrue: IR, ifFalse: IR) extends Monadic
-//     case class Pure(code: Term) extends IR with Leaf
+    class Monad private (val code: c.universe.Tree, val source: Monad.Source) extends Monadic with Leaf {
+      private val id = Monad.Id(code)
+      override def equals(other: Any): Boolean =
+        other match {
+          case v: Monad => id == v.id
+          case _        => false
+        }
+    }
+    object Monad {
+      def apply(code: c.universe.Tree, source: Monad.Source = Monad.Source.Pipeline) =
+        new Monad(code, source)
 
-//     // Note that And/Or expressions ultimately need to have both of their sides lifted,
-//     // if one either side is not actually a monad we need to lift it. Therefore
-//     // we can treat And/Or as monadic (i.e. return the from the main Transform)
-//     case class And(left: IR, right: IR) extends Monadic
-//     case class Or(left: IR, right: IR) extends Monadic
+      def unapply(value: Monad) =
+        Some(value.code)
 
-//     case class Parallel(originalExpr: Term, monads: List[(IR.Monadic, Symbol)], body: IR.Leaf) extends Monadic
-//   }
+      sealed trait Source
+      case object Source {
+        case object Pipeline extends Source
+        case object PrevDefer extends Source
+        case object IgnoreCall extends Source
+      }
 
-//   /**
-//    * Wrap the IR.Pures/IR.Maps in the body of IR.Unsafe elements with ZIO.attempt.
-//    * This is largely for the sake of tries working as expected, for example.
-//    * (assume all the above examples are wrapped in `defer { ... }`)
-//    *   try { 1/0 } catch { case e: DivideByZeroException => ... }
-//    * Normally with zio-run this will not be caught because 1/0 will not be wrapped into a ZIO.attempt.
-//    * This statement will become
-//    *   succeed(1/0).catchSome { case e: ... }
-//    * Instead we need it to become
-//    *   attempt(1/0).catchSome { case e: ... }
-//    * This phase will do that.
-//    *
-//    * Also in a statement like this
-//    *  try { val x = run(foo); 1/0 } catch { case e: ... }
-//    * It will become
-//    *  run(foo).map(x => 1/0).catchSome { case e: ... }
-//    * Instead we need it to become
-//    *  run(foo).flatMap(x => attempt(1/0)).catchSome { case e: ... }
-//    *
-//    * Most interestingly, in a statement like this
-//    *   try { unsafe { (run(foo), 4/0, run(bar)) } } catch { case: e...  }
-//    * Normally it would turn into
-//    *   { collect(Chunk(foo, bar)).map(iter => { val par1 = iter.next; var par2 = iter.next; (par1, 4/0, bar) }
-//    * We need it to become
-//    *   { collect(Chunk(foo, bar)).flatMap(iter => attempt { val par1 = iter.next; var par2 = iter.next; (par1, 4/0, bar) }
-//    */
-//   object WrapUnsafes extends StatelessTransformer {
-//     override def apply(ir: IR.Monadic): IR.Monadic =
-//       ir match
-//         case IR.Unsafe(body) =>
-//           // we can actually remove the IR.Unsafe at that point but it is still useful
-//           // as a marker of where we did those operations.
-//           IR.Unsafe(MakePuresIntoAttemps(body))
-//         case _ =>
-//           super.apply(ir)
+      private case class Id(code: c.universe.Tree)
+    }
 
-//     def makePuresIntoAttemps(i: IR) =
-//       MakePuresIntoAttemps(i)
+    case class Block(head: c.universe.Tree, tail: Monadic) extends Monadic
+    case class Match(scrutinee: IR, caseDefs: List[IR.Match.CaseDef]) extends Monadic
+    object Match {
+      case class CaseDef(pattern: Tree, guard: Option[c.universe.Tree], rhs: Monadic)
+    }
+    case class If(cond: IR, ifTrue: IR, ifFalse: IR) extends Monadic
+    case class Pure(code: c.universe.Tree) extends IR with Leaf
+    case class And(left: IR, right: IR) extends Monadic
+    case class Or(left: IR, right: IR) extends Monadic
 
-//     private object MakePuresIntoAttemps extends StatelessTransformer {
-//       private def monadify(pure: IR.Pure) =
-//         IR.Monad('{ ZIO.attempt(${ pure.code.asExpr }) }.asTerm)
+    case class Parallel(originalExpr: c.universe.Tree, monads: List[(IR.Monadic, Symbol)], body: IR.Leaf) extends Monadic
+  }
 
-//       // Monadify all top-level pure calls
-//       override def apply(ir: IR): IR =
-//         ir match
-//           case v: IR.Pure => monadify(v)
-//           case _          => super.apply(ir)
+  object WrapUnsafes extends StatelessTransformer {
+    override def apply(ir: IR.Monadic): IR.Monadic =
+      ir match {
+        case IR.Unsafe(body) =>
+          // we can actually remove the IR.Unsafe at that point but it is still useful
+          // as a marker of where we did those operations.
+          IR.Unsafe(MakePuresIntoAttemps(body))
+        case _ =>
+          super.apply(ir)
+      }
 
-//       // Monadify pure calls inside IR.Leaf instances (inside IR.Parallel)
-//       override def apply(ir: IR.Leaf): IR.Leaf =
-//         ir match
-//           case v: IR.Pure  => monadify(v)
-//           case v: IR.Monad => v
+    def makePuresIntoAttemps(i: IR) =
+      MakePuresIntoAttemps(i)
 
-//       override def apply(ir: IR.Monadic): IR.Monadic =
-//         ir match
-//           case IR.Map(monad, valSymbol, pure) => IR.FlatMap(apply(monad), valSymbol, monadify(pure))
-//           case v @ IR.Parallel(origExpr, monads, body) =>
-//             Unsupported.Error.withTree(origExpr, Messages.UnsafeNotAllowedParallel, InfoBehavior.Info)
-//           case b @ IR.Block(head, tail) =>
-//             // basically the only thing that can be inside of a block head-statement is a ValDef
-//             // or a Term of pure-code. Since val-defs are handled separately as an IR.ValDef basically
-//             // there should be nothing on than a pure-term in this slot
-//             val wrappedHead =
-//               head match {
-//                 case term: Term => monadify(IR.Pure(term))
-//                 case _          => monadify(IR.Pure(macroQuotes.reflect.Block(List(head), '{ () }.asTerm)))
-//               }
-//             IR.FlatMap(wrappedHead, None, tail)
-//           case _ => super.apply(ir)
-//     }
-//   }
+    private object MakePuresIntoAttemps extends StatelessTransformer {
+      private def monadify(pure: IR.Pure) =
+        IR.Monad(q"dev.ZIO.attempt(${pure.code})")
 
-//   trait StatelessTransformer {
-//     def apply(ir: IR): IR =
-//       ir match
-//         case v: IR.Pure    => apply(v)
-//         case v: IR.Monadic => apply(v)
+      // Monadify all top-level pure calls
+      override def apply(ir: IR): IR =
+        ir match {
+          case v: IR.Pure => monadify(v)
+          case _          => super.apply(ir) // // //
+        }
 
-//     def apply(ir: IR.Pure): IR.Pure = ir
-//     def apply(ir: IR.Monad): IR.Monad = ir
-//     // Specifically used in this like IR.Parallel that can have either a Pure or Monad element
-//     // but either way it has to be a leaf node (i.e. can't have structures inside)
-//     def apply(ir: IR.Leaf): IR.Leaf = ir
+      // Monadify pure calls inside IR.Leaf instances (inside IR.Parallel)
+      override def apply(ir: IR.Leaf): IR.Leaf =
+        ir match {
+          case v: IR.Pure  => monadify(v)
+          case v: IR.Monad => v
+        }
 
-//     def apply(ir: IR.Monadic): IR.Monadic =
-//       ir match
-//         case IR.While(cond, body) =>
-//           IR.While(apply(cond), apply(body))
-//         case IR.Try(tryBlock, cases, resultType, finallyBlock) =>
-//           val newCases = cases.map(apply(_))
-//           val newFinallyBlock = finallyBlock.map(apply(_))
-//           IR.Try(apply(tryBlock), newCases, resultType, newFinallyBlock)
-//         case IR.ValDef(orig, symbol, assignment, bodyUsingVal) =>
-//           IR.ValDef(orig, symbol, apply(assignment), apply(bodyUsingVal))
-//         case IR.FlatMap(monad, valSymbol, body) =>
-//           IR.FlatMap(apply(monad), valSymbol, apply(body))
-//         case IR.Foreach(list, listType, symbolType, body) =>
-//           IR.Foreach(apply(list), listType, symbolType, apply(body))
-//         case IR.Map(monad, valSymbol, body) =>
-//           IR.Map(apply(monad), valSymbol, apply(body))
-//         case IR.Fail(error) => IR.Fail(apply(error))
-//         case v: IR.Monad    => apply(v)
-//         case IR.Block(head, tail) =>
-//           IR.Block(head, apply(tail))
-//         case IR.Match(scrutinee, caseDefs) =>
-//           val newCaseDefs = caseDefs.map(apply(_))
-//           IR.Match(scrutinee, newCaseDefs)
-//         case IR.If(cond, ifTrue, ifFalse) => IR.If(cond, apply(ifTrue), apply(ifFalse))
-//         case IR.And(left, right)          => IR.And(apply(left), apply(right))
-//         case IR.Or(left, right)           => IR.Or(apply(left), apply(right))
-//         case IR.Parallel(orig, monads, body) =>
-//           val newMonads = monads.map((monad, sym) => (apply(monad), sym))
-//           val newBody = apply(body)
-//           IR.Parallel(orig, newMonads, newBody)
-//         case IR.Unsafe(body) =>
-//           IR.Unsafe(body)
+      override def apply(ir: IR.Monadic): IR.Monadic =
+        ir match {
+          case IR.Map(monad, valSymbol, pure)          => IR.FlatMap(apply(monad), valSymbol, monadify(pure))
+          case v @ IR.Parallel(origExpr, monads, body) =>
+            // Unsupported.Error.withTree(origExpr, Messages.UnsafeNotAllowedParallel, InfoBehavior.Info)
+            // TODO Add back, need formatter for Unsupported
+            ???
+          case b @ IR.Block(head, tail) =>
+            // basically the only thing that can be inside of a block head-statement is a ValDef
+            // or a Term of pure-code. Since val-defs are handled separately as an IR.ValDef basically
+            // there should be nothing on than a pure-term in this slot
+            val wrappedHead =
+              if (head.isTerm)
+                monadify(IR.Pure(head))
+              else
+                monadify(IR.Pure(c.universe.Block(List(head), q"()")))
 
-//     def apply(caseDef: IR.Match.CaseDef): IR.Match.CaseDef =
-//       val newRhs = apply(caseDef.rhs)
-//       caseDef.copy(rhs = newRhs)
-//   }
-// }
+            IR.FlatMap(wrappedHead, None, tail)
+          case _ => super.apply(ir)
+        }
+    }
+  }
+
+  trait StatelessTransformer {
+    def apply(ir: IR): IR =
+      ir match {
+        case v: IR.Pure    => apply(v)
+        case v: IR.Monadic => apply(v)
+      }
+
+    def apply(ir: IR.Pure): IR.Pure = ir
+    def apply(ir: IR.Monad): IR.Monad = ir
+    // Specifically used in this like IR.Parallel that can have either a Pure or Monad element
+    // but either way it has to be a leaf node (i.e. can't have structures inside)
+    def apply(ir: IR.Leaf): IR.Leaf = ir
+
+    def apply(ir: IR.Monadic): IR.Monadic =
+      ir match {
+        case IR.While(cond, body) =>
+          IR.While(apply(cond), apply(body))
+        case IR.Try(tryBlock, cases, resultType, finallyBlock) =>
+          val newCases = cases.map(apply(_))
+          val newFinallyBlock = finallyBlock.map(apply(_))
+          IR.Try(apply(tryBlock), newCases, resultType, newFinallyBlock)
+        case IR.ValDef(orig, symbol, assignment, bodyUsingVal) =>
+          IR.ValDef(orig, symbol, apply(assignment), apply(bodyUsingVal))
+        case IR.FlatMap(monad, valSymbol, body) =>
+          IR.FlatMap(apply(monad), valSymbol, apply(body))
+        case IR.Foreach(list, listType, symbolType, body) =>
+          IR.Foreach(apply(list), listType, symbolType, apply(body))
+        case IR.Map(monad, valSymbol, body) =>
+          IR.Map(apply(monad), valSymbol, apply(body))
+        case IR.Fail(error) => IR.Fail(apply(error))
+        case v: IR.Monad    => apply(v)
+        case IR.Block(head, tail) =>
+          IR.Block(head, apply(tail))
+        case IR.Match(scrutinee, caseDefs) =>
+          val newCaseDefs = caseDefs.map(apply(_))
+          IR.Match(scrutinee, newCaseDefs)
+        case IR.If(cond, ifTrue, ifFalse) => IR.If(cond, apply(ifTrue), apply(ifFalse))
+        case IR.And(left, right)          => IR.And(apply(left), apply(right))
+        case IR.Or(left, right)           => IR.Or(apply(left), apply(right))
+        case IR.Parallel(orig, monads, body) =>
+          val newMonads = monads.map { case (monad, sym) => (apply(monad), sym) }
+          val newBody = apply(body)
+          IR.Parallel(orig, newMonads, newBody)
+        case IR.Unsafe(body) =>
+          IR.Unsafe(body)
+      }
+
+    def apply(caseDef: IR.Match.CaseDef): IR.Match.CaseDef = {
+      val newRhs = apply(caseDef.rhs)
+      caseDef.copy(rhs = newRhs)
+    }
+  }
+}
