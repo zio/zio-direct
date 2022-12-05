@@ -48,7 +48,7 @@ lazy val `zio-direct` = project
   .enablePlugins(BuildInfoPlugin)
   .settings(
     Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat,
-    scalaVersion := ScalaDotty,
+    scalaVersion := Scala213,
     resolvers ++= Seq(
       Resolver.mavenLocal,
       "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots",
@@ -56,9 +56,11 @@ lazy val `zio-direct` = project
     ),
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework"),
     libraryDependencies ++= Seq(
-      pprint,
       zio,
       `quill-util`,
+      pprint,
+      `scala-java8-compat`,
+      `scala-collection-compat`,
       `zio-test`,
       `zio-test-sbt`
     )
@@ -70,9 +72,11 @@ lazy val docs = project
   .settings(macroDefinitionSettings)
   .settings(
     excludeDependencies ++= Seq(
-      "com.geirsson" % "metaconfig-core_2.13",
-      "com.geirsson" % "metaconfig-typesafe-config_2.13",
-      "org.typelevel" % "paiges-core_2.13"
+      ("org.scala-lang.modules" % "scala-collection-compat_2.13"),
+      ("com.lihaoyi" % "pprint_2.13"),
+      ("com.geirsson" % "metaconfig-core_2.13"),
+      ("com.geirsson" % "metaconfig-typesafe-config_2.13"),
+      ("org.typelevel" % "paiges-core_2.13")
     ),
     crossScalaVersions := Seq(ScalaDotty),
     scalaVersion := ScalaDotty,
