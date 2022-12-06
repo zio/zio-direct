@@ -8,6 +8,10 @@ case class Instructions(info: InfoBehavior, collect: Collect, verify: Verify, ty
   def anyVis = info != InfoBehavior.Silent
 }
 
+object Instructions {
+  def default = new Instructions(InfoBehavior.default, Collect.default, Verify.default, TypeUnion.default, List())
+}
+
 sealed trait InfoBehavior {
   def showComputedType: Boolean
   def showComputedTypeDetail: Boolean
