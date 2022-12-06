@@ -31,7 +31,7 @@ trait MacroBase {
 trait WithIR extends MacroBase {
   import c.universe._
 
-  protected sealed trait IR
+  sealed trait IR
   // can't be sealed or type-checking on IR.Monadic causes this: https://github.com/scala/bug/issues/4440
   object IR {
     sealed trait Monadic extends IR
@@ -158,7 +158,8 @@ trait WithIR extends MacroBase {
   trait StatelessTransformer {
     def apply(ir: IR): IR =
       ir match {
-        case v: IR.Pure    => apply(v)
+        case v: IR.Pure => apply(v)
+        // since there are no multiple instances of WithIR I don't think the outer reference issue maters
         case v: IR.Monadic => apply(v)
       }
 

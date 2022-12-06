@@ -96,7 +96,7 @@ trait WithUnsupported extends WithFormat with MacroBase {
         isZIO(term.tpe) match {
           case true =>
             report.warning(
-              s"""|Found a ZIO term that will not be executed (type: ${Format.TypeRepr(term.tpe)})
+              s"""|Found a ZIO term that will not be executed (type: ${Format.Type(term.tpe)})
                   |since it has no `.run` (or wrapped in a `run(...)` block). Non-executed ZIO terms
                   |inside of `defer { ... }` blocks will never be executed i.e. they will be discarded.
                   |To execute this term add `.run` at the end or wrap it into an `run(...)` statement.

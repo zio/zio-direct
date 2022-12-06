@@ -17,6 +17,7 @@ object Dependencies {
 
   val ZioVersion = "2.0.2"
   val PPrintVersion = "0.6.6"
+  val FansiVersion = "0.4.0"
   val CompatVersion = "1.0.1"
   val CollectionCompatVersion = "2.9.0"
   val QuillUtilVersion = "4.6.0"
@@ -26,6 +27,7 @@ object Dependencies {
   val `zio-test-sbt`    = "dev.zio" %% "zio-test-sbt"    % ZioVersion % "test"
 
   val pprint            = ("com.lihaoyi" %% "pprint"      % PPrintVersion).excludeVersionConflicting
+  val fansi            = ("com.lihaoyi" %% "fansi"      % FansiVersion).excludeVersionConflicting
 
   val `scala-java8-compat`    = "org.scala-lang.modules" %% "scala-java8-compat" % CompatVersion
   val `scala-collection-compat`    = "org.scala-lang.modules" %% "scala-collection-compat" % CollectionCompatVersion
