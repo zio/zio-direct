@@ -4,6 +4,7 @@ package zio.direct.core.metaprog
 //import zio.direct.core.util.Unsupported
 import scala.reflect.macros.whitebox.Context
 import zio.ZIO
+import zio.direct.core.metaprog.Trees
 
 trait MacroBase {
   val c: Context
@@ -25,6 +26,28 @@ trait MacroBase {
 
     def info(msg: String) = c.info(c.enclosingPosition, msg, true)
     def info(msg: String, tree: Tree) = c.info(tree.pos, msg, true)
+  }
+
+  object PureTree {
+    def unapply(tree: Tree): Option[Tree] =
+      Trees.exists(c)(tree) {
+        case RunCall(_)              => true
+        case q"$pack.unsafe($value)" => true
+        case Try(_, _, _)            => true
+        case q"throw $e"             => true
+        case _                       => false
+      } match {
+        case true  => None
+        case false => Some(tree)
+      }
+  }
+
+  object RunCall {
+    def unapply(tree: Tree): Option[Tree] =
+      tree match {
+        case q"$pack.run[$t]($v)" => Some(v)
+        case _                    => None
+      }
   }
 }
 
