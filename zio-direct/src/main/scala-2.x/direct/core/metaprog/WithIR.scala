@@ -29,24 +29,83 @@ trait MacroBase {
   }
 
   object PureTree {
+    object All {
+      def unapply(trees: List[Tree]): Boolean =
+        trees.forall(PureTree.unapply(_).isDefined)
+    }
+
     def unapply(tree: Tree): Option[Tree] =
       Trees.exists(c)(tree) {
-        case RunCall(_)              => true
-        case q"$pack.unsafe($value)" => true
-        case Try(_, _, _)            => true
-        case q"throw $e"             => true
-        case _                       => false
+        case RunCall(_)   => true
+        case Try(_, _, _) => true
+        case q"throw $e"  => true
+        case _            => false
       } match {
         case true  => None
         case false => Some(tree)
       }
   }
 
+  def is[T](tpe: Type)(implicit t: TypeTag[T]) =
+    tpe <:< t.tpe
+
+  def isA[T](tree: Tree)(implicit t: TypeTag[T]) =
+    tree.tpe <:< t.tpe
+
+  def toVal(name: TermName) = q"val $name = $EmptyTree"
+  def wildcard = TermName("_")
+  def freshName(x: String = "x") = TermName(c.freshName(x))
+
+  def useNewSymbolIn(tpe: Type)(useSymbol: Tree => Tree) = {
+    val termName = freshName("m")
+    val ref = q"$termName"
+    (termName, useSymbol(ref))
+  }
+
   object RunCall {
     def unapply(tree: Tree): Option[Tree] =
       tree match {
-        case q"$pack.run[$t]($v)" => Some(v)
-        case _                    => None
+        case q"$pack.run[$r, $e, $a]($v)" => Some(v)
+        case _                            => None
+      }
+  }
+
+  object ZioApply {
+    def succeed(code: Tree) =
+      q"dev.zio.ZIO.succeed($code)"
+    def attempt(code: Tree) =
+      q"dev.zio.ZIO.attempt($code)"
+  }
+
+  object ValDefStatement {
+    def unapply(tree: Tree): Option[(TermName, Tree)] =
+      tree match {
+        case q"$mods val $name: $t = $rhs" => Some((name, rhs))
+        case _                             => None
+      }
+  }
+
+  object IsTerm {
+    def unapply(tree: Tree): Option[Tree] =
+      if (tree.isTerm) Some(tree) else None
+  }
+
+  object BlockN {
+    def unapply(trees: List[Tree]) =
+      trees match {
+        case Nil => None
+        case IsTerm(head) :: Nil =>
+          Some(Block(Nil, head))
+        case list if (IsTerm.unapply(list.last).isDefined) =>
+          Some(Block(list.dropRight(1), IsTerm.unapply(list.last).get))
+        case _ =>
+          report.errorAndAbort(s"Last element in the instruction group is not a block. ${trees.map(show(_))}")
+      }
+
+    def apply(trees: List[Tree]): Block =
+      BlockN.unapply(trees) match {
+        case Some(value) => value
+        case None        => report.errorAndAbort(s"Invalid trees list: ${trees.map(show(_))}")
       }
   }
 }
@@ -66,22 +125,22 @@ trait WithIR extends MacroBase {
 
     case class While(cond: IR, body: IR) extends Monadic
 
-    case class ValDef(originalStmt: c.universe.Block, symbol: Symbol, assignment: IR, bodyUsingVal: IR) extends Monadic
+    case class ValDef(originalStmt: c.universe.Block, symbol: TermName, assignment: IR, bodyUsingVal: IR) extends Monadic
 
     case class Unsafe(body: IR) extends Monadic
 
     case class Try(tryBlock: IR, cases: List[IR.Match.CaseDef], resultType: c.universe.Type, finallyBlock: Option[IR]) extends Monadic
 
-    case class Foreach(list: IR, listType: c.universe.Type, elementSymbol: Symbol, body: IR) extends Monadic
+    case class Foreach(list: IR, listType: c.universe.Type, elementSymbol: TermName, body: IR) extends Monadic
 
-    case class FlatMap(monad: Monadic, valSymbol: Option[Symbol], body: IR.Monadic) extends Monadic
+    case class FlatMap(monad: Monadic, valSymbol: Option[TermName], body: IR.Monadic) extends Monadic
     object FlatMap {
-      def apply(monad: IR.Monadic, valSymbol: Symbol, body: IR.Monadic) =
+      def apply(monad: IR.Monadic, valSymbol: TermName, body: IR.Monadic) =
         new FlatMap(monad, Some(valSymbol), body)
     }
-    case class Map(monad: Monadic, valSymbol: Option[Symbol], body: IR.Pure) extends Monadic
+    case class Map(monad: Monadic, valSymbol: Option[TermName], body: IR.Pure) extends Monadic
     object Map {
-      def apply(monad: Monadic, valSymbol: Symbol, body: IR.Pure) =
+      def apply(monad: Monadic, valSymbol: TermName, body: IR.Pure) =
         new Map(monad, Some(valSymbol), body)
     }
 
@@ -120,7 +179,7 @@ trait WithIR extends MacroBase {
     case class And(left: IR, right: IR) extends Monadic
     case class Or(left: IR, right: IR) extends Monadic
 
-    case class Parallel(originalExpr: c.universe.Tree, monads: List[(IR.Monadic, Symbol)], body: IR.Leaf) extends Monadic
+    case class Parallel(originalExpr: c.universe.Tree, monads: List[(IR.Monadic, TermName)], body: IR.Leaf) extends Monadic
   }
 
   object WrapUnsafes extends StatelessTransformer {
@@ -139,7 +198,7 @@ trait WithIR extends MacroBase {
 
     private object MakePuresIntoAttemps extends StatelessTransformer {
       private def monadify(pure: IR.Pure) =
-        IR.Monad(q"dev.ZIO.attempt(${pure.code})")
+        IR.Monad(ZioApply.attempt(pure.code))
 
       // Monadify all top-level pure calls
       override def apply(ir: IR): IR =
