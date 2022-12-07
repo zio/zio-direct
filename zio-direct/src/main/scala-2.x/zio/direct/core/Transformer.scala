@@ -33,7 +33,6 @@ abstract class Transformer
 
     def fileShow = Announce.FileShow.FullPath(posFileStr(value.pos))
 
-    println("=========== here =======")
     Announce.section("Deconstructed Instructions", PrintIR(transformedRaw), fileShow)
 
     q"???"

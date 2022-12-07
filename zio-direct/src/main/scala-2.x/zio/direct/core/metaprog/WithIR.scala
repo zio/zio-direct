@@ -65,9 +65,9 @@ trait MacroBase {
   object RunCall {
     def unapply(tree: Tree): Option[Tree] =
       tree match {
-        case q"$pack.dsl.run[$r, $e, $a]($v)"           => Some(v)
-        case q"$pack.dsl.ZioRunOps[$r, $e, $a]($v).run" => Some(v)
-        case _                                          => None
+        case q"$pack.run[$r, $e, $a]($v)"        => Some(v)
+        case q"$pack.ZioRunOps[..$tpes]($v).run" => Some(v)
+        case _                                   => None
       }
   }
 

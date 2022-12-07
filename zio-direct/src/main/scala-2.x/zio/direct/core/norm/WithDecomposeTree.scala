@@ -139,7 +139,6 @@ trait WithDecomposeTree extends MacroBase {
           //
           // This basically does that with some additional details
           // (e.g. it can actually be stuff.flatMap(v => val x = v; stuff-that-uses-x))
-          // TODO A zero-args DefDef (i.e. a ByName can essentially be treated as a ValDef so we can use that too)
 
           // A ValDef statement is basically a block because it consists of
           //   {
@@ -149,9 +148,6 @@ trait WithDecomposeTree extends MacroBase {
           // The entire above block is represented by the valdef:
           //   IR.ValDef({val x...}, x, monad, otherStuff)
           case (origStmt @ ValDefStatement(varName, assignmentTerm)) :: tail =>
-            println(s"------ Tpe: ${origStmt.tpe.typeSymbol.getClass.getName()}")
-            println(s"------ Term: ${origStmt.tpe.termSymbol.name.getClass.getName()}")
-            println(s"------ TermName: ${TermName("foo").getClass().getName()}")
             val assignment =
               assignmentTerm match {
                 case DecomposeTree(monad) => monad
