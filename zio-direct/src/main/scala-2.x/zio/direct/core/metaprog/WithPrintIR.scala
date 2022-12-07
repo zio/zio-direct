@@ -28,24 +28,26 @@ trait WithPrintIR extends MacroBase {
     override def treeify(x: Any): Tree =
       x match {
         // Use short-code printer to print actual Scala tree nodes
-        case someTree if (x.getClass().getName().contains("dotty.tools.dotc.ast.Trees")) =>
+        case someTree if (x.getClass().getName().contains("scala.reflect.internal.Trees")) =>
           val tree = someTree.asInstanceOf[STree]
           // TODO Formatter uses scalafmt here in Format.Tree and on the top level to format
           //      the whole thing afterward, can optimize by only doing it once
           Tree.Apply("SCALA", Iterator(Tree.Literal(s"{${Format.Tree(tree)}}")))
 
-        case tpeTree if (x.getClass().getName().contains("dotty.tools.dotc.core.Types")) =>
+        case tpeTree if (x.getClass().getName().contains("scala.reflect.internal.Types")) =>
           val tpe = tpeTree.asInstanceOf[SType]
           Tree.Apply("SCALA_Type", Iterator(Tree.Literal(s"{${Format.Type(tpe)}}")))
 
-        case someSymbol if (x.getClass().getName().contains("dotty.tools.dotc.core.Symbols")) =>
+        case someSymbol if (x.getClass().getName().contains("scala.reflect.internal.Symbols")) =>
           val sym = someSymbol.asInstanceOf[Symbol]
-          // Need to tell the formatter to ignore these things because formatting will fail if it doesn't
-          // so we put them into a scala comment, should figure out some better way to do it eventually.
           if (sym == NoSymbol)
             Tree.Literal("NO_SYMBOL")
           else
             Tree.Apply("SCALA_SYM", Iterator(Tree.Literal(s"/*${sym}*/")))
+
+        case someSymbol if (x.getClass().getName().contains("scala.reflect.internal.Names$TermName")) =>
+          val sym = someSymbol.asInstanceOf[TermName]
+          Tree.Apply("TERM_NAME", Iterator(Tree.Literal(s"/*${sym}*/")))
 
         // special handling for the IR.Monad case because it's not a case class (since it has "trivia properties")
         case m: IR.Monad =>

@@ -1,10 +1,10 @@
-package zio.direct
+package zio
 
 import zio.direct.core.NotDeferredException
 import language.experimental.macros
 import zio.ZIO
 
-package object dsl {
+package object direct {
   def unsafe[T](value: T): T = NotDeferredException.fromNamed("unsafe")
 
   object defer {

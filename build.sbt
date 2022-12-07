@@ -59,6 +59,7 @@ lazy val `zio-direct` = project
       zio,
       `quill-util`,
       pprint,
+      sourcecode,
       fansi,
       `scala-java8-compat`,
       `scala-collection-compat`,
@@ -76,6 +77,7 @@ lazy val docs = project
       ("org.scala-lang.modules" % "scala-collection-compat_2.13"),
       ("com.lihaoyi" % "pprint_2.13"),
       ("com.lihaoyi" % "fansi_2.13"),
+      ("com.lihaoyi" % "sourcecode_2.13"),
       ("com.geirsson" % "metaconfig-core_2.13"),
       ("com.geirsson" % "metaconfig-typesafe-config_2.13"),
       ("org.typelevel" % "paiges-core_2.13")

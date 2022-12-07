@@ -149,6 +149,9 @@ trait WithDecomposeTree extends MacroBase {
           // The entire above block is represented by the valdef:
           //   IR.ValDef({val x...}, x, monad, otherStuff)
           case (origStmt @ ValDefStatement(varName, assignmentTerm)) :: tail =>
+            println(s"------ Tpe: ${origStmt.tpe.typeSymbol.getClass.getName()}")
+            println(s"------ Term: ${origStmt.tpe.termSymbol.name.getClass.getName()}")
+            println(s"------ TermName: ${TermName("foo").getClass().getName()}")
             val assignment =
               assignmentTerm match {
                 case DecomposeTree(monad) => monad
