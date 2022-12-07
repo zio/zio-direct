@@ -73,9 +73,9 @@ trait MacroBase {
 
   object ZioApply {
     def succeed(code: Tree) =
-      q"dev.zio.ZIO.succeed($code)"
+      q"zio.ZIO.succeed($code)"
     def attempt(code: Tree) =
-      q"dev.zio.ZIO.attempt($code)"
+      q"zio.ZIO.attempt($code)"
   }
 
   object ValDefStatement {

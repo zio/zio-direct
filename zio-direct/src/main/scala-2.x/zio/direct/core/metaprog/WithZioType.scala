@@ -1,6 +1,7 @@
 package zio.direct.core.metaprog
 
 import zio.direct.core.util.WithFormat
+import scala.annotation.nowarn
 
 trait WithZioType extends MacroBase {
   self: WithFormat =>
@@ -22,7 +23,7 @@ trait WithZioType extends MacroBase {
     def toZioType: Type =
       asTypeTuple match {
         case (r, e, a) =>
-          c.typecheck(tq"dev.ZIO[$r, $e, $a]").tpe
+          c.typecheck(tq"zio.ZIO[$r, $e, $a]", c.TYPEmode).tpe
       }
 
     def flatMappedWith(other: ZioType)(implicit typeUnion: TypeUnion) =
@@ -42,20 +43,31 @@ trait WithZioType extends MacroBase {
         ZioType.orN(as)
       )
 
-    def fromZIO(zio: Tree) = {
-      zio.tpe
-
-      // case '[ZIO[r, e, a]] =>
-      //   ZioType(typeOf[r], typeOf[e], typeOf[a])
-      // case _ =>
-      //   report.errorAndAbort(s"The type of ${Format.Tree(zio)} is not a ZIO. It is: ${Format.Type(zio.tpe)}")
+    def fromZIO(value: Tree) = {
+      val (r, e, a) = decomposeZioTypeFromTree(value)
+      ZioType(r, e, a)
     }
+
+    private def decomposeZioTypeFromTree(zioTree: Tree) =
+      zioTree.tpe match {
+        case TypeRef(_, cls, List(r, e, a)) if (cls.isClass && cls.asClass.fullName == "zio.ZIO") =>
+          (r, e, a)
+        case tq"ZIO[$r, $e, $a]" =>
+          (r.tpe, e.tpe, a.tpe)
+        case _ =>
+          report.errorAndAbort(s"The type of ${Format.Tree(zioTree)} is not a ZIO. It is: ${Format.Type(zioTree.tpe)} (raw: ${showRaw(zioTree.tpe)})")
+      }
 
     // In this case the error is considered to be Nothing (since we are not wrapping error handling for pure values)
     // and the environment type is considered to be Any (it will be removed via later `ZioType.union` calls if it can be specialized).
     // Only the output type is used
-    def fromPure(Tree: Tree) =
-      ZioType(typeOf[Any], typeOf[Nothing], Tree.tpe)
+    def fromPure(tree: Tree) = {
+      // In some cases the type of the tree was not computed so it will come out as null. In that case we are forced to do a typecheck
+      val tpe =
+        if (tree.tpe != null) tree.tpe
+        else c.typecheck(tree).tpe
+      ZioType(typeOf[Any], typeOf[Nothing], tpe)
+    }
 
     def apply(r: Type, e: Type, a: Type) =
       new ZioType(r.widen, e.widen, a.widen)
@@ -104,17 +116,13 @@ trait WithZioType extends MacroBase {
       }
     }
 
-    private def or(a: Type, b: Type)(implicit typeUnion: TypeUnion): Type =
-      // TODO Back here fix
-      ???
-      // typeUnion match {
-      //   case TypeUnion.OrType =>
-      //     (a.widen.asType, b.widen.asType) match
-      //       case ('[at], '[bt]) =>
-      //         typeOf[at | bt]
-      //   case TypeUnion.LeastUpper =>
-      //     Embedder.computeCommonBaseClass(a.widen, b.widen)
-      // }
+    // Not using the typeUnion here because Scala 2 has no type unions
+    @nowarn
+    private def or(a: Type, b: Type)(implicit typeUnion: TypeUnion): Type = {
+      val out = computeCommonBaseClass(a.widen, b.widen)
+      println(s"============= Common BaseClass of ${show(a)} and ${show(b)} -is- ${show(out)}")
+      out
+    }
 
     private def and(a: Type, b: Type) = {
       // if either type is Any, specialize to the thing that is narrower
@@ -130,8 +138,9 @@ trait WithZioType extends MacroBase {
           // RefinedType(List(a, b), Scopes)
           // do we really need to do c.typecheck? double check that
           // if it's not efficient we can do it once the whole type has been computed
-          c.typecheck(tq"$a with $b").tpe
+          c.typecheck(tq"$a with $b", c.TYPEmode).tpe
         }
+      println(s"============= Reduced ${show(a)} and ${show(b)} -to- ${show(out)}")
       out
     }
   }

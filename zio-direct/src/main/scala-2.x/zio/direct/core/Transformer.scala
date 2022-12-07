@@ -9,6 +9,7 @@ import zio.direct.core.util.WithFormat
 import zio.direct.core.util.WithUnsupported
 import zio.direct.core.metaprog.Instructions
 import zio.direct.core.util.Announce
+import zio.direct.core.norm.WithComputeType
 
 abstract class Transformer
     extends WithIR
@@ -19,7 +20,8 @@ abstract class Transformer
     with WithInterpolator
     with WithZioType
     with WithFormat
-    with WithUnsupported {
+    with WithUnsupported
+    with WithComputeType {
 
   import c.universe._
 
@@ -34,6 +36,10 @@ abstract class Transformer
     def fileShow = Announce.FileShow.FullPath(posFileStr(value.pos))
 
     Announce.section("Deconstructed Instructions", PrintIR(transformedRaw), fileShow)
+
+    val computedType = ComputeType.fromIR(transformedRaw)(Instructions.default)
+    val computed = computedType.toZioType
+    println(s"========= Computed Type: ${show(computed)}")
 
     q"???"
   }
