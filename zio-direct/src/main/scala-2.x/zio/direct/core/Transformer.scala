@@ -10,7 +10,7 @@ import zio.direct.core.util.WithUnsupported
 import zio.direct.core.metaprog.Instructions
 import zio.direct.core.util.Announce
 import zio.direct.core.norm.WithComputeType
-import scala.annotation.nowarn
+import zio.direct.core.norm.WithReconstructTree
 
 abstract class Transformer
     extends WithIR
@@ -22,7 +22,8 @@ abstract class Transformer
     with WithZioType
     with WithFormat
     with WithUnsupported
-    with WithComputeType {
+    with WithComputeType
+    with WithReconstructTree {
 
   import c.universe._
 
@@ -44,14 +45,23 @@ abstract class Transformer
 
     val ownerPositionOpt = {
       val enclosingOwner = c.internal.enclosingOwner
-      println(s"============= Enclosing Owner: ${show(enclosingOwner)}")
+      // println(s"============= Enclosing Owner: ${show(enclosingOwner)}")
       if (enclosingOwner != NoSymbol)
         Some(enclosingOwner.pos)
       else
         None
     }
 
-    @nowarn
+    // TODO transform tree to take care of cases with unsafe { stmt }
+    val transformed = transformedRaw
+
+    val outputRaw = ReconstructTree(Instructions.default).fromIR(transformed)
+
+    import org.scalamacros.resetallattrs._
+    val output = c.resetAllAttrs(outputRaw)
+
+    Announce.section("Reconstituted Code", Format(showRaw(output)), fileShow)
+
     def showEnclosingType() = {
       val computedTypeMsg = s"Computed Type: ${Format.Type(computedType)}"
       if (true /*instructions.info.showComputedType*/ )
@@ -62,8 +72,9 @@ abstract class Transformer
             report.info(computedTypeMsg)
         }
     }
-    // showEnclosingType()
 
-    c.typecheck(q"???.asInstanceOf[$computedType]")
+    showEnclosingType()
+
+    c.typecheck(q"$output.asInstanceOf[$computedType]")
   }
 }

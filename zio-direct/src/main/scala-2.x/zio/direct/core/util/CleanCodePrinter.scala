@@ -16,6 +16,7 @@ private[zio] object CleanCodePrinter {
   def show(c: blackbox.Context)(expr: c.Tree): String = {
     import c.universe._
     postProcess(showCode(clean(c)(cleanImplicits(c)(expr), CleanContext())))
+    // showCode(expr)
   }
 
   private def postProcess(code: String): String =
@@ -128,8 +129,11 @@ private[zio] object CleanCodePrinter {
     val tracerType = c.weakTypeOf[zio.internal.stacktracer.Tracer.instance.Type]
     val tagType = c.weakTypeOf[zio.Tag[_]]
 
-    def loop(expr: c.Tree): c.Tree =
-      expr match {
+    def loop(expr: c.Tree): c.Tree = {
+      println(s"========== Printing: ${expr}")
+      if (expr == null) {
+        q"null"
+      } else expr match {
         case Apply(t, args) if args.exists(t => t.tpe <:< tracerType || t.tpe <:< tagType) =>
           loop(t)
         case Apply(t, args) =>
@@ -143,8 +147,10 @@ private[zio] object CleanCodePrinter {
         case Typed(t1, t2) =>
           Typed(loop(t1), loop(t2))
         case _ =>
+          println(s"========== Printing: ${expr}")
           expr
       }
+    }
 
     loop(expr)
   }

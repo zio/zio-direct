@@ -141,7 +141,7 @@ trait WithIR extends MacroBase {
 
     case class While(cond: IR, body: IR) extends Monadic
 
-    case class ValDef(originalStmt: c.universe.Block, symbol: TermName, assignment: IR, bodyUsingVal: IR) extends Monadic
+    case class ValDef(originalStmt: Tree /*should be a block*/, symbol: TermName, assignment: IR, bodyUsingVal: IR) extends Monadic
 
     case class Unsafe(body: IR) extends Monadic
 

@@ -114,7 +114,7 @@ trait WithReconstructTree extends MacroBase {
         case IR.Map(monad, valSymbol, IR.Pure(body)) =>
           val monadExpr = apply(monad)
           // def symbolType = computeSymbolType(valSymbol, monadExpr)
-          q"$monadExpr.map((${toVal(valSymbol.orWildcard)}) => $body)"
+          q"$monadExpr.map((${toVal(valSymbol.orWildcard)}) => ${body})"
 
         case IR.Monad(code) =>
           code

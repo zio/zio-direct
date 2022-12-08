@@ -64,7 +64,8 @@ lazy val `zio-direct` = project
       `scala-java8-compat`,
       `scala-collection-compat`,
       `zio-test`,
-      `zio-test-sbt`
+      `zio-test-sbt`,
+      "org.scalamacros" %% "resetallattrs" % "1.0.0"
     )
   )
 

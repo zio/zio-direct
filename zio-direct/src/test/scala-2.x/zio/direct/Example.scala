@@ -8,8 +8,8 @@ object Example {
     val out =
       defer {
         val a = ZIO.succeed(123).run
-        val b = ZIO.succeed(789).run
-        a + b
+        // val b = ZIO.succeed(789).run
+        a // + b
       }
 
     println(out)

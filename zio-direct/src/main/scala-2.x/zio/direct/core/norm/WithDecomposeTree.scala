@@ -154,9 +154,9 @@ trait WithDecomposeTree extends MacroBase {
                 case DecomposeTree(monad) => monad
                 case _                    => IR.Pure(assignmentTerm)
               }
-            val restOfBlock: Block = BlockN(origStmt +: tail)
+            val restOfBlock = q"{ ..${origStmt +: tail} }"
             val out =
-              BlockN(tail) match {
+              q"{ ..$tail }" match {
                 case DecomposeTree(monadBody) =>
                   IR.ValDef(restOfBlock, varName, assignment, monadBody)
                 case pureBody =>
