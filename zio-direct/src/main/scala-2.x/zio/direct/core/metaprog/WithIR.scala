@@ -6,6 +6,8 @@ import scala.reflect.macros.whitebox.Context
 import zio.ZIO
 import zio.direct.core.metaprog.Trees
 import scala.annotation.nowarn
+import zio.direct.core.util.Messages
+import zio.direct.core.util.WithUnsupported
 
 trait MacroBase {
   val c: Context
@@ -127,6 +129,8 @@ trait MacroBase {
 }
 
 trait WithIR extends MacroBase {
+  self: WithUnsupported =>
+
   import c.universe._
 
   sealed trait IR
@@ -232,11 +236,9 @@ trait WithIR extends MacroBase {
 
       override def apply(ir: IR.Monadic): IR.Monadic =
         ir match {
-          case IR.Map(monad, valSymbol, pure)          => IR.FlatMap(apply(monad), valSymbol, monadify(pure))
+          case IR.Map(monad, valSymbol, pure) => IR.FlatMap(apply(monad), valSymbol, monadify(pure))
           case v @ IR.Parallel(origExpr, monads, body) =>
-            // Unsupported.Error.withTree(origExpr, Messages.UnsafeNotAllowedParallel, InfoBehavior.Info)
-            // TODO Add back, need formatter for Unsupported
-            ???
+            Unsupported.Error.withTree(origExpr, Messages.UnsafeNotAllowedParallel, InfoBehavior.Info)
           case b @ IR.Block(head, tail) =>
             // basically the only thing that can be inside of a block head-statement is a ValDef
             // or a Term of pure-code. Since val-defs are handled separately as an IR.ValDef basically

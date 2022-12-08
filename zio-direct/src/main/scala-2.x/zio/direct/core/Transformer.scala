@@ -77,7 +77,7 @@ abstract class Transformer
     import org.scalamacros.resetallattrs._
     val output = c.resetAllAttrs(outputRaw)
     if (instructions.info.showReconstructed)
-      Announce.section("Reconstituted Code", Format(showRaw(output)), sourceFile)
+      Announce.section("Reconstituted Code", Format(Format.Term(output)), sourceFile)
     output
   }
 
@@ -85,8 +85,6 @@ abstract class Transformer
     val (ir, sourceFile) = deconstructAndAnncounce(value, instructions)
 
     val computedType = ComputeType.fromIR(ir)(instructions).toZioType
-    // println(s"========= Computed Type: ${show(computedType)}")
-
     val ownerPositionOpt = findEncosingOwner
     val wrappedIR = wrapUnsafes(ir, sourceFile, instructions)
     val output = reconstructTree(wrappedIR, sourceFile, instructions)

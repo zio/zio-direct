@@ -129,29 +129,14 @@ private[zio] object CleanCodePrinter {
     val tracerType = c.weakTypeOf[zio.internal.stacktracer.Tracer.instance.Type]
     val tagType = c.weakTypeOf[zio.Tag[_]]
 
-    def loop(expr: c.Tree): c.Tree = {
-      println(s"========== Printing: ${expr}")
-      if (expr == null) {
-        q"null"
-      } else expr match {
-        case Apply(t, args) if args.exists(t => t.tpe <:< tracerType || t.tpe <:< tagType) =>
-          loop(t)
-        case Apply(t, args) =>
-          Apply(loop(t), args.map(t => loop(t)))
-        case Select(t, name) =>
-          Select(loop(t), name)
-        case TypeApply(t, args) =>
-          TypeApply(loop(t), args.map(t => loop(t)))
-        case Block(stats, expr) =>
-          Block(stats.map(t => loop(t)), loop(expr))
-        case Typed(t1, t2) =>
-          Typed(loop(t1), loop(t2))
-        case _ =>
-          println(s"========== Printing: ${expr}")
-          expr
-      }
-    }
-
-    loop(expr)
+    new Transformer {
+      override def transform(tree: Tree) =
+        tree match {
+          case Apply(t, args) if args.exists(t => (t.tpe <:< tracerType || t.tpe <:< tagType)) =>
+            transform(t)
+          case other =>
+            super.transform(tree)
+        }
+    }.transform(expr)
   }
 }

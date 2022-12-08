@@ -47,7 +47,7 @@ trait WithFormat extends MacroBase {
     }
 
     private def printShortCode(code: Tree, mode: Mode): String = {
-      val printedCode = zio.direct.core.util.CleanCodePrinter.show(c)(code)
+      val printedCode = zio.direct.core.util.CleanCodePrinter.show(c)(c.typecheck(code))
       // mode match {
       //   case Mode.DottyColor(details) =>
       //     SourceCode.showTree(code)(details, SyntaxHighlight.ANSI, false)
