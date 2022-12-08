@@ -12,7 +12,6 @@ import zio.direct.core.util.Announce
 import zio.direct.core.norm.WithComputeType
 import zio.direct.core.norm.WithReconstructTree
 import zio.direct.core.metaprog.InfoBehavior
-import scala.reflect.internal.util.RangePosition
 
 abstract class Transformer
     extends WithIR
@@ -53,23 +52,8 @@ abstract class Transformer
   }
 
   private def findEncosingOwner = {
-    // object Util {
-    //   def isSynthetic(s: Symbol) = isSyntheticName(getName(s))
-    //   def isSyntheticName(name: String) = {
-    //     name == "<init>" || (name.startsWith("<local ") && name.endsWith(">")) || name == "$anonfun"
-    //   }
-    //   def getName(s: Symbol) = s.name.decodedName.toString.trim
-    // }
-
-    // val enclosingOwner = c.internal.enclosingOwner
-    // println(s"============= Enclosing Owner: ${show(enclosingOwner.pos)}")
-
     val owner = c.internal.enclosingOwner
-    // while (Util.isSynthetic(owner)) owner = owner.owner
-
-    // val o = owner.pos.removeElement(c.enclosingPosition.pos)
-
-    println(s"============= Enclosing Owner: ${showRaw(owner.pos)} is Range: ${owner.pos.focus.start} -> ${owner.pos.focus.end}")
+    // println(s"============= Enclosing Owner: ${showRaw(owner.pos)} is Range: ${owner.pos.focus.start} -> ${owner.pos.focus.end}")
 
     if (owner != NoSymbol)
       Some(owner.pos.focus)
