@@ -470,7 +470,6 @@ object SourceCode {
         this += "}"
 
       case applyNode @ Apply(fn, argsRaw) =>
-        val firstParams = Extractors.firstParamList(applyNode)
         val args =
           if (showDetails.showImplicitClauses)
             ImplicitArgs.fromFunctionMarked(applyNode).map(_._1)

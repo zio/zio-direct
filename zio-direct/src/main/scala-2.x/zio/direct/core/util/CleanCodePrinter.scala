@@ -129,11 +129,87 @@ private[zio] object CleanCodePrinter {
     val tracerType = c.weakTypeOf[zio.internal.stacktracer.Tracer.instance.Type]
     val tagType = c.weakTypeOf[zio.Tag[_]]
 
+    def findParamLists(applyNode: Apply) = {
+      val fn = applyNode.fun
+      for {
+        methodSym <- if (fn.symbol.isMethod) Some(fn.symbol) else None
+        firstParamList <- Some(fn.symbol.asMethod.paramLists) // .find(params => params.headOption.exists(_.isParameter))
+      } yield firstParamList
+    }
+
+    object ImplicitArgs {
+      sealed trait ArgType {
+        def isImplicit: Boolean
+      }
+      object ArgType {
+        case object Implicit extends ArgType { val isImplicit = true }
+        case object Regular extends ArgType { val isImplicit = false }
+      }
+
+      // Get the arguments from the unapply if they are not implicit. Since implicit-ness is typically defined
+      // on the clause (I think in some rare cases the term itself can be implicit) so if the function-clause
+      // of the Apply is implicit then this list will be empty. Otherwise, it will consist of all the arugments.
+
+      def fromFunctionMarked(applyNode: Apply, paramList: Option[List[Symbol]]) = {
+        val firstParams = paramList
+        val argsRaw = applyNode.args
+        // println(s"============ Args List: ${argsRaw}")
+
+        // Sometimes we don't know directly from the Term whether it is implicit or not, try to get the
+        // arg val-defs and see if they are marked implicit there. All of this needs to be added to the code
+        // formatting logic.
+        val argsJoined: List[(Tree, Option[Symbol])] =
+          firstParams match {
+            case Some(parmValDefs) if (parmValDefs.length == argsRaw.length) =>
+              argsRaw.zip(parmValDefs.map(Some(_)))
+            case _ =>
+              argsRaw.map(arg => (arg, None))
+          }
+
+        argsJoined.map {
+          case (arg, argValDef) => {
+            val isValDefImplicit = argValDef.exists(vd => vd.isImplicit)
+            (arg, { if (isValDefImplicit) ArgType.Implicit else ArgType.Regular })
+          }
+        }
+      }
+    }
+
+    implicit class ListExt[T](list: List[T]) {
+      def lastOption = if (list.length > 0) Some(list.last) else None
+    }
+
     new Transformer {
+      private def transformNestedApply(applyNode: Apply, paramListsOpt: Option[List[List[Symbol]]]): Tree = {
+        val lastParamListOpt = paramListsOpt.map(_.lastOption).flatten
+        val newArgs = ImplicitArgs.fromFunctionMarked(applyNode, lastParamListOpt).filter { case (_, stat) => !stat.isImplicit }.map(_._1)
+        val newFun =
+          applyNode.fun match {
+            case innerApply @ Apply(_, _) =>
+              transformNestedApply(innerApply, paramListsOpt.map(_.dropRight(1)))
+            case other =>
+              transform(other)
+          }
+
+        if (newArgs.length > 0)
+          Apply(newFun, newArgs.map(arg => transform(arg)))
+        else
+          newFun
+      }
+
       override def transform(tree: Tree) =
         tree match {
-          case Apply(t, args) if args.exists(t => (t.tpe <:< tracerType || t.tpe <:< tagType)) =>
-            transform(t)
+          case applyNode @ Apply(t, args) /*if args.exists(t => (t.tpe <:< tracerType || t.tpe <:< tagType))*/ =>
+            val paramLists = findParamLists(applyNode)
+            transformNestedApply(applyNode, paramLists)
+
+          // val args =
+          //   if (false) // showDetails.showImplicitClauses
+          //     ImplicitArgs.fromFunctionMarked(applyNode).map(_._1)
+          //   else
+          //     ImplicitArgs.fromFunctionMarked(applyNode).filter { case (_, stat) => !stat.isImplicit }.map(_._1)
+
+          // Apply(transform(t), args)
           case other =>
             super.transform(tree)
         }
