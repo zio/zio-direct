@@ -11,6 +11,7 @@ import zio.direct.core.metaprog.Instructions
 import zio.direct.core.util.Announce
 import zio.direct.core.norm.WithComputeType
 import zio.direct.core.norm.WithReconstructTree
+import zio.direct.core.metaprog.InfoBehavior
 
 abstract class Transformer
     extends WithIR
@@ -32,39 +33,67 @@ abstract class Transformer
     s"$path:${pos.line}:${pos.column}"
   }
 
-  def apply[T](value: Tree): Tree = {
-    val transformedRaw = Decompose(Instructions.default)(value)
+  private def deconstructAndAnncounce(value: Tree, instructions: Instructions) = {
+    // // Do a top-level transform to check that there are no invalid constructs
+    // if (instructions.verify != Verify.None)
+    //   Allowed.validateBlocksIn(value.asExpr, instructions)
 
-    def fileShow = Announce.FileShow.FullPath(posFileStr(value.pos))
+    // // Do the main transformation
+    val transformedRaw = Decompose(instructions)(value)
+    def sourceFile = Announce.FileShow.FullPath(posFileStr(value.pos))
 
-    Announce.section("Deconstructed Instructions", PrintIR(transformedRaw), fileShow)
+    if (instructions.info != InfoBehavior.Silent)
+      Announce.section("TRANSFORMING AT", "", sourceFile, Announce.Volume.Loud)
 
-    val computedZioType = ComputeType.fromIR(transformedRaw)(Instructions.default)
-    val computedType = computedZioType.toZioType
-    // println(s"========= Computed Type: ${show(computedType)}")
+    if (instructions.info.showDeconstructed)
+      Announce.section("Deconstructed Instructions", PrintIR(transformedRaw), sourceFile)
 
-    val ownerPositionOpt = {
-      val enclosingOwner = c.internal.enclosingOwner
-      // println(s"============= Enclosing Owner: ${show(enclosingOwner)}")
-      if (enclosingOwner != NoSymbol)
-        Some(enclosingOwner.pos)
+    (transformedRaw, sourceFile)
+  }
+
+  private def findEncosingOwner = {
+    val enclosingOwner = c.internal.enclosingOwner
+    // println(s"============= Enclosing Owner: ${show(enclosingOwner)}")
+    if (enclosingOwner != NoSymbol)
+      Some(enclosingOwner.pos)
+    else
+      None
+  }
+
+  private def wrapUnsafes(ir: IR, sourceFile: Announce.FileShow.FullPath, instructions: Instructions) = {
+    val wrappedIR = WrapUnsafes(ir)
+    val transformedSameAsRaw = wrappedIR != ir
+    if (instructions.info.showDeconstructed) {
+      if (transformedSameAsRaw)
+        Announce.section("Monadified Tries", PrintIR(wrappedIR), sourceFile)
       else
-        None
+        Announce.section("Monadified Tries (No Changes)", "", sourceFile)
     }
+    wrappedIR
+  }
 
-    // TODO transform tree to take care of cases with unsafe { stmt }
-    val transformed = transformedRaw
-
-    val outputRaw = ReconstructTree(Instructions.default).fromIR(transformed)
-
+  private def reconstructTree(ir: IR, sourceFile: Announce.FileShow.FullPath, instructions: Instructions) = {
+    val outputRaw = ReconstructTree(instructions).fromIR(ir)
     import org.scalamacros.resetallattrs._
     val output = c.resetAllAttrs(outputRaw)
+    if (instructions.info.showReconstructed)
+      Announce.section("Reconstituted Code", Format(showRaw(output)), sourceFile)
+    output
+  }
 
-    Announce.section("Reconstituted Code", Format(showRaw(output)), fileShow)
+  def apply[T](value: Tree, instructions: Instructions): Tree = {
+    val (ir, sourceFile) = deconstructAndAnncounce(value, instructions)
+
+    val computedType = ComputeType.fromIR(ir)(instructions).toZioType
+    // println(s"========= Computed Type: ${show(computedType)}")
+
+    val ownerPositionOpt = findEncosingOwner
+    val wrappedIR = wrapUnsafes(ir, sourceFile, instructions)
+    val output = reconstructTree(wrappedIR, sourceFile, instructions)
 
     def showEnclosingType() = {
       val computedTypeMsg = s"Computed Type: ${Format.Type(computedType)}"
-      if (true /*instructions.info.showComputedType*/ )
+      if (instructions.info.showComputedType)
         ownerPositionOpt match {
           case Some(pos) =>
             report.info(computedTypeMsg, pos)
@@ -74,7 +103,6 @@ abstract class Transformer
     }
 
     showEnclosingType()
-
     c.typecheck(q"$output.asInstanceOf[$computedType]")
   }
 }

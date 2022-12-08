@@ -30,7 +30,7 @@ trait WithDecomposeTree extends MacroBase {
       def unapply(expr: Tree): Option[IR.Monadic] = {
         val ret = expr match {
           // TODO Make sure it's dsl.unsafe i.e. the pattern is right
-          case q"$pack.dsl.Internal.deferred($effect)" =>
+          case q"$pack.Internal.deferred($effect)" =>
             Some(IR.Monad(effect, IR.Monad.Source.PrevDefer))
 
           case block @ Block(parts, lastPart) =>
@@ -214,13 +214,13 @@ trait WithDecomposeTree extends MacroBase {
       def unapply(term: Tree) =
         term match {
           // TODO Make sure it's dsl.unsafe i.e. the pattern is right
-          case q"$pack.dsl.unsafe($value)" =>
+          case q"$pack.unsafe($value)" =>
             Some(IR.Unsafe(DecomposeTree.orPure(value)))
 
           // If we have a special user-defined "ignore" block, just splice the code. The `ignore` construct
           // is should ONLY be used to test code.
           // TODO Make sure it's dsl.unsafe i.e. the pattern is right
-          case q"$pack.dsl.ignore($code)" =>
+          case q"$pack.ignore($code)" =>
             if (isZIO(code.tpe))
               Some(IR.Monad(code, IR.Monad.Source.IgnoreCall))
             else

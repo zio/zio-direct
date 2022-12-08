@@ -9,6 +9,14 @@ package object direct {
 
   object defer {
     def apply[T](value: T): ZIO[_, _, _] = macro core.Macro.defer[T]
+    def info[T](value: T): ZIO[_, _, _] = macro core.Macro.info[T]
+    def verbose[T](value: T): ZIO[_, _, _] = macro core.Macro.verbose[T]
+    def verboseTree[T](value: T): ZIO[_, _, _] = macro core.Macro.verboseTree[T]
+
+    def apply[T](use: Use)(value: T): ZIO[_, _, _] = macro core.Macro.deferWithUse[T]
+    def info[T](use: Use)(value: T): ZIO[_, _, _] = macro core.Macro.infoWithUse[T]
+    def verbose[T](use: Use)(value: T): ZIO[_, _, _] = macro core.Macro.verboseWithUse[T]
+    def verboseTree[T](use: Use)(value: T): ZIO[_, _, _] = macro core.Macro.verboseTreeWithUse[T]
   }
 
   implicit class ZioRunOps[R, E, A](value: ZIO[R, E, A]) {
