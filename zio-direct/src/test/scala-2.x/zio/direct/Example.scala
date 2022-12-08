@@ -7,7 +7,7 @@ import zio.direct.examples.RunNow
 object Example {
   def main(args: Array[String]): Unit = { // // // //
     def out = {
-      defer.info {
+      defer {
         val a = ZIO.succeed(123).run
         val b = ZIO.succeed(789).run
         a + b

@@ -13,6 +13,8 @@ class Macro(val c: Context) extends Transformer with WithUseParser {
     apply(value, Instructions.default)
   def info[T](value: Tree): Tree =
     apply(value, Instructions.default.copy(info = InfoBehavior.Info))
+  def tpe[T](value: Tree): Tree =
+    apply(value, Instructions.default.copy(info = InfoBehavior.Tpe))
   def verbose[T](value: Tree): Tree =
     apply(value, Instructions.default.copy(info = InfoBehavior.Verbose))
   def verboseTree[T](value: Tree): Tree =
@@ -24,6 +26,10 @@ class Macro(val c: Context) extends Transformer with WithUseParser {
   }
   def infoWithUse[T](use: Tree)(value: Tree): Tree = {
     val instr = RefineInstructions.fromUseTree(use, Instructions.default.copy(info = InfoBehavior.Info))
+    apply(value, instr)
+  }
+  def tpeWithUse[T](use: Tree)(value: Tree): Tree = {
+    val instr = RefineInstructions.fromUseTree(use, Instructions.default.copy(info = InfoBehavior.Tpe))
     apply(value, instr)
   }
   def verboseWithUse[T](use: Tree)(value: Tree): Tree = {

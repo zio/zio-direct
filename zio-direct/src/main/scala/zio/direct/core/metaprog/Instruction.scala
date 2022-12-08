@@ -27,6 +27,13 @@ object InfoBehavior {
     val showReconstructed = false
     val showReconstructedTree = false
   }
+  case object Tpe extends InfoBehavior {
+    val showComputedType = true
+    val showComputedTypeDetail = false
+    val showDeconstructed = false
+    val showReconstructed = false
+    val showReconstructedTree = false
+  }
   case object Info extends InfoBehavior {
     val showComputedType = true
     val showComputedTypeDetail = false
