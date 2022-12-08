@@ -5,6 +5,7 @@ package zio.direct.core.metaprog
 import scala.reflect.macros.whitebox.Context
 import zio.ZIO
 import zio.direct.core.metaprog.Trees
+import scala.annotation.nowarn
 
 trait MacroBase {
   val c: Context
@@ -25,6 +26,7 @@ trait MacroBase {
     def warning(msg: String, tree: Tree) = c.warning(tree.pos, msg)
 
     def info(msg: String) = c.info(c.enclosingPosition, msg, true)
+    def info(msg: String, pos: Position) = c.info(pos, msg, true)
     def info(msg: String, tree: Tree) = c.info(tree.pos, msg, true)
   }
 
@@ -239,6 +241,7 @@ trait WithIR extends MacroBase {
   }
 
   trait StatelessTransformer {
+    @nowarn
     def apply(ir: IR): IR =
       ir match {
         case v: IR.Pure => apply(v)

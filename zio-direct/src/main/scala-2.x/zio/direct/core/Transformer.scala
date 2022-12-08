@@ -10,6 +10,7 @@ import zio.direct.core.util.WithUnsupported
 import zio.direct.core.metaprog.Instructions
 import zio.direct.core.util.Announce
 import zio.direct.core.norm.WithComputeType
+import scala.annotation.nowarn
 
 abstract class Transformer
     extends WithIR
@@ -37,10 +38,32 @@ abstract class Transformer
 
     Announce.section("Deconstructed Instructions", PrintIR(transformedRaw), fileShow)
 
-    val computedType = ComputeType.fromIR(transformedRaw)(Instructions.default)
-    val computed = computedType.toZioType
-    println(s"========= Computed Type: ${show(computed)}")
+    val computedZioType = ComputeType.fromIR(transformedRaw)(Instructions.default)
+    val computedType = computedZioType.toZioType
+    // println(s"========= Computed Type: ${show(computedType)}")
 
-    q"???"
+    val ownerPositionOpt = {
+      val enclosingOwner = c.internal.enclosingOwner
+      println(s"============= Enclosing Owner: ${show(enclosingOwner)}")
+      if (enclosingOwner != NoSymbol)
+        Some(enclosingOwner.pos)
+      else
+        None
+    }
+
+    @nowarn
+    def showEnclosingType() = {
+      val computedTypeMsg = s"Computed Type: ${Format.Type(computedType)}"
+      if (true /*instructions.info.showComputedType*/ )
+        ownerPositionOpt match {
+          case Some(pos) =>
+            report.info(computedTypeMsg, pos)
+          case None =>
+            report.info(computedTypeMsg)
+        }
+    }
+    // showEnclosingType()
+
+    c.typecheck(q"???.asInstanceOf[$computedType]")
   }
 }

@@ -2,6 +2,7 @@ package zio.direct.core.metaprog
 
 import zio.direct.core.util.WithFormat
 import pprint._
+import scala.annotation.nowarn
 
 trait WithPrintIR extends MacroBase {
   self: WithIR with WithZioType with WithFormat =>
@@ -25,6 +26,7 @@ trait WithPrintIR extends MacroBase {
 
     override def additionalHandlers: PartialFunction[Any, Tree] = PartialFunction.empty
 
+    @nowarn
     override def treeify(x: Any): Tree =
       x match {
         // Use short-code printer to print actual Scala tree nodes

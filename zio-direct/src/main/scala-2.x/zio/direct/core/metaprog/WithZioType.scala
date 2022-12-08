@@ -49,13 +49,14 @@ trait WithZioType extends MacroBase {
     }
 
     private def decomposeZioTypeFromTree(zioTree: Tree) =
-      zioTree.tpe match {
+      zioTree.tpe.dealias match {
         case TypeRef(_, cls, List(r, e, a)) if (cls.isClass && cls.asClass.fullName == "zio.ZIO") =>
           (r, e, a)
         case tq"ZIO[$r, $e, $a]" =>
           (r.tpe, e.tpe, a.tpe)
         case _ =>
-          report.errorAndAbort(s"The type of ${Format.Tree(zioTree)} is not a ZIO. It is: ${Format.Type(zioTree.tpe)} (raw: ${showRaw(zioTree.tpe)})")
+          // TODO show raw on a ghigh level of verbosity
+          report.errorAndAbort(s"The type of ${Format.Tree(zioTree)} is not a ZIO. It is: ${Format.Type(zioTree.tpe)}")
       }
 
     // In this case the error is considered to be Nothing (since we are not wrapping error handling for pure values)
@@ -120,7 +121,7 @@ trait WithZioType extends MacroBase {
     @nowarn
     private def or(a: Type, b: Type)(implicit typeUnion: TypeUnion): Type = {
       val out = computeCommonBaseClass(a.widen, b.widen)
-      println(s"============= Common BaseClass of ${show(a)} and ${show(b)} -is- ${show(out)}")
+      // println(s"============= Common BaseClass of ${show(a)} and ${show(b)} -is- ${show(out)}")
       out
     }
 
@@ -140,7 +141,7 @@ trait WithZioType extends MacroBase {
           // if it's not efficient we can do it once the whole type has been computed
           c.typecheck(tq"$a with $b", c.TYPEmode).tpe
         }
-      println(s"============= Reduced ${show(a)} and ${show(b)} -to- ${show(out)}")
+      // println(s"============= Reduced ${show(a)} and ${show(b)} -to- ${show(out)}")
       out
     }
   }
