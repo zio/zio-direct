@@ -8,7 +8,7 @@ trait WithZioType extends MacroBase {
 
   import c.universe._
 
-  protected case class ZioType private (r: Type, e: Type, a: Type) {
+  protected case class ZioType private (val r: Type, val e: Type, val a: Type) {
     def show = s"ZioType(${Format.Type(r)}, ${Format.Type(e)}, ${Format.Type(a)})"
 
     def transformR(f: Type => Type) =

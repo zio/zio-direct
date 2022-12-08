@@ -73,11 +73,24 @@ trait MacroBase {
       }
   }
 
+  object RunCallWithType {
+    def unapply(tree: Tree): Option[(Tree, Type)] =
+      tree match {
+        case q"$pack.run[$r, $e, ${a: Type}]($v)"           => Some((v, a))
+        case q"$pack.ZioRunOps[$r, $e, ${a: Type}]($v).run" => Some((v, a))
+        case _                                              => None
+      }
+  }
+
   object ZioApply {
     def succeed(code: Tree) =
       q"zio.ZIO.succeed($code)"
     def attempt(code: Tree) =
       q"zio.ZIO.attempt($code)"
+    def True =
+      q"zio.ZIO.succeed(true)"
+    def False =
+      q"zio.ZIO.succeed(false)"
   }
 
   object ValDefStatement {
@@ -182,7 +195,7 @@ trait WithIR extends MacroBase {
     case class And(left: IR, right: IR) extends Monadic
     case class Or(left: IR, right: IR) extends Monadic
 
-    case class Parallel(originalExpr: c.universe.Tree, monads: List[(IR.Monadic, TermName)], body: IR.Leaf) extends Monadic
+    case class Parallel(originalExpr: c.universe.Tree, monads: List[(IR.Monadic, TermName, Type)], body: IR.Leaf) extends Monadic
   }
 
   object WrapUnsafes extends StatelessTransformer {
@@ -282,7 +295,7 @@ trait WithIR extends MacroBase {
         case IR.And(left, right)          => IR.And(apply(left), apply(right))
         case IR.Or(left, right)           => IR.Or(apply(left), apply(right))
         case IR.Parallel(orig, monads, body) =>
-          val newMonads = monads.map { case (monad, sym) => (apply(monad), sym) }
+          val newMonads = monads.map { case (monad, sym, tpe) => (apply(monad), sym, tpe) }
           val newBody = apply(body)
           IR.Parallel(orig, newMonads, newBody)
         case IR.Unsafe(body) =>

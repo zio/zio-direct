@@ -90,23 +90,24 @@ trait WithDecomposeTree extends MacroBase {
           // To something that looks like:
           // { ZIO.collect(foo, bar).map(iter => val a = iter.next(); val b = iter.next(); (a, b)) }
           case term => // @ Allowed.ParallelExpression()
-            val unlifts = mutable.ArrayBuffer.empty[(IR.Monadic, TermName)]
+            val unlifts = mutable.ArrayBuffer.empty[(IR.Monadic, TermName, Type)]
             val newTree: Tree =
               Trees.Transform(c)(term) {
-                case originalTerm @ RunCall(task) =>
+                // since we can extract the value from the type-arg of the expression, use that
+                case originalTerm @ RunCallWithType(task, tpe) =>
                   val sym = freshName("runVal")
-                  unlifts += ((IR.Monad(task), sym))
+                  unlifts += ((IR.Monad(task), sym, tpe))
                   q"$sym"
 
                 case originalTerm @ DecomposeSingleTermConstruct(monad) =>
                   val sym = freshName("singleVal")
-                  unlifts += ((monad, sym))
+                  unlifts += ((monad, sym, c.typecheck(originalTerm).tpe))
                   q"$sym"
 
                 case originalTerm @ DecomposeBlock(monad) =>
                   // Take the type from the originalTerm (i.e. the result of the run call since it could be a block etc...)
                   val sym = freshName("blockVal")
-                  unlifts += ((monad, sym))
+                  unlifts += ((monad, sym, c.typecheck(originalTerm).tpe))
                   q"$sym"
               }
             Some(IR.Parallel(term, unlifts.toList, IR.Pure(newTree)))

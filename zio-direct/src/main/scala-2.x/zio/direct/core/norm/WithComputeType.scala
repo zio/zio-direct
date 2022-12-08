@@ -119,7 +119,7 @@ trait WithComputeType extends MacroBase {
 
         case ir @ IR.Parallel(_, monadics, body) =>
           val monadTypes =
-            monadics.map { case (monadic, _) => apply(monadic) }
+            monadics.map { case (monadic, _, _) => apply(monadic) }
 
           // a IR.Leaf will either be a IR.Pure or an IR.Monad, both already have cases here
           val bodyType = apply(body)
