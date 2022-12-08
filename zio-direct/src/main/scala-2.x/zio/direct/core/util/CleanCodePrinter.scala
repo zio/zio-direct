@@ -13,9 +13,9 @@ private[zio] object CleanCodePrinter {
   private val magicArg = "x$$$$123"
   private val tagRegex = "\\(Tag.+?$".r.regex
 
-  def show(c: blackbox.Context)(expr: c.Tree): String = {
+  def show(c: blackbox.Context)(expr: c.Tree, showDetails: ShowDetails): String = {
     import c.universe._
-    postProcess(showCode(clean(c)(cleanImplicits(c)(expr), CleanContext())))
+    postProcess(showCode(clean(c)(cleanImplicits(c)(expr, showDetails), CleanContext())))
     // showCode(expr)
   }
 
@@ -124,10 +124,8 @@ private[zio] object CleanCodePrinter {
   /**
    * Remove all implicit parameter lists from the Tree
    */
-  private def cleanImplicits(c: blackbox.Context)(expr: c.Tree): c.Tree = {
+  private def cleanImplicits(c: blackbox.Context)(expr: c.Tree, showDetails: ShowDetails): c.Tree = {
     import c.universe._
-    val tracerType = c.weakTypeOf[zio.internal.stacktracer.Tracer.instance.Type]
-    val tagType = c.weakTypeOf[zio.Tag[_]]
 
     def findParamLists(applyNode: Apply) = {
       val fn = applyNode.fun
@@ -175,14 +173,19 @@ private[zio] object CleanCodePrinter {
       }
     }
 
-    implicit class ListExt[T](list: List[T]) {
-      def lastOption = if (list.length > 0) Some(list.last) else None
-    }
-
     new Transformer {
       private def transformNestedApply(applyNode: Apply, paramListsOpt: Option[List[List[Symbol]]]): Tree = {
         val lastParamListOpt = paramListsOpt.map(_.lastOption).flatten
-        val newArgs = ImplicitArgs.fromFunctionMarked(applyNode, lastParamListOpt).filter { case (_, stat) => !stat.isImplicit }.map(_._1)
+        val newArgs =
+          if (!showDetails.showImplicitClauses)
+            ImplicitArgs.fromFunctionMarked(applyNode, lastParamListOpt).filter { case (_, stat) => !stat.isImplicit }.map(_._1)
+          else {
+            // Recurse on the arguments and do not filter, in the future we might want to add additional logic that overrides
+            // this for certain things (e.g. hide ZIO traces even if showImplicitClausese is true) so delving into the arguments
+            // even in the showImplicitClauses mode.
+            ImplicitArgs.fromFunctionMarked(applyNode, lastParamListOpt).map(_._1)
+          }
+
         val newFun =
           applyNode.fun match {
             case innerApply @ Apply(_, _) =>
@@ -202,12 +205,6 @@ private[zio] object CleanCodePrinter {
           case applyNode @ Apply(t, args) /*if args.exists(t => (t.tpe <:< tracerType || t.tpe <:< tagType))*/ =>
             val paramLists = findParamLists(applyNode)
             transformNestedApply(applyNode, paramLists)
-
-          // val args =
-          //   if (false) // showDetails.showImplicitClauses
-          //     ImplicitArgs.fromFunctionMarked(applyNode).map(_._1)
-          //   else
-          //     ImplicitArgs.fromFunctionMarked(applyNode).filter { case (_, stat) => !stat.isImplicit }.map(_._1)
 
           // Apply(transform(t), args)
           case other =>

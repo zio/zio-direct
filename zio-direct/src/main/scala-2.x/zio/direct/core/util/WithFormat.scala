@@ -3,13 +3,14 @@ package zio.direct.core.util
 // import io.getquill.util.ScalafmtFormat
 // import org.scalafmt.config.ScalafmtRunner
 import zio.direct.core.metaprog.MacroBase
-import zio.internal.macros.CleanCodePrinter
 
 trait WithFormat extends MacroBase {
   import c.universe._
 
   object Format {
-    sealed trait Mode
+    sealed trait Mode {
+      def showDetails: ShowDetails
+    }
     object Mode {
       case class ScalaFmt(showDetails: ShowDetails = ShowDetails.Compact) extends Mode
       case class None(showDetails: ShowDetails = ShowDetails.Compact) extends Mode
@@ -47,7 +48,7 @@ trait WithFormat extends MacroBase {
     }
 
     private def printShortCode(code: Tree, mode: Mode): String = {
-      val printedCode = zio.direct.core.util.CleanCodePrinter.show(c)(c.typecheck(code))
+      val printedCode = zio.direct.core.util.CleanCodePrinter.show(c)(c.typecheck(code), mode.showDetails)
       // mode match {
       //   case Mode.DottyColor(details) =>
       //     SourceCode.showTree(code)(details, SyntaxHighlight.ANSI, false)
