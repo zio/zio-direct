@@ -8,7 +8,7 @@ object Example {
   def main(args: Array[String]): Unit = { // // // //
     def out = {
       defer {
-        val a = ZIO.succeed(123).run
+        val a = ZIO.succeed(123).run + 1
         val b = ZIO.succeed(789).run
         a + b
       }

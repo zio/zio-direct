@@ -201,6 +201,9 @@ trait WithReconstructTree extends MacroBase {
 
           // This should be something like:
           // if (whileCond) flatMap(whileBody, _, whileFunc()) else ZIO.succeed(())
+
+          // val dd = DefDef(Modifiers(), )
+
           val newMethodBody =
             IR.If(
               whileCond,
@@ -208,19 +211,25 @@ trait WithReconstructTree extends MacroBase {
                 IR.Monad(apply(whileBody)),
                 None,
                 IR.Monad(q"$whileFunc()")
+                // IR.Monad(q"???.asInstanceOf[$methOutputTpe]")
               ),
               IR.Pure(q"()")
             )
           val newMethodBodyExpr = apply(newMethodBody)
-          val newMethod = q"{ def $whileFunc(): $methOutputTpe = $newMethodBodyExpr }"
+          val newMethod = q"def $whileFunc(): $methOutputTpe = $newMethodBodyExpr"
           apply(IR.Block(newMethod, IR.Monad(q"$whileFunc()")))
+
+        // val newBody = Transform(q"if($cond) { $body; ${c.prefix}.unlift[scala.Unit]($name()) }")
+        // Some(q"{ def $name(): $unitMonadType = $newBody; $name() }")
 
         case tryIR @ IR.Try(tryBlock, cases, _, finallyBlock) =>
           ComputeType.fromIR(tryBlock)
           val newCaseDefs = reconstructCaseDefs(cases)
           val tryTerm = apply(tryBlock)
+          val (r, e, a) = ComputeType.fromIR(tryIR).asTypeTuple
 
-          // val resultType = ComputeType.fromIR(tryIR).toZioType
+          // println(s"=============== Zio Type is: ${show(ComputeType.fromIR(tryIR).toZioType)}")
+
           // val methodType = MethodType(List("tryLamParam"))(_ => List(TypeRepr.of[er]), _ => TypeRepr.of[ZIO[r, e, b]])
           // val methSym = Symbol.newMethod(Symbol.spliceOwner, "tryLam", methodType)
           // val method = DefDef(methSym, sm => Some(Match(sm(0)(0).asInstanceOf[Term], newCaseDefs.map(_.changeOwner(methSym)))))
@@ -228,7 +237,7 @@ trait WithReconstructTree extends MacroBase {
           // val closure = Closure(Ref(methSym), Some(pfTree))
           // val functionBlock = '{ ${ Block(List(method), closure).asExpr }.asInstanceOf[PartialFunction[er, ZIO[r, e, b]]] }
 
-          val monadExpr = q"{ $tryTerm.catchSome { case ..$newCaseDefs } }"
+          val monadExpr = q"{ $tryTerm.asInstanceOf[ZIO[$r, $e, $a]].catchSome { case ..$newCaseDefs } }"
 
           finallyBlock match {
             case Some(ir) =>
@@ -378,9 +387,9 @@ trait WithReconstructTree extends MacroBase {
           val collect =
             instructions.collect match {
               case Collect.Sequence =>
-                q"zio.ZIO.collectAll(Chunk.from($termsExpr))"
+                q"zio.ZIO.collectAll(zio.Chunk.from($termsExpr))"
               case Collect.Parallel =>
-                q"ZIO.collectAllPar(Chunk.from($termsExpr))"
+                q"ZIO.collectAllPar(zio.Chunk.from($termsExpr))"
             }
 
           val list = freshName("list")

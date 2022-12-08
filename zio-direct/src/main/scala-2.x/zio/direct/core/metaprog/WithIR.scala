@@ -78,9 +78,9 @@ trait MacroBase {
   object RunCallWithType {
     def unapply(tree: Tree): Option[(Tree, Type)] =
       tree match {
-        case q"$pack.run[$r, $e, ${a: Type}]($v)"           => Some((v, a))
-        case q"$pack.ZioRunOps[$r, $e, ${a: Type}]($v).run" => Some((v, a))
-        case _                                              => None
+        case q"$pack.run[..$tpes]($v)"           => Some((v, tpes.last.tpe))
+        case q"$pack.ZioRunOps[..$tpes]($v).run" => Some((v, tpes.last.tpe))
+        case _                                   => None
       }
   }
 

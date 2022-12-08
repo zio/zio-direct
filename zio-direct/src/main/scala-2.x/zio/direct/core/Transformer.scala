@@ -102,6 +102,6 @@ abstract class Transformer
     }
 
     showEnclosingType()
-    c.typecheck(q"$output.asInstanceOf[$computedType]")
+    c.typecheck(q"zio.direct.Internal.deferred($output).asInstanceOf[$computedType]")
   }
 }

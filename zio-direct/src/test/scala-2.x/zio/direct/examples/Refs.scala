@@ -45,13 +45,13 @@ object Refs {
 
   object IterationUsingDefer {
     val out =
-    defer.info {
-      val i: Ref[Int] = Ref.make(10).run
-      while (i.get.run > 0) {
-        println(s"Currently: ${i.get.run}")
-        i.update(i => i - 1).run
+      defer.verbose {
+        val i: Ref[Int] = Ref.make(10).run
+        while (i.get.run > 0) {
+          println(s"Currently: ${i.get.run}")
+          i.update(i => i - 1).run
+        }
       }
-    }
   }
 
   object IterationUsingWhile {

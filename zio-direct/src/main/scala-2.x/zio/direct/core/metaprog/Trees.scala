@@ -22,8 +22,12 @@ private[direct] object Trees {
   def traverse(c: Context)(tree: c.Tree)(pf: PartialFunction[c.Tree, Unit]) = {
     import c.universe._
     new Traverser {
-      override def traverse(tree: Tree) =
-        pf.lift(tree).getOrElse(super.traverse(tree))
+      override def traverse(tree: Tree) = {
+        // if the partial function matches it will run whatever logic is therin. Otherwise we don't care about the value
+        pf.applyOrElse((tree: Tree), (tree: Tree) => ())
+        // In either case, proceed further up the tree
+        super.traverse(tree)
+      }
     }.traverse(tree)
   }
   def exists(c: Context)(tree: c.Tree)(pf: PartialFunction[c.Tree, Boolean]) = {

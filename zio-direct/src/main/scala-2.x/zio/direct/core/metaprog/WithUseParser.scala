@@ -19,6 +19,10 @@ trait WithUseParser extends MacroBase {
           val updated = fromUseTree(use, initial)
           updated.copy(verify = Verify.Lenient)
 
+        case q"$use.withNoCheck" =>
+          val updated = fromUseTree(use, initial)
+          updated.copy(verify = Verify.None)
+
         case q"$use.withParallelEval" =>
           val updated = fromUseTree(use, initial)
           updated.copy(collect = Collect.Parallel)

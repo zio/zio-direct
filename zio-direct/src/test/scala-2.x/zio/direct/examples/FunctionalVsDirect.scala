@@ -1,11 +1,7 @@
 package zio.direct.examples
 
-import java.io.BufferedReader
-import java.io.FileReader
 import zio.ZIO
 import zio.direct._
-import zio.direct.Dsl.Params
-import zio.direct.core.metaprog.Verify
 
 object CorrectnessExamples {
 
@@ -38,7 +34,7 @@ object CorrectnessExamples {
       // original imperative code
       {
 
-        defer(Params(Verify.None)) {
+        defer(Use.withNoCheck) {
           val db = Database.open
           while (db.hasNextRow()) {
             if (!db.lockNextRow()) doSomethingWith(db.nextRow()) else waitT()
@@ -68,10 +64,10 @@ object CorrectnessExamples {
         defer {
           val db = Database.open.run
           while (db.hasNextRow().run) {
-            if (db.lockNextRow().run)
+            if (db.lockNextRow().run) {
               val nextRow = db.nextRow().run
               doSomethingWith(nextRow)
-            else
+            } else
               waitT()
           }
         }
@@ -81,7 +77,7 @@ object CorrectnessExamples {
         Database.open.flatMap { db =>
           def whileFun(): ZIO[Any, Throwable, Unit] =
             db.hasNextRow().flatMap { hasNextRow =>
-              if (hasNextRow)(
+              if (hasNextRow) (
                 db.lockNextRow().flatMap { lockNextRow =>
                   if (!lockNextRow)
                     db.nextRow().map(nextRow => doSomethingWith(nextRow))

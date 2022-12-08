@@ -108,7 +108,9 @@ trait WithZioType extends MacroBase {
         val isectRaw =
           isectRawOpt match {
             case Some(value) =>
-              a.baseType(value)
+              val out = a.baseType(value)
+              // println(s"======== Reduce ${show(a)} and ${show(b)} - to - ${show(out)}")
+              out
             case None =>
               report.warning(s"The types ${a.widen} and ${b.widen} did not have any base-classes in common. Cannot compute a common error type between the two.")
               typeOf[Any]

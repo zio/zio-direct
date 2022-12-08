@@ -1,14 +1,8 @@
 package zio.direct.examples
 
-import java.io.BufferedReader
-import java.io.FileReader
 import zio.ZIO
 import zio.direct._
-import zio.direct.Dsl.Params
-import zio.direct.core.metaprog.Verify
 import java.io.IOException
-import zio.Ref
-import zio.direct.core.util.debug.PrintMac
 
 object IntroductionExamples {
 
@@ -316,7 +310,7 @@ object IntroductionExamples {
       makeFile().flatMap { file =>
         val buffer = new StringBuffer()
 
-        defer(Params(Verify.Lenient)) {
+        defer(Use.withLenientCheck) {
           val line0 = file.readLine().run
           var line: String = line0
           while (line != null) {
@@ -336,13 +330,13 @@ object IntroductionExamples {
         file.readLine().flatMap { line0 =>
           var line = line0
           def whileFun(): ZIO[Any, Throwable, Unit] =
-            if (line != null)
+            if (line != null) {
               buffer.append(line)
               file.readLine().flatMap { lineN =>
                 line = lineN
                 whileFun()
               }
-            else
+            } else
               ZIO.unit
           whileFun()
         }
@@ -354,7 +348,7 @@ object IntroductionExamples {
 
       makeFile().flatMap { file =>
         val buffer = new StringBuffer()
-        defer(Params(Verify.Lenient)) {
+        defer(Use.withLenientCheck) {
           val line0 = file.readLine().run
           var line: String = line0
           while (line != null) {
