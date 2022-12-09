@@ -35,7 +35,7 @@ object TailoredForZio {
 
   {
     val out =
-      defer {
+      defer.verbose {
         val custUrl: String = ZIO.service[CustomerConfig].run.url
         val distUrl: String = ZIO.service[DistributorConfig].run.url
         (

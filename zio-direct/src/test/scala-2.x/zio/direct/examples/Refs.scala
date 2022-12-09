@@ -45,7 +45,7 @@ object Refs {
 
   object IterationUsingDefer {
     val out =
-      defer.verbose {
+      defer {
         val i: Ref[Int] = Ref.make(10).run
         while (i.get.run > 0) {
           println(s"Currently: ${i.get.run}")

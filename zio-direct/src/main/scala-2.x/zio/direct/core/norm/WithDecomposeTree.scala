@@ -51,7 +51,7 @@ trait WithDecomposeTree extends MacroBase {
           case q"while($cond) $body" =>
             Some(IR.While(DecomposeTree.orPure(cond), DecomposeTree.orPure(body)))
 
-          case q"$list.foreach(($alias) => $expr)" if isA[Iterable[Any]](list) =>
+          case q"$list.foreach[$u](($alias) => $expr)" if isA[Iterable[Any]](list) =>
             val monad = DecomposeTree.orPure(list)
             val body = DecomposeTree.orPure(expr)
             Some(IR.Foreach(monad, list.tpe, alias.name, body))

@@ -91,6 +91,7 @@ trait WithReconstructTree extends MacroBase {
           val bodyMonad = apply(body)
           // val elementType = elementSymbol.termRef.widenTermRefByName.asType
           val listVar = freshName("list")
+          println(s"------------ Sequence ---var: ${show(elementSymbol)} ---body: ${show(bodyMonad)}")
           instructions.collect match {
             case Sequence =>
               q"""
