@@ -30,15 +30,14 @@ object TailoredForZio {
   // low commitment API
 
   {
-    val out =
-      defer.verbose {
-        val custUrl: String = ZIO.service[CustomerConfig].run.url
-        val distUrl: String = ZIO.service[DistributorConfig].run.url
-        (
-          parseCustomer(httpGetCustomer(custUrl).run),
-          parseDistrubutor(httpGetDistributor(distUrl).run)
-        )
-      }
+    defer {
+      val custUrl: String = ZIO.service[CustomerConfig].run.url
+      val distUrl: String = ZIO.service[DistributorConfig].run.url
+      (
+        parseCustomer(httpGetCustomer(custUrl).run),
+        parseDistrubutor(httpGetDistributor(distUrl).run)
+      )
+    }
   }
   {
     ZIO.service[CustomerConfig].flatMap { cc =>
