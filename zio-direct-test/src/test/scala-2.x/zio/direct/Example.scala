@@ -5,7 +5,6 @@ import zio.ZIO
 import zio.direct.examples.RunNow
 //import zio.direct.{run => runBlock}
 import zio.direct.{run => runBlock}
-import zio.direct.core.util.debug.PrintMac
 
 object Example {
   def main(args: Array[String]): Unit = { // // // //
