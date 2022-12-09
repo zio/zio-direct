@@ -9,10 +9,8 @@ import zio.direct.{run => runBlock}
 object Example {
   def main(args: Array[String]): Unit = { // // // //
     def out = {
-      val i = defer(123)
       defer {
-        val a = runBlock(i) + 1
-        val b = runBlock(ZIO.succeed(789))
+        val (a, b) = (runBlock(defer(1)), runBlock(defer(2)))
         a + b
       }
     }
