@@ -75,9 +75,22 @@ abstract class Transformer
 
   private def reconstructTree(ir: IR, sourceFile: Announce.FileShow.FullPath, instructions: Instructions) = {
     val outputRaw = ReconstructTree(instructions).fromIR(ir)
-    // import org.scalamacros.resetallattrs._
-    // val output = c.untypecheck(outputRaw) // c.resetAllAttrs(outputRaw)
-    val output = c.typecheck(outputRaw) // c.resetAllAttrs(outputRaw)
+
+    // Force a manual "untyping" of all the identifiers because we change "val x = monad.run" into monad.flatMap(x => ...)
+    // and Scala2 doesn't like the "role" of the identifier being changed for reasons that I do not fully understand.
+    // Basically the idntifier being used in further in here: "val x = monad.run; <...>" is somehow not the same
+    // as the new "x =>" that we create in "monad.flatMap(x =>" so that information needs to be reset in some kind of way.
+    // Also importing 'org.scalamacros.resetallattrs' does the trick but that causes other problems e.g.
+    // if there are any "import foo.{bar => baz}" in files using the defer macro, it will not remember that baz is an alias for bar.
+    // This was encountered in unit tests where `zio.direct.{run => runBlock}` was done to avoid conflicts in the test
+    // code because the ZIO base spec ZIOSpecDefault also has a `run` method in the class which would always take
+    // precedence over the `run` method in the ZIO package.
+    val outputRetyped =
+      zio.direct.core.metaprog.Trees.Transform(c)(outputRaw) {
+        case id: Ident => q"${id.name.toTermName}"
+      }
+
+    val output = c.untypecheck(outputRetyped) // c.resetAllAttrs(outputRaw)
     if (instructions.info.showReconstructed)
       Announce.section("Reconstituted Code", Format(Format.Term(output)), sourceFile)
     output

@@ -66,19 +66,45 @@ trait MacroBase {
     (termName, useSymbol(ref))
   }
 
-  object RunCall {
-    def unapply(tree: Tree): Option[Tree] =
+  object ApplyRunMethod {
+    def unapply(tree: Tree) =
       tree match {
-        case q"$pack.run[..$tpes]($v)"           => Some(v)
+        case Apply(TypeApply(runTree, tpes), List(v)) if (runTree.symbol.isMethod && runTree.symbol.fullName == "zio.direct.run") =>
+          Some((v, tpes.map(_.tpe)))
+        case _ =>
+          None
+      }
+  }
+
+  object RunCall {
+    def unapply(tree: Tree): Option[Tree] = {
+      tree match {
+        // case q"$pack.run[..$tpes]($v)"                                                                                            => Some(v)
+        // case Apply(TypeApply(runTree, tpes), List(v)) if (runTree.symbol.isMethod && runTree.symbol.fullName == "zio.direct.run") =>
+        //   // println(s"full inside term: ${showRaw(runTree)} - equals: ${runTree.equalsStructure(q"zio.direct.run")}")
+        //   runTree match {
+        //     case q"$pack.${termName: TermName}" =>
+        //       println(s"================= MATCH: ${runTree.symbol.isMethod} and ${runTree.symbol.fullName}")
+        //     case _ =>
+        //       println("================= NO MATCH")
+        //   }
+        //   Some(v)
+
+        // Can't just do "case q"$pack.run[..$tpes]($v)" because if the `run` method is renamed it won't find that
+        case ApplyRunMethod(v, _) => Some(v)
+        // Technically if the extension method .run is renamed somehow this won't match. I'm not sure if doing that
+        // is actually possible so will keep the quasiquoted solution for now.
         case q"$pack.ZioRunOps[..$tpes]($v).run" => Some(v)
         case _                                   => None
       }
+    }
   }
 
   object RunCallWithType {
     def unapply(tree: Tree): Option[(Tree, Type)] =
       tree match {
-        case q"$pack.run[..$tpes]($v)"           => Some((v, tpes.last.tpe))
+        // case q"$pack.run[..$tpes]($v)"           => Some((v, tpes.last.tpe))
+        case ApplyRunMethod(v, tpes)             => Some((v, tpes.last))
         case q"$pack.ZioRunOps[..$tpes]($v).run" => Some((v, tpes.last.tpe))
         case _                                   => None
       }

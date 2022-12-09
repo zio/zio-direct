@@ -4,17 +4,17 @@ import zio.ZIO
 //import zio.direct.core.util.debug.PrintMac
 import zio.direct.examples.RunNow
 //import zio.direct.{run => runBlock}
-import ZIO.{succeed => suc}
+import zio.direct.{run => runBlock}
+import zio.direct.core.util.debug.PrintMac
 
 object Example {
   def main(args: Array[String]): Unit = { // // // //
     def out = {
       val i = defer(123)
-      defer.verbose {
-        val v = run(ZIO.succeed(123)) + 1
-        // val b = run(ZIO.succeed(789))
-        // a + b
-        v
+      defer {
+        val a = runBlock(i) + 1
+        val b = runBlock(ZIO.succeed(789))
+        a + b
       }
     }
 
