@@ -69,6 +69,37 @@ lazy val `zio-direct` = project
     )
   )
 
+lazy val `zio-direct-test` = project
+  .in(file("zio-direct-test"))
+  .settings(stdSettings("zio-direct-test"))
+  .settings(crossProjectSettings)
+  .settings(dottySettings)
+  .settings(buildInfoSettings("zio.direct"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(
+    Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat,
+    scalaVersion := Scala213,
+    resolvers ++= Seq(
+      Resolver.mavenLocal,
+      "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots",
+      "Sonatype OSS Releases" at "https://oss.sonatype.org/content/repositories/releases"
+    ),
+    testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework"),
+    libraryDependencies ++= Seq(
+      zio,
+      `quill-util`,
+      pprint,
+      sourcecode,
+      fansi,
+      `scala-java8-compat`,
+      `scala-collection-compat`,
+      `zio-test`,
+      `zio-test-sbt`,
+      "org.scalamacros" %% "resetallattrs" % "1.0.0"
+    )
+  )
+  .dependsOn(`zio-direct` % "compile->compile;test->test")
+
 lazy val docs = project
   .in(file("zio-direct-docs"))
   .settings(stdSettings("zio-direct"))
