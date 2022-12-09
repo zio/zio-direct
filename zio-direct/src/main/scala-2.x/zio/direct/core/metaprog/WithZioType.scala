@@ -36,15 +36,35 @@ trait WithZioType extends MacroBase {
       ZioType(r, e, tpe)
   }
   protected object ZioType {
-    def fromMulti(rs: List[Type], es: List[Type], as: List[Type])(implicit typeUnion: TypeUnion) =
+    def fromPrimaryWithOthers(primary: ZioType)(others: ZioType*)(implicit typeUnion: TypeUnion) = {
+      fromMultiTypes(
+        primary.r +: others.map(_.r).toList,
+        primary.e +: others.map(_.e).toList,
+        List(primary.a)
+      )(typeUnion)
+    }
+
+    def fromUnitWithOthers(others: ZioType*)(implicit typeUnion: TypeUnion) = {
+      fromMultiTypes(
+        others.map(_.r).toList,
+        others.map(_.e).toList,
+        List(typeOf[Unit])
+      )(typeUnion)
+    }
+
+    def fromMultiTypes(rs: List[Type], es: List[Type], as: List[Type])(implicit typeUnion: TypeUnion) =
       ZioType(
         ZioType.andN(rs),
         ZioType.orN(es)(typeUnion),
         ZioType.orN(as)
       )
 
-    def fromZIO(value: Tree) = {
-      val (r, e, a) = decomposeZioTypeFromTree(value)
+    // Isolate all inputs to ZioType to fromPure and fromZIO that way we can
+    // be sure that everything coming into ZioType is typechecked and we don't have
+    // any surprises with `.tpe`s being null.
+    def fromZIO(treeRaw: Tree) = {
+      val tree = c.typecheck(treeRaw)
+      val (r, e, a) = decomposeZioTypeFromTree(tree)
       ZioType(r, e, a)
     }
 
@@ -59,10 +79,11 @@ trait WithZioType extends MacroBase {
           report.errorAndAbort(s"The type of ${Format.Tree(zioTree)} is not a ZIO. It is: ${Format.Type(zioTree.tpe)}")
       }
 
-    // In this case the error is considered to be Nothing (since we are not wrapping error handling for pure values)
-    // and the environment type is considered to be Any (it will be removed via later `ZioType.union` calls if it can be specialized).
-    // Only the output type is used
-    def fromPure(tree: Tree) = {
+    // Isolate all inputs to ZioType to fromPure and fromZIO that way we can
+    // be sure that everything coming into ZioType is typechecked and we don't have
+    // any surprises with `.tpe`s being null.
+    def fromPure(treeRaw: Tree) = {
+      val tree = c.typecheck(treeRaw)
       // In some cases the type of the tree was not computed so it will come out as null. In that case we are forced to do a typecheck
       val tpe =
         if (tree.tpe != null) tree.tpe

@@ -75,8 +75,9 @@ abstract class Transformer
 
   private def reconstructTree(ir: IR, sourceFile: Announce.FileShow.FullPath, instructions: Instructions) = {
     val outputRaw = ReconstructTree(instructions).fromIR(ir)
-    import org.scalamacros.resetallattrs._
-    val output = c.resetAllAttrs(outputRaw)
+    // import org.scalamacros.resetallattrs._
+    // val output = c.untypecheck(outputRaw) // c.resetAllAttrs(outputRaw)
+    val output = c.typecheck(outputRaw) // c.resetAllAttrs(outputRaw)
     if (instructions.info.showReconstructed)
       Announce.section("Reconstituted Code", Format(Format.Term(output)), sourceFile)
     output

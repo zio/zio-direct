@@ -27,6 +27,9 @@ trait WithComputeType extends MacroBase {
         case ir @ IR.Pure(code) =>
           ZioType.fromPure(code)
 
+        case ir @ IR.Monad(code) =>
+          ZioType.fromZIO(code)
+
         case ir @ IR.FlatMap(monad, valSymbol, body) =>
           apply(monad).flatMappedWith(apply(body))
 
@@ -45,9 +48,6 @@ trait WithComputeType extends MacroBase {
 
         case ir @ IR.Map(monad, valSymbol, IR.Pure(term)) =>
           apply(monad).mappedWith(term)
-
-        case ir @ IR.Monad(code) =>
-          ZioType.fromZIO(code)
 
         case ir @ IR.Block(head, tail) =>
           apply(tail)
@@ -111,11 +111,7 @@ trait WithComputeType extends MacroBase {
         case ir @ IR.Foreach(monad, _, _, body) =>
           val monadType = apply(monad)
           val bodyType = apply(body)
-          ZioType.fromMulti(
-            List(bodyType.r, monadType.r),
-            List(bodyType.e, monadType.e),
-            List(typeOf[Unit])
-          )(instructions.typeUnion)
+          ZioType.fromUnitWithOthers(bodyType, monadType)(instructions.typeUnion)
 
         case ir @ IR.Parallel(_, monadics, body) =>
           val monadTypes =
@@ -132,11 +128,7 @@ trait WithComputeType extends MacroBase {
           //   R-Parameter: ConfA & ConfB, E-Parameter: ExA | ExB, A-Parameter: (A, B)
           // In some cases the above function will be a flatMap and wrapped into a ZIO.attempt or ZIO.succeed
           //   so we include the body-type error and environment just in case
-          ZioType.fromMulti(
-            bodyType.r +: monadTypes.map(_.r),
-            bodyType.e +: monadTypes.map(_.e),
-            List(bodyType.a)
-          )(instructions.typeUnion)
+          ZioType.fromPrimaryWithOthers(bodyType)(monadTypes: _*)(instructions.typeUnion)
       }
   }
 }
