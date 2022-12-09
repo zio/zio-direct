@@ -64,18 +64,9 @@ trait WithDecomposeTree extends MacroBase {
             val (aTerm, bTerm) = DecomposeTree.orPure2(a, b)
             Some(IR.Or(aTerm, bTerm))
 
+          // TODO For the Scala3 version check if this is all that we need to do
           case Match(m @ DecomposeTree(monad), caseDefs) =>
-            val (oldSymbol, body) =
-              useNewSymbolIn(m.tpe)(sym => Match(sym, caseDefs))
-
-            val out =
-              body match {
-                case DecomposeTree(bodyMonad) =>
-                  IR.FlatMap(monad, oldSymbol, bodyMonad)
-                case bodyPure =>
-                  IR.Map(monad, oldSymbol, IR.Pure(bodyPure))
-              }
-            Some(out)
+            Some(IR.Match(monad, DecomposeCases(caseDefs)))
 
           case m @ Match(value, DecomposeCases(cases)) =>
             Some(IR.Match(IR.Pure(value), cases))

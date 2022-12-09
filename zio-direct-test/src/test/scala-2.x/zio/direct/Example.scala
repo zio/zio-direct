@@ -9,7 +9,7 @@ import zio.direct.{run => runBlock}
 object Example {
   def main(args: Array[String]): Unit = { // // // //
     def out = {
-      defer {
+      defer.verbose {
         val (a, b) = (runBlock(defer(1)), runBlock(defer(2)))
         a + b
       }
