@@ -2,38 +2,19 @@ package zio.direct.core.testing
 
 import scala.reflect.macros.whitebox.Context
 import scala.language.experimental.macros
-import org.scalamacros.resetallattrs._
-import zio.direct.core.metaprog.Trees
-import zio.direct.core.util.WithFormat
-import zio.direct.core.metaprog.WithIR
-import zio.direct.core.util.WithUnsupported
 import zio.test._
+import zio.ZIO
+import zio.direct.core.Transformer
+import zio.direct.core.metaprog.Instructions
 
 private[direct] trait TestSupport {
-  def runLiftTest[T](expected: T)(body: T): Unit = macro TestSupportMacro.runLiftTest[T]
+  def runLiftTest[T](expected: T)(body: T): ZIO[Any, Nothing, TestResult] = macro TestSupportMacro.runLiftTest[T]
   def isType[T](input: T): Boolean = macro TestSupportMacro.isType[T]
   // def assertIsType[T](input: T): Assert = macro TestSupportMacro.assertIsType[T]
 }
 
-private[direct] class TestSupportMacro(val c: Context) extends WithIR with WithFormat with WithUnsupported {
+private[direct] class TestSupportMacro(val c: Context) extends Transformer {
   import c.universe._
-
-  def showTree(t: Tree): Tree = {
-    c.warning(c.enclosingPosition, t.toString)
-    q"()"
-  }
-  def showRawTree(t: Tree): Tree = {
-    c.warning(c.enclosingPosition, showRaw(t))
-    q"()"
-  }
-
-  def forceLift(t: Tree): Tree =
-    c.resetAllAttrs {
-      Trees.Transform(c)(t) {
-        case q"$pack.unlift[$t]($v)" =>
-          q"${c.prefix}.get($v)"
-      }
-    }
 
   def sourceLocationTree: Tree = {
     // Symbol.spliceOwner.pos.map(p => (p.sourceFile.path, p.startLine)).getOrElse("", 0)
@@ -54,15 +35,12 @@ private[direct] class TestSupportMacro(val c: Context) extends WithIR with WithF
     }
   }
 
-  def runLiftTest[T](expected: Tree)(body: Tree): Tree =
-    c.resetAllAttrs {
-      val deferBody = q"zio.direct.defer($body)"
-      val sourceLocation = sourceLocationTree
-      // q"zio.test.UseSmartAssert.of(errors, None, None)(exists(containsString(errorStringContains)))($sourceLocation)"
-      q"""
-      $deferBody.flatMap { v =>
-        zio.test.UseSmartAssert.of(v, None, None)(Assertion.equalTo($expected))($sourceLocation)
-      }
-      """
+  def runLiftTest[T](expected: Tree)(body: Tree): Tree = {
+    val deferBody = apply(body, Instructions.default)
+    q"""
+    $deferBody.map { v =>
+      assert(v)(zio.test.Assertion.equalTo($expected))
     }
+    """
+  }
 }

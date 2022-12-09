@@ -30,7 +30,7 @@ trait WithZioType extends MacroBase {
       ZioType(ZioType.and(r, other.r), ZioType.or(e, other.e)(typeUnion), other.a)
 
     def mappedWith(other: Tree) =
-      ZioType(r, e, other.tpe)
+      ZioType(r, e, c.typecheck(other).tpe)
 
     def mappedWithType(tpe: Type) =
       ZioType(r, e, tpe)
@@ -49,11 +49,11 @@ trait WithZioType extends MacroBase {
     }
 
     private def decomposeZioTypeFromTree(zioTree: Tree) =
-      zioTree.tpe.dealias match {
+      zioTree.tpe.dealias.widen match {
         case TypeRef(_, cls, List(r, e, a)) if (cls.isClass && cls.asClass.fullName == "zio.ZIO") =>
           (r, e, a)
-        case tq"ZIO[$r, $e, $a]" =>
-          (r.tpe, e.tpe, a.tpe)
+        // case tq"ZIO[$r, $e, $a]" =>
+        //   (r.tpe, e.tpe, a.tpe)
         case _ =>
           // TODO show raw on a ghigh level of verbosity
           report.errorAndAbort(s"The type of ${Format.Tree(zioTree)} is not a ZIO. It is: ${Format.Type(zioTree.tpe)}")
@@ -70,8 +70,13 @@ trait WithZioType extends MacroBase {
       ZioType(typeOf[Any], typeOf[Nothing], tpe)
     }
 
-    def apply(r: Type, e: Type, a: Type) =
+    def apply(r: Type, e: Type, a: Type) = {
+      // Scala2 has a tendancy to think .tpe of something is null, throw more specific exceptions if that is encountered
+      if (r == null) throw new NullPointerException("R parameter is null")
+      if (e == null) throw new NullPointerException("E parameter is null")
+      if (a == null) throw new NullPointerException("A parameter is null")
       new ZioType(r.widen, e.widen, a.widen)
+    }
 
     def composeN(zioTypes: List[ZioType])(implicit typeUnion: TypeUnion): ZioType = {
       val (rs, es, as) = zioTypes.map(zt => (zt.r, zt.e, zt.a)).unzip3

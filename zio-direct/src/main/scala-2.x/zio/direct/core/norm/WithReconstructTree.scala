@@ -379,7 +379,7 @@ trait WithReconstructTree extends MacroBase {
             unlifts.map {
               case (monad, monadSymbol, tpe) => {
                 val monadExpr = apply(monad)
-                (monadExpr, monadSymbol, tpe)
+                (monadExpr, monadSymbol, tpe.widen)
               }
             }
           val (terms, names, tpes) = unliftTriples.unzip3
