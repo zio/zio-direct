@@ -37,7 +37,7 @@ trait WithDecomposeTree extends MacroBase {
             DecomposeBlock.unapply(block)
 
           case PureTree(tree) =>
-            println(s"============= Tree is pure: ${Format(Format.Tree(tree))}")
+            // println(s"============= Tree is pure: ${Format(Format.Tree(tree))}")
             None
 
           case DecomposeSingleTermConstruct(monad) => Some(monad)

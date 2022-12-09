@@ -91,7 +91,6 @@ trait WithReconstructTree extends MacroBase {
           val bodyMonad = apply(body)
           // val elementType = elementSymbol.termRef.widenTermRefByName.asType
           val listVar = freshName("list")
-          println(s"------------ Sequence ---var: ${show(elementSymbol)} ---body: ${show(bodyMonad)}")
           instructions.collect match {
             case Sequence =>
               q"""
@@ -407,6 +406,7 @@ trait WithReconstructTree extends MacroBase {
               case IR.Pure(newTree) =>
                 q"""
                   $collect.map(${toVal(list)} => {
+                    val $iterator = $list.iterator
                     ..$makeVariables
                     $newTree
                   })
@@ -414,6 +414,7 @@ trait WithReconstructTree extends MacroBase {
               case IR.Monad(newTree) =>
                 q"""
                   $collect.flatMap(${toVal(list)} => {
+                    val $iterator = $list.iterator
                     ..$makeVariables
                     $newTree
                   })
