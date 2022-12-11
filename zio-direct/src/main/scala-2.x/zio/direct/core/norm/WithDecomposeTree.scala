@@ -29,6 +29,10 @@ trait WithDecomposeTree extends MacroBase {
 
       def unapply(expr: Tree): Option[IR.Monadic] = {
         val ret = expr match {
+          // Not supporting do-while since it is deprecated in Scala 3
+          case doWhile @ q"do $expr while ($body)" =>
+            Unsupported.Error.withTree(doWhile, "Do-While loops are not supported by zio-direct")(instr)
+
           // TODO Make sure it's dsl.unsafe i.e. the pattern is right
           case q"$pack.Internal.deferred($effect)" =>
             Some(IR.Monad(effect, IR.Monad.Source.PrevDefer))

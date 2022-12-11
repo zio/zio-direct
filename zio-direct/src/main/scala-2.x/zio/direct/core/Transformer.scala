@@ -12,6 +12,8 @@ import zio.direct.core.util.Announce
 import zio.direct.core.norm.WithComputeType
 import zio.direct.core.norm.WithReconstructTree
 import zio.direct.core.metaprog.InfoBehavior
+import zio.direct.core.metaprog.WithAllowed
+import zio.direct.core.metaprog.Verify
 
 abstract class Transformer
     extends WithIR
@@ -24,7 +26,8 @@ abstract class Transformer
     with WithFormat
     with WithUnsupported
     with WithComputeType
-    with WithReconstructTree {
+    with WithReconstructTree
+    with WithAllowed {
 
   import c.universe._
 
@@ -53,8 +56,6 @@ abstract class Transformer
 
   private def findEncosingOwner = {
     val owner = c.internal.enclosingOwner
-    // println(s"============= Enclosing Owner: ${showRaw(owner.pos)} is Range: ${owner.pos.focus.start} -> ${owner.pos.focus.end}")
-
     if (owner != NoSymbol)
       Some(owner.pos.focus)
     else
@@ -93,16 +94,25 @@ abstract class Transformer
     val output = c.untypecheck(outputRetyped) // c.resetAllAttrs(outputRaw)
     if (instructions.info.showReconstructed)
       Announce.section("Reconstituted Code", Format(Format.Term(output)), sourceFile)
-    output
+
+    // Typecheck before returning since we will rely on the types later.
+    // TODO since we are typechecking here, maybe doing it in ZioType is not needed anymore, should look into that.
+    c.typecheck(output)
   }
 
   def apply[T](value: Tree, instructions: Instructions): Tree = {
+    // Do a top-level transform to check that there are no invalid constructs
+    if (instructions.verify != Verify.None)
+      Allowed.validateBlocksIn(value, instructions)
+
     val (ir, sourceFile) = deconstructAndAnncounce(value, instructions)
 
     val computedType = ComputeType.fromIR(ir)(instructions).toZioType
     val ownerPositionOpt = findEncosingOwner
     val wrappedIR = wrapUnsafes(ir, sourceFile, instructions)
     val output = reconstructTree(wrappedIR, sourceFile, instructions)
+
+    Allowed.finalValidtyCheck(output, instructions)
 
     def showEnclosingType() = {
       val computedTypeMsg = s"Computed Type: ${Format.Type(computedType)}"

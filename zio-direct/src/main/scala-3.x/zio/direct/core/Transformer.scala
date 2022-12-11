@@ -38,9 +38,10 @@ class Transformer(inputQuotes: Quotes)
   def apply[T: Type](valueRaw: Expr[T], instructions: Instructions): Expr[ZIO[?, ?, ?]] = {
     val value = valueRaw.asTerm.underlyingArgument
 
-    // // Do a top-level transform to check that there are no invalid constructs
+    // Do a top-level transform to check that there are no invalid constructs
     if (instructions.verify != Verify.None)
       Allowed.validateBlocksIn(value.asExpr, instructions)
+
     // // Do the main transformation
     val transformedRaw = Decompose(instructions)(value)
 

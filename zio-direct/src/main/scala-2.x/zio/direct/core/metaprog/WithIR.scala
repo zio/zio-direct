@@ -26,6 +26,7 @@ trait MacroBase {
 
     def warning(msg: String) = c.warning(c.enclosingPosition, msg)
     def warning(msg: String, tree: Tree) = c.warning(tree.pos, msg)
+    def warning(msg: String, pos: Position) = c.warning(pos, msg)
 
     def info(msg: String) = c.info(c.enclosingPosition, msg, true)
     def info(msg: String, pos: Position) = c.info(pos, msg, true)
