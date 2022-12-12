@@ -15,7 +15,7 @@ object Unsupported {
       def render = msg
     }
 
-    def runUnsupportedTree(using qctx: Quotes, instr: Instructions)(tree: quotes.reflect.Tree, additionalMsg: String = "", example: String = Messages.MoveRunOut) = {
+    def runUnsupportedTree(using qctx: Quotes, instr: Instructions)(tree: quotes.reflect.Tree, additionalMsg: String = "", example: String = Messages.MoveOutOfDefer) = {
       import qctx.reflect._
       val text =
         s"""|Detected an `run` call inside of an unsupported structure:

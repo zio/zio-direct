@@ -231,7 +231,7 @@ trait WithReconstructTree extends MacroBase {
           // need to cast to .asInstanceOf[zio.ZIO[$r, _, $a]] erasing the type _ since it could be
           // `Nothing` and then ZIO returns the following error:
           // "This error handling operation assumes your effect can fail. However, your effect has Nothing for the error type"
-          val monadExpr = q"{ $tryTerm.catchSome { case ..$newCaseDefs } }"
+          val monadExpr = q"{ $tryTerm.asInstanceOf[ZIO[$r, _, $a]].catchSome { case ..$newCaseDefs } }"
 
           // .asInstanceOf[zio.ZIO[$r, _, $a]]
 

@@ -9,16 +9,14 @@ import zio.direct.core.metaprog.Instructions
 import scala.reflect.macros.TypecheckException
 import scala.reflect.macros.ParseException
 import zio.direct.core.metaprog.Verify
+import zio.direct.testing.TestSupportRuntime
 
-private[direct] trait TestSupport {
+private[direct] trait TestSupport extends TestSupportRuntime {
   def runLiftTest[T](expected: T)(body: T): ZIO[Any, Nothing, TestResult] = macro TestSupportMacro.runLiftTest[T]
   def runLiftTestLenient[T](expected: T)(body: T): ZIO[Any, Nothing, TestResult] = macro TestSupportMacro.runLiftTestLenient[T]
   def runLiftFail[T](body: T): TestResult = macro TestSupportMacro.runLiftFail[T]
   def runLiftFailMsg[T](msg: String)(body: T): TestResult = macro TestSupportMacro.runLiftFailMsg[T]
   def runLiftFailLenientMsg[T](msg: String)(body: T): TestResult = macro TestSupportMacro.runLiftFailLenientMsg[T]
-
-  def isType[T](input: T): Boolean = macro TestSupportMacro.isType[T]
-  // def assertIsType[T](input: T): Assert = macro TestSupportMacro.assertIsType[T]
 }
 
 private[direct] class TestSupportMacro(val c: Context) extends Transformer {
@@ -30,17 +28,6 @@ private[direct] class TestSupportMacro(val c: Context) extends Transformer {
     val name = pos.source.path
     val line = pos.line
     q"SourceLocation($name, $line)"
-  }
-
-  def isType[T](input: Expr[T])(implicit tt: WeakTypeTag[T]): Expr[Boolean] = {
-    val expectedTpe = weakTypeOf[T]
-    val actualType = input.tree.tpe
-    if (expectedTpe.widen =:= actualType.widen) {
-      c.Expr[Boolean](q"true")
-    } else {
-      c.warning(c.enclosingPosition, s"Expected type to be: ${Format.Type(expectedTpe)} but got: ${Format.Type(actualType)}")
-      c.Expr[Boolean](q"false")
-    }
   }
 
   def runLiftTest[T](expected: Tree)(body: Tree): Tree = {

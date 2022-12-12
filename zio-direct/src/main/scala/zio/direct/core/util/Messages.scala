@@ -201,5 +201,33 @@ To this:
   }
 """.trimLeft
 
+val MoveOutOfDefer =
+"""
+Move the construct outside of the `defer` clause in order to use it.
+=========
+For example, change this:
+  defer {
+    class MyClass(val value: String)
+    run(ZIO.succeed(new MyClass("test").value))
+  }
+To this:
+  class MyClass(val value: String)
+  defer
+    run(ZIO.succeed(new MyClass("test").value))
+  }
+
+Another example, change this:
+  defer {
+    def getUrl(url: String) = run(httpGet(url))
+    service.lookup(getUrl(someStr))
+  }
+To this:
+  def getUrl(url: String) = httpGet(url)
+  defer {
+    val result = run(getUrl(someUrl))
+    service.lookup(result)
+  }
+""".trimLeft
+
 }
 // format: on
