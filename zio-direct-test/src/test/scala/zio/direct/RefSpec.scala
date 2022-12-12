@@ -1,15 +1,7 @@
 package zio.direct
 
-import zio.direct.{run => runBlock}
 import zio.test._
-import zio.test.Assertion._
-import zio.direct.core.util.debug.PrintMac
 import zio._
-import ZIO.{unsafe => _, _}
-import zio.direct.core.metaprog.Verify
-import zio.direct.Dsl.Params
-import zio.direct.Dsl.Internal._
-import zio.direct.core.util.Messages
 
 object RefSpec extends DeferRunSpec {
   val spec = suite("RefSpec") {

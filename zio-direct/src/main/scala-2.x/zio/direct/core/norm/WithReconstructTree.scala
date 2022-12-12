@@ -140,7 +140,7 @@ trait WithReconstructTree extends MacroBase {
           // so that they will go into the effect system instead of directly to the outside
           val blockExpr = Block(stmts, term) // .asExprOf[ZIO[?, ?, ?]]
           if (isTopLevel)
-            q"zio.ZIO.succeed($blockExpr).flatten"
+            q"${ZioApply.succeed(blockExpr)}.flatten"
           else
             blockExpr
 

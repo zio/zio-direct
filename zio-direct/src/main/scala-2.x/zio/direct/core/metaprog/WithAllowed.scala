@@ -212,6 +212,11 @@ trait WithAllowed extends MacroBase {
           case Typed(expr, tpt)       => Next.Proceed
           case Block(stats, expr)     => Next.Proceed
           case If(cond, thenp, elsep) => Next.Proceed
+          // Generally lambda-definitions are not allowed in `defer` blocks
+          // but sometimes the scala-compiler will generate them when for-loops are
+          // use e.g: `for (i <- List(1, 2, 3)) { ZIO.succeed(v += i).run }`
+          case v @ Function(_, _) if (v.symbol.isSynthetic) =>
+            Next.Proceed
           case EmptyTree              => Next.Proceed
           case NamedArg(_, _)         => Next.Proceed
           case Annotated(_, _)        => Next.Proceed

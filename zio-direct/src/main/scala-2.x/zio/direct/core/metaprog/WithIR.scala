@@ -135,10 +135,33 @@ trait MacroBase {
   }
 
   object ZioApply {
+
+    private def computeCodeInsertion(code: Tree) = {
+      // if code is an assignment e.g. `x = x + 1` and it is passed
+      // as a function into ZIO.succeed it will become ZIO.succeed(x = x + 1)
+      // at which point Scala2 macros will thing that x is a parameter of ZIO.succeed
+      // in this case we need to forcibly make that into a block. Same with
+      // situations where the statement is a non-term (things like e.g. `import._` would be PureTree, so they wouldn't match this condition)
+      // but I am not sure if these cases could actually occur.
+      // (NOTE That the above problem even occurs if you put the code snippets into a list and do `{...${List(code)}}` )
+      code match {
+        case _ if (!code.isTerm) =>
+          val codes = List(code)
+          q"{ ..$codes; () }"
+        case asi: Assign =>
+          val codes = List(code)
+          q"{ (); ..$codes }"
+        case other =>
+          other
+      }
+    }
+
     def succeed(code: Tree) =
-      q"zio.ZIO.succeed($code)"
+      q"""zio.ZIO.succeed(${computeCodeInsertion(code)})"""
+
     def attempt(code: Tree) =
-      q"zio.ZIO.attempt($code)"
+      q"zio.ZIO.attempt(${computeCodeInsertion(code)})"
+
     def True =
       q"zio.ZIO.succeed(true)"
     def False =
