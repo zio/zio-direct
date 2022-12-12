@@ -95,7 +95,7 @@ trait WithReconstructTree extends MacroBase {
             case Sequence =>
               q"""
                 $monadExpr.flatMap((${toVal(listVar)}) =>
-                  ZIO.foreach($listVar)(${toVal(elementSymbol)} =>
+                  zio.ZIO.foreach($listVar)(${toVal(elementSymbol)} =>
                     $bodyMonad
                   ).map(_ => ())
                 )
@@ -103,7 +103,7 @@ trait WithReconstructTree extends MacroBase {
             case Parallel =>
               q"""
                 $monadExpr.flatMap((${toVal(listVar)}) =>
-                  ZIO.foreachPar($listVar)(${toVal(elementSymbol)} =>
+                  zio.ZIO.foreachPar($listVar)(${toVal(elementSymbol)} =>
                     $bodyMonad
                   ).map(_ => ())
                 )
@@ -123,13 +123,13 @@ trait WithReconstructTree extends MacroBase {
           error match {
             case IR.Pure(value) =>
               val tpe = ComputeType.fromIR(error).a.widen
-              q"ZIO.fail[$tpe](${value})"
+              q"zio.ZIO.fail[$tpe](${value})"
 
             // TODO test the case where error is constructed via an run
             case m: IR.Monadic =>
               val monad = apply(m)
               val e = ComputeType.fromIR(error).e
-              q"$monad.flatMap(err => ZIO.fail[$e](err))"
+              q"$monad.flatMap(err => zio.ZIO.fail[$e](err))"
           }
 
         case block: IR.Block =>
@@ -140,7 +140,7 @@ trait WithReconstructTree extends MacroBase {
           // so that they will go into the effect system instead of directly to the outside
           val blockExpr = Block(stmts, term) // .asExprOf[ZIO[?, ?, ?]]
           if (isTopLevel)
-            q"ZIO.succeed($blockExpr).flatten"
+            q"zio.ZIO.succeed($blockExpr).flatten"
           else
             blockExpr
 
@@ -165,7 +165,7 @@ trait WithReconstructTree extends MacroBase {
             // case Pure/Pure is taken care by in the transformer on a higher-level via the PureTree case. Still, handle them just in case
             case (IR.Pure(a), IR.Pure(b)) =>
               // a and b are .asExprOf[Boolean]
-              q"ZIO.succeed($a && $b)"
+              q"zio.ZIO.succeed($a && $b)"
             case _ => report.errorAndAbort(s"Invalid boolean variable combination:\n${PrintIR(expr)}")
           }
 
@@ -182,7 +182,7 @@ trait WithReconstructTree extends MacroBase {
               """
             // case Pure/Pure is taken care by in the transformer on a higher-level via the PureTree case. Still, handle them just in case
             case (IR.Pure(a), IR.Pure(b)) =>
-              q"ZIO.succeed($a || $b)"
+              q"zio.ZIO.succeed($a || $b)"
             case _ => report.errorAndAbort(s"Invalid boolean variable combination:\n${PrintIR(expr)}")
           }
 
@@ -237,7 +237,7 @@ trait WithReconstructTree extends MacroBase {
           // val closure = Closure(Ref(methSym), Some(pfTree))
           // val functionBlock = '{ ${ Block(List(method), closure).asExpr }.asInstanceOf[PartialFunction[er, ZIO[r, e, b]]] }
 
-          val monadExpr = q"{ $tryTerm.asInstanceOf[ZIO[$r, $e, $a]].catchSome { case ..$newCaseDefs } }"
+          val monadExpr = q"{ $tryTerm.asInstanceOf[zio.ZIO[$r, $e, $a]].catchSome { case ..$newCaseDefs } }"
 
           finallyBlock match {
             case Some(ir) =>
@@ -389,7 +389,7 @@ trait WithReconstructTree extends MacroBase {
               case Collect.Sequence =>
                 q"zio.ZIO.collectAll(zio.Chunk.from($termsExpr))"
               case Collect.Parallel =>
-                q"ZIO.collectAllPar(zio.Chunk.from($termsExpr))"
+                q"zio.ZIO.collectAllPar(zio.Chunk.from($termsExpr))"
             }
 
           val list = freshName("list")

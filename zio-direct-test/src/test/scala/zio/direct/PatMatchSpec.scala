@@ -2,14 +2,12 @@ package zio.direct
 
 import zio.direct.{run => runBlock}
 import zio.test._
-import zio.direct.core.util.debug.PrintMac
-import zio._
 
 object PatMatchSpec extends DeferRunSpec {
 
   val spec = suite("PatMatchSpec")(
     suite("unlifted scrutinee")(
-      suite("without guards") {
+      suite("without guards")(
         test("pure cases") {
           runLiftTest(3) {
             runBlock(defer("b")) match {
@@ -17,8 +15,7 @@ object PatMatchSpec extends DeferRunSpec {
               case "b" => 3
             }
           }
-        }
-        +
+        },
         test("pure cases with val") {
           runLiftTest(3) {
             val v = runBlock(defer("b"))
@@ -27,8 +24,7 @@ object PatMatchSpec extends DeferRunSpec {
               case "b" => 3
             }
           }
-        }
-        +
+        },
         test("pure/impure cases") {
           runLiftTest(2) {
             runBlock(defer("a")) match {
@@ -36,8 +32,7 @@ object PatMatchSpec extends DeferRunSpec {
               case "b" => 3
             }
           }
-        }
-        +
+        },
         test("impure cases") {
           runLiftTest(3) {
             runBlock(defer("b")) match {
@@ -46,8 +41,8 @@ object PatMatchSpec extends DeferRunSpec {
             }
           }
         }
-      },
-      suite("with guards") {
+      ),
+      suite("with guards")(
         test("pure cases") {
           runLiftTest(3) {
             runBlock(defer("b")) match {
@@ -55,8 +50,7 @@ object PatMatchSpec extends DeferRunSpec {
               case "b"           => 3
             }
           }
-        }
-        +
+        },
         test("pure/impure cases") {
           runLiftTest(2) {
             runBlock(defer("a")) match {
@@ -64,8 +58,7 @@ object PatMatchSpec extends DeferRunSpec {
               case s if s == "b" => 3
             }
           }
-        }
-        +
+        },
         test("impure cases") {
           runLiftTest(2) {
             runBlock(defer("b")) match {
@@ -74,10 +67,10 @@ object PatMatchSpec extends DeferRunSpec {
             }
           }
         }
-      }
+      )
     ),
     suite("pure scrutinee")(
-      suite("without guards") {
+      suite("without guards")(
         test("pure cases") {
           runLiftTest(3) {
             ("b": String) match {
@@ -85,8 +78,7 @@ object PatMatchSpec extends DeferRunSpec {
               case "b" => 3
             }
           }
-        }
-        +
+        },
         test("pure/impure cases") {
           runLiftTest(2) {
             runBlock(defer("a")) match {
@@ -94,8 +86,7 @@ object PatMatchSpec extends DeferRunSpec {
               case "b" => 3
             }
           }
-        }
-        +
+        },
         test("impure cases") {
           runLiftTest(3) {
             ("b": String) match {
@@ -104,8 +95,8 @@ object PatMatchSpec extends DeferRunSpec {
             }
           }
         }
-      },
-      suite("with guards") {
+      ),
+      suite("with guards")(
         test("pure cases") {
           runLiftTest(3) {
             "b" match {
@@ -113,8 +104,7 @@ object PatMatchSpec extends DeferRunSpec {
               case "b"           => 3
             }
           }
-        }
-        +
+        },
         test("pure/impure cases") {
           runLiftTest(2) {
             runBlock(defer("a")) match {
@@ -122,8 +112,7 @@ object PatMatchSpec extends DeferRunSpec {
               case s if s == "b" => 3
             }
           }
-        }
-        +
+        },
         test("impure cases") {
           runLiftTest(2) {
             "b" match {
@@ -132,9 +121,9 @@ object PatMatchSpec extends DeferRunSpec {
             }
           }
         }
-      }
+      )
     ),
-    suite("misc") {
+    suite("misc")(
       test("val patmatch") {
         runLiftTest(1) {
           val Some(a) = runBlock(defer(Some(1)))
@@ -149,6 +138,6 @@ object PatMatchSpec extends DeferRunSpec {
         //     }
         //   }
       }
-    }
+    )
   )
 }

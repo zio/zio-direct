@@ -4,13 +4,16 @@ import zio.ZIO
 import zio.direct.examples.RunNow
 
 object Example {
-  def main(args: Array[String]): Unit = { // // // // // // // // //
+  def main(args: Array[String]): Unit = { // // // // //
 
     val out =
-      defer.tpe {
-        val one = ZIO.succeed(123)
-        ZIO.succeed(456)
-        one
+      defer(Use.withLenientCheck) {
+        def getInt(i: Int) = i
+        class A {
+          def a(i: Int) = getInt(i)
+        }
+        val foo = ZIO.succeed((new A).a(1)).run + 1
+        foo + 1
       }
 
     //

@@ -2,10 +2,11 @@ package zio.direct
 
 import zio.direct.{run => runBlock}
 import zio.test._
-import zio.direct.core.util.debug.PrintMac
 import zio.ZIO
 
 object DefSpec extends DeferRunSpec {
+  val errorMsgContains = "not allowed inside of defer blocks"
+
   def spec = suite("DefSpec")(
     suiteAll("lenient mode") {
       suiteAll("pure") {
@@ -81,8 +82,7 @@ object DefSpec extends DeferRunSpec {
         }
       }
     },
-    suite("unlifted") {
-      val errorMsgContains = "not allowed inside of defer blocks"
+    suite("unlifted")(
       test("def not allowed") {
         runLiftFailMsg(errorMsgContains) {
           """
@@ -90,8 +90,7 @@ object DefSpec extends DeferRunSpec {
           runBlock(defer(1)) + a
           """
         }
-      }
-      +
+      },
       test("nested class - pure - not allowed") {
         runLiftFailMsg(errorMsgContains) {
           """
@@ -101,8 +100,7 @@ object DefSpec extends DeferRunSpec {
           (new A).a(1) + 456
           """
         }
-      }
-      +
+      },
       test("no nested trait") {
         runLiftFail {
           """
@@ -112,8 +110,7 @@ object DefSpec extends DeferRunSpec {
           (new A {}).a(1) + 1
           """
         }
-      }
-      +
+      },
       test("nested class - pure but using defer - not allowed") {
         runLiftFailMsg(errorMsgContains) {
           """
@@ -125,6 +122,6 @@ object DefSpec extends DeferRunSpec {
           """
         }
       }
-    }
+    )
   )
 }

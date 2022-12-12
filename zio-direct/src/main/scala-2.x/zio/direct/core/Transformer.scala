@@ -86,9 +86,11 @@ abstract class Transformer
     // This was encountered in unit tests where `zio.direct.{run => runBlock}` was done to avoid conflicts in the test
     // code because the ZIO base spec ZIOSpecDefault also has a `run` method in the class which would always take
     // precedence over the `run` method in the ZIO package.
+    // Now we want to only reset identifiers that represent vals, not ones that represent defs, class-names etc...
+    // since resetting the latter can make the tree invalid.
     val outputRetyped =
       zio.direct.core.metaprog.Trees.Transform(c)(outputRaw) {
-        case id: Ident => q"${id.name.toTermName}"
+        case id: Ident if (id.symbol != NoSymbol && id.symbol.isTerm && id.symbol.asTerm.isVal) => q"${id.name.toTermName}"
       }
 
     val output = c.untypecheck(outputRetyped) // c.resetAllAttrs(outputRaw)
