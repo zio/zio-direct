@@ -41,10 +41,11 @@ trait MacroBase {
 
     def unapply(tree: Tree): Option[Tree] =
       Trees.exists(c)(tree) {
-        case RunCall(_)   => true
-        case Try(_, _, _) => true
-        case q"throw $e"  => true
-        case _            => false
+        case RunCall(_)    => true
+        case Try(_, _, _)  => true
+        case UnsafeCall(_) => true
+        case q"throw $e"   => true
+        case _             => false
       } match {
         case true  => None
         case false => Some(tree)
@@ -67,32 +68,50 @@ trait MacroBase {
     (termName, useSymbol(ref))
   }
 
-  object ApplyRunMethod {
+  class ApplyZioDirectMethod(methodName: String) {
+    private val fullMethodName = s"zio.direct.${methodName}"
     def unapply(tree: Tree) =
       tree match {
-        case Apply(TypeApply(runTree, tpes), List(v)) if (runTree.symbol.isMethod && runTree.symbol.fullName == "zio.direct.run") =>
+        case Apply(TypeApply(runTree, tpes), List(v)) if (runTree.symbol.isMethod && runTree.symbol.fullName == fullMethodName) =>
           Some((v, tpes.map(_.tpe)))
         case _ =>
           None
       }
   }
 
+  object DeferredCall {
+    private val applyDeferredMethod = new ApplyZioDirectMethod("Internal.deferred")
+    def unapply(tree: Tree): Option[Tree] =
+      tree match {
+        case applyDeferredMethod(v, _) => Some(v)
+        case _                         => None
+      }
+  }
+
+  object UnsafeCall {
+    private val applyUnsafeMethod = new ApplyZioDirectMethod("unsafe")
+    def unapply(tree: Tree): Option[Tree] =
+      tree match {
+        case applyUnsafeMethod(v, _) => Some(v)
+        case _                       => None
+      }
+  }
+
+  object IgnoreCall {
+    private val applyIgnoreMethod = new ApplyZioDirectMethod("ignore")
+    def unapply(tree: Tree): Option[Tree] =
+      tree match {
+        case applyIgnoreMethod(v, _) => Some(v)
+        case _                       => None
+      }
+  }
+
   object RunCall {
+    private val applyRunMethod = new ApplyZioDirectMethod("run")
     def unapply(tree: Tree): Option[Tree] = {
       tree match {
-        // case q"$pack.run[..$tpes]($v)"                                                                                            => Some(v)
-        // case Apply(TypeApply(runTree, tpes), List(v)) if (runTree.symbol.isMethod && runTree.symbol.fullName == "zio.direct.run") =>
-        //   // println(s"full inside term: ${showRaw(runTree)} - equals: ${runTree.equalsStructure(q"zio.direct.run")}")
-        //   runTree match {
-        //     case q"$pack.${termName: TermName}" =>
-        //       println(s"================= MATCH: ${runTree.symbol.isMethod} and ${runTree.symbol.fullName}")
-        //     case _ =>
-        //       println("================= NO MATCH")
-        //   }
-        //   Some(v)
-
         // Can't just do "case q"$pack.run[..$tpes]($v)" because if the `run` method is renamed it won't find that
-        case ApplyRunMethod(v, _) => Some(v)
+        case applyRunMethod(v, _) => Some(v)
         // Technically if the extension method .run is renamed somehow this won't match. I'm not sure if doing that
         // is actually possible so will keep the quasiquoted solution for now.
         case q"$pack.ZioRunOps[..$tpes]($v).run" => Some(v)
@@ -102,10 +121,10 @@ trait MacroBase {
   }
 
   object RunCallWithType {
+    private val applyRunMethod = new ApplyZioDirectMethod("run")
     def unapply(tree: Tree): Option[(Tree, Type)] =
       tree match {
-        // case q"$pack.run[..$tpes]($v)"           => Some((v, tpes.last.tpe))
-        case ApplyRunMethod(v, tpes)             => Some((v, tpes.last))
+        case applyRunMethod(v, tpes)             => Some((v, tpes.last))
         case q"$pack.ZioRunOps[..$tpes]($v).run" => Some((v, tpes.last.tpe))
         case _                                   => None
       }

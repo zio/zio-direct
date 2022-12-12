@@ -37,6 +37,9 @@ trait WithAllowed extends MacroBase {
           stmts.foreach(Unsupported.Warn.checkUnmooredZio(_))
         case tree @ RunCall(_) =>
           Unsupported.Error.withTree(tree, Messages.RunRemainingAfterTransformer)
+        // TODO Need to add an equivalent check to Scala3 version
+        case tree @ UnsafeCall(_) =>
+          Unsupported.Error.withTree(tree, Messages.UnsafeRemainingAfterTransformer)
       }
     }
 
@@ -108,10 +111,10 @@ trait WithAllowed extends MacroBase {
         expr match {
           // if we have transformed the tree before then we can skip validation of the contents
           // because the whole block is treated an an effective unit
-          case q"$pack.deferred[$r, $e, $a]($effect)" =>
+          case DeferredCall(_) =>
             Next.Exit
 
-          case q"$pack.ignore[$t]($code)" =>
+          case IgnoreCall(_) =>
             Next.Exit
 
           case CaseDef(pattern, cond, output) =>

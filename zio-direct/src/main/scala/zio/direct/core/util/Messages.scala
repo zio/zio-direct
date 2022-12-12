@@ -55,6 +55,14 @@ to examine the tree structure in order to understand what is wrong or submit a b
 at https://github.com/zio/zio-direct.
 """.trimLeft
 
+val UnsafeRemainingAfterTransformer =
+"""
+Invocations of `unsafe(...)` were detected even after all the transformations of zio-direct were completed.
+That means that zio-direct cannot successfully process the input you have passed into it. Try to use defer.verbose
+to examine the tree structure in order to understand what is wrong or submit a bug-report
+at https://github.com/zio/zio-direct.
+""".trimLeft
+
 val UnsafeNotAllowedParallel =
 """
 Statements that mix `run(...)` calls with other expressions in the same line are not allowed in

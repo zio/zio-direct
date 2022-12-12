@@ -1,12 +1,8 @@
 package zio.direct
 
-import zio.direct.{run => runBlock}
 import zio.test._
 import zio.test.Assertion._
-import zio.direct.core.util.debug.PrintMac
 import zio._
-import zio.direct.core.metaprog.Collect
-import zio.direct.core.metaprog.Verify
 
 object ErrorSpec extends DeferRunSpec {
 
@@ -72,7 +68,7 @@ object ErrorSpec extends DeferRunSpec {
       //       try {
       //         ZIO.succeed(222).run
       //       } catch {
-      //         case _ => 333
+      //         case _: Throwable => 333
       //       }
       //     }
       //   assertZIO(out.exit)(dies(isSubtype[FooError](anything))) andAssert
@@ -87,7 +83,7 @@ object ErrorSpec extends DeferRunSpec {
       //       try {
       //         ZIO.service[ConfigInt].map(_.value).run
       //       } catch {
-      //         case _ => 333
+      //         case _: Throwable => 333
       //       }
       //     }
       //   assertZIO(out.provide(ZLayer.succeed(ConfigInt(1))).exit)(dies(isSubtype[FooError](anything))) andAssert

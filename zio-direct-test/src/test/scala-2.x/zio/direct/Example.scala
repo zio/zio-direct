@@ -1,20 +1,21 @@
 package zio.direct
 
-import zio.ZIO
 import zio.direct.examples.RunNow
 
 object Example {
+  class FooError extends Exception("foo")
+  def throwFoo() = throw new FooError
+
   def main(args: Array[String]): Unit = { // // // // //
 
     val out =
-      defer(Use.withLenientCheck) {
-        def getInt(i: Int) = i
-        class A {
-          def a(i: Int) = getInt(i)
-        }
-        val foo = ZIO.succeed((new A).a(1)).run + 1
-        foo + 1
+      defer(Use.withNoCheck) {
+        unsafe { throwFoo() }
       }
+
+    // ZIO.succeed(123).asInstanceOf[ZIO[_, _, _]].catchSome {
+    //   case x: Throwable => ZIO.succeed("123")
+    // }
 
     //
 

@@ -2,7 +2,9 @@ package zio.direct
 
 import zio.direct.{run => runBlock}
 import zio.test._
+import scala.annotation.nowarn
 
+@nowarn("msg=It would fail on the following input")
 object PatMatchSpec extends DeferRunSpec {
 
   val spec = suite("PatMatchSpec")(

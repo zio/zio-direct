@@ -228,16 +228,12 @@ trait WithReconstructTree extends MacroBase {
           val tryTerm = apply(tryBlock)
           val (r, e, a) = ComputeType.fromIR(tryIR).asTypeTuple
 
-          // println(s"=============== Zio Type is: ${show(ComputeType.fromIR(tryIR).toZioType)}")
+          // need to cast to .asInstanceOf[zio.ZIO[$r, _, $a]] erasing the type _ since it could be
+          // `Nothing` and then ZIO returns the following error:
+          // "This error handling operation assumes your effect can fail. However, your effect has Nothing for the error type"
+          val monadExpr = q"{ $tryTerm.catchSome { case ..$newCaseDefs } }"
 
-          // val methodType = MethodType(List("tryLamParam"))(_ => List(TypeRepr.of[er]), _ => TypeRepr.of[ZIO[r, e, b]])
-          // val methSym = Symbol.newMethod(Symbol.spliceOwner, "tryLam", methodType)
-          // val method = DefDef(methSym, sm => Some(Match(sm(0)(0).asInstanceOf[Term], newCaseDefs.map(_.changeOwner(methSym)))))
-          // val pfTree = TypeRepr.of[PartialFunction[er, ZIO[r, e, b]]]
-          // val closure = Closure(Ref(methSym), Some(pfTree))
-          // val functionBlock = '{ ${ Block(List(method), closure).asExpr }.asInstanceOf[PartialFunction[er, ZIO[r, e, b]]] }
-
-          val monadExpr = q"{ $tryTerm.asInstanceOf[zio.ZIO[$r, $e, $a]].catchSome { case ..$newCaseDefs } }"
+          // .asInstanceOf[zio.ZIO[$r, _, $a]]
 
           finallyBlock match {
             case Some(ir) =>
