@@ -9,6 +9,7 @@ import zio.direct.core.util.Messages
 import scala.annotation.nowarn
 
 @nowarn("msg=is never used")
+@nowarn("msg=a type was inferred to be `Any`; this may indicate a programming error.")
 object VariaSpec extends DeferRunSpec {
   case class Config1(value: Int)
   case class Config2(value: Int)
@@ -70,7 +71,9 @@ object VariaSpec extends DeferRunSpec {
       },
       test("using scope") {
         val out =
-          defer.tpe {
+          defer {
+            // Environment type `Any with Any with zio.Scope` is a direct result of this
+            // ZIO-call so cannot do anything about it in the macros.
             val value = ZIO.acquireRelease(ZIO.succeed(SomeService.open()))(svc => ZIO.succeed(svc.close())).run
             value.isOpen
           }
