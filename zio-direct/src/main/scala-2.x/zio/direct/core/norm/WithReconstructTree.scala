@@ -128,8 +128,8 @@ trait WithReconstructTree extends MacroBase {
             // TODO test the case where error is constructed via an run
             case m: IR.Monadic =>
               val monad = apply(m)
-              val e = ComputeType.fromIR(error).e
-              q"$monad.flatMap(err => zio.ZIO.fail[$e](err))"
+              val a = ComputeType.fromIR(error).a
+              q"$monad.flatMap(err => zio.ZIO.fail[$a](err))"
           }
 
         case block: IR.Block =>
@@ -231,7 +231,7 @@ trait WithReconstructTree extends MacroBase {
           // need to cast to .asInstanceOf[zio.ZIO[$r, _, $a]] erasing the type _ since it could be
           // `Nothing` and then ZIO returns the following error:
           // "This error handling operation assumes your effect can fail. However, your effect has Nothing for the error type"
-          val monadExpr = q"{ $tryTerm.asInstanceOf[ZIO[$r, _, $a]].catchSome { case ..$newCaseDefs } }"
+          val monadExpr = q"{ $tryTerm.asInstanceOf[zio.ZIO[$r, _, $a]].catchSome { case ..$newCaseDefs } }"
 
           // .asInstanceOf[zio.ZIO[$r, _, $a]]
 

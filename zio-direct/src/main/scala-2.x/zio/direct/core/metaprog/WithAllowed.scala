@@ -183,6 +183,7 @@ trait WithAllowed extends MacroBase {
           case Select(qualifier, name) => Next.Proceed
           case This(qual)              => Next.Proceed
           case Super(qual, mix)        => Next.Proceed
+          case Throw(_)                => Next.Proceed
 
           case applyNode @ Apply(fun, args) =>
             // If we find implicit arguments in the Apply do not check them. It is very important to skip checking of implicit arguments

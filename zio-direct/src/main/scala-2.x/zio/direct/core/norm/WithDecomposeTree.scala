@@ -231,7 +231,7 @@ trait WithDecomposeTree extends MacroBase {
                 None
             Some(IR.Try(tryBlockIR, cases, tryTerm.tpe, finallyBlockOpt))
 
-          case q"throw $e" =>
+          case Throw(e) =>
             Some(IR.Fail(DecomposeTree.orPure(e)))
 
           case _ => None

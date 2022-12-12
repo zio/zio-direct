@@ -44,7 +44,7 @@ trait MacroBase {
         case RunCall(_)    => true
         case Try(_, _, _)  => true
         case UnsafeCall(_) => true
-        case q"throw $e"   => true
+        case Throw(_)      => true
         case _             => false
       } match {
         case true  => None

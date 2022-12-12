@@ -168,6 +168,8 @@ object Allowed {
         case This(qual)              => Next.Proceed
         case Super(qual, mix)        => Next.Proceed
 
+        // How come we don't have "Throw" here??? How is that valid
+
         case applyNode @ Apply(fun, args) =>
           // If we find implicit arguments in the Apply do not check them. It is very important to skip checking of implicit arguments
           // because they do not interfere with code correctness (implicit defs are forbidden because they are defs, implicit vals

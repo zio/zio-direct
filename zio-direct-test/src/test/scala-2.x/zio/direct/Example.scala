@@ -1,31 +1,28 @@
 package zio.direct
 
+import zio.direct.{run => ~}
 import zio.direct.examples.RunNow
-import zio.ZIO
-import zio.direct.{run => runBlock}
+import zio.direct.core.util.debug.PrintMac
+import zio.ZIO._
 
 object Example {
+
+  class FooError extends Exception("foo")
+  def throwFoo() = throw new FooError
+  def makeFooError = new FooError
+
+  // TODO Need a test in the Scala 2 space with a couple constructs
+  // that specifically does NOT import zio to make sure we don't have a missing (zio.)ZIO
+  // anywhere in the Scala 2 macros.
   def main(args: Array[String]): Unit = { // // // // //
-    // ZIO.succeed(123).asInstanceOf[ZIO[_, _, _]].catchSome {
-    //   case x: Throwable => ZIO.succeed("123")
-    // }
 
-    //
-
-    //
-
-    def out = { //
-      defer {
-        val (a, b) = (runBlock(defer(1)), runBlock(defer(2)))
-        a + b
+    val out = defer.verbose {
+      try {
+        zio.ZIO.succeed(222).run
+      } catch {
+        case _: Throwable => 111
       }
     }
-
     println("===== Output: " + RunNow(out))
-    // PrintMac {
-    //   val a = ZIO.succeed(123).run
-    //   val b = ZIO.succeed(456).run
-    //   a + b
-    // }
   }
 }

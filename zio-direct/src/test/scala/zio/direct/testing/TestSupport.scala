@@ -12,11 +12,14 @@ import zio.direct.core.metaprog.Verify
 import zio.direct.testing.TestSupportRuntime
 
 private[direct] trait TestSupport extends TestSupportRuntime {
-  def runLiftTest[T](expected: T)(body: T): ZIO[Any, Nothing, TestResult] = macro TestSupportMacro.runLiftTest[T]
-  def runLiftTestLenient[T](expected: T)(body: T): ZIO[Any, Nothing, TestResult] = macro TestSupportMacro.runLiftTestLenient[T]
+  def runLiftTest[T](expected: T)(body: T): ZIO[Any, Any, TestResult] = macro TestSupportMacro.runLiftTest[T]
+  def runLiftTestLenient[T](expected: T)(body: T): ZIO[Any, Any, TestResult] = macro TestSupportMacro.runLiftTestLenient[T]
   def runLiftFail[T](body: T): TestResult = macro TestSupportMacro.runLiftFail[T]
   def runLiftFailMsg[T](msg: String)(body: T): TestResult = macro TestSupportMacro.runLiftFailMsg[T]
   def runLiftFailLenientMsg[T](msg: String)(body: T): TestResult = macro TestSupportMacro.runLiftFailLenientMsg[T]
+
+  def isType[T](input: Any): Boolean = macro TestSupportMacro.isType[T]
+  def assertIsType[T](input: Any): TestResult = macro TestSupportMacro.assertIsType[T]
 }
 
 private[direct] class TestSupportMacro(val c: Context) extends Transformer {
@@ -30,20 +33,37 @@ private[direct] class TestSupportMacro(val c: Context) extends Transformer {
     q"SourceLocation($name, $line)"
   }
 
+  def assertIsType[T](input: Expr[T])(implicit tt: WeakTypeTag[T]): Expr[TestResult] = {
+    c.Expr[TestResult](q"assertTrue(${isType(input)})")
+  }
+
+  def isType[T](input: Expr[T])(implicit tt: WeakTypeTag[T]): Expr[Boolean] = {
+    val expectedTpe = weakTypeOf[T]
+    val actualType = c.typecheck(input.tree).tpe
+    if (expectedTpe =:= actualType) {
+      c.Expr[Boolean](q"true")
+    } else {
+      c.warning(c.enclosingPosition, s"Expected type to be: ${Format.Type(expectedTpe)} but got: ${Format.Type(actualType)}")
+      c.Expr[Boolean](q"false")
+    }
+  }
+
   def runLiftTest[T](expected: Tree)(body: Tree): Tree = {
     val deferBody = apply(body, Instructions.default)
+    val v = freshName("v")
     q"""
-    $deferBody.map { v =>
-      assert(v)(zio.test.Assertion.equalTo($expected))
+    $deferBody.map { ${toVal(v)} =>
+      assert($v)(zio.test.Assertion.equalTo($expected))
     }
     """
   }
 
   def runLiftTestLenient[T](expected: Tree)(body: Tree): Tree = {
     val deferBody = apply(body, Instructions.default.copy(verify = Verify.Lenient))
+    val v = freshName("v")
     q"""
-    $deferBody.map { v =>
-      assert(v)(zio.test.Assertion.equalTo($expected))
+    $deferBody.map { ${toVal(v)} =>
+      assert($v)(zio.test.Assertion.equalTo($expected))
     }
     """
   }

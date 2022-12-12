@@ -47,8 +47,12 @@ trait WithFormat extends MacroBase {
         showRaw(term)
     }
 
+    // Originally it did c.typecheck(code) but I don't want
+    // typechecking to be done in the printer, it should either be done before (in the Transformer?)
+    // or after. I don't think we can have an assumption that all code going to the pretty-printer
+    // (at least in Scala 2 macros) will typecheck.
     private def printShortCode(code: Tree, mode: Mode): String = {
-      val printedCode = zio.direct.core.util.CleanCodePrinter.show(c)(c.typecheck(code), mode.showDetails)
+      val printedCode = zio.direct.core.util.CleanCodePrinter.show(c)(code, mode.showDetails)
       // mode match {
       //   case Mode.DottyColor(details) =>
       //     SourceCode.showTree(code)(details, SyntaxHighlight.ANSI, false)

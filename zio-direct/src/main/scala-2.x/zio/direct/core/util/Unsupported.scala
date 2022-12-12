@@ -18,7 +18,7 @@ trait WithUnsupported extends WithFormat with MacroBase {
 
       def runUnsupportedTree(tree: Tree, additionalMsg: String = "", example: String = Messages.MoveOutOfDefer)(implicit instr: Instructions) = {
         val text =
-          s"""|Detected an an unsupported structure:
+          s"""|Detected an unsupported structure:
               |${Format.Tree(tree)}
               |""".stripMargin +
             lineIfAnyDefined("============")(additionalMsg, example) +
@@ -27,7 +27,7 @@ trait WithUnsupported extends WithFormat with MacroBase {
 
         lazy val extMessage =
           s"""|========= (Detail)
-              |${Format(show(tree))}
+              |${Format(showRaw(tree))}
               |""".stripMargin
 
         if (instr.info.showReconstructedTree)
