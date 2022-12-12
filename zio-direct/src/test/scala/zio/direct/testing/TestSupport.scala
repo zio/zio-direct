@@ -6,9 +6,15 @@ import zio.test._
 import zio.ZIO
 import zio.direct.core.Transformer
 import zio.direct.core.metaprog.Instructions
+import scala.reflect.macros.TypecheckException
+import scala.reflect.macros.ParseException
+import zio.direct.core.metaprog.Verify
 
 private[direct] trait TestSupport {
   def runLiftTest[T](expected: T)(body: T): ZIO[Any, Nothing, TestResult] = macro TestSupportMacro.runLiftTest[T]
+  def runLiftFail[T](body: T): TestResult = macro TestSupportMacro.runLiftFail[T]
+  def runLiftFailMsg[T](msg: String)(body: T): TestResult = macro TestSupportMacro.runLiftFailMsg[T]
+
   def isType[T](input: T): Boolean = macro TestSupportMacro.isType[T]
   // def assertIsType[T](input: T): Assert = macro TestSupportMacro.assertIsType[T]
 }
@@ -42,5 +48,68 @@ private[direct] class TestSupportMacro(val c: Context) extends Transformer {
       assert(v)(zio.test.Assertion.equalTo($expected))
     }
     """
+  }
+
+  def runLiftTestLenient[T](expected: Tree)(body: Tree): Tree = {
+    val deferBody = apply(body, Instructions.default.copy(verify = Verify.Lenient))
+    q"""
+    $deferBody.map { v =>
+      assert(v)(zio.test.Assertion.equalTo($expected))
+    }
+    """
+  }
+
+  private def doTypecheck(expression: String) = {
+    val output =
+      try {
+        Right(c.typecheck(c.parse("{ " + expression + " }")))
+      } catch {
+        case e: TypecheckException =>
+          Left(e.getMessage())
+        case e: ParseException =>
+          Left(e.getMessage())
+      }
+    output match {
+      case Right(tree) => (false, s"<NO FAILURE> \nCode:${Format(Format.Tree(tree))}")
+      case Left(msg)   => (true, msg)
+    }
+  }
+
+  private def wrapDefer(body: String, verify: Verify = Verify.Strict) = {
+    verify match {
+      case Verify.Lenient =>
+        "defer(zio.direct.Use.withLenientCheck) {\n" + body + "\n}"
+      case Verify.None =>
+        "defer(zio.direct.Use.withNoCheck) {\n" + body + "\n}"
+      case Verify.Strict =>
+        "defer {\n" + body + "\n}"
+    }
+  }
+
+  private def requireConstString(body: Tree) = {
+    body match {
+      case q"${str: String}" =>
+        str
+      case _ =>
+        c.abort(body.pos, s"Expression needs to be a constant-string to be type-checkable but was:\n${show(body)}")
+    }
+  }
+
+  def runLiftFail[T](body: Tree): Tree = {
+    val bodyStr = requireConstString(body)
+    val (fails, failMsg) = doTypecheck(wrapDefer(bodyStr))
+    q"zio.test.assertTrue($fails)"
+  }
+
+  def runLiftFailMsg[T](msg: Tree)(body: Tree): Tree = {
+    val bodyStr = requireConstString(body)
+    val (fails, failMsg) = doTypecheck(wrapDefer(bodyStr))
+    q"zio.test.assertTrue($fails) && zio.test.assert($failMsg)(zio.test.Assertion.containsString($msg))"
+  }
+
+  def runLiftFailLenientMsg[T](msg: Tree)(body: Tree): Tree = {
+    val bodyStr = requireConstString(body)
+    val (fails, failMsg) = doTypecheck(wrapDefer(bodyStr, Verify.Lenient))
+    q"zio.test.assertTrue($fails) && zio.test.assert($failMsg)(zio.test.Assertion.containsString($msg))"
   }
 }

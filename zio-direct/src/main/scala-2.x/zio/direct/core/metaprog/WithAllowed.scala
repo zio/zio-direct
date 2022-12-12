@@ -31,6 +31,9 @@ trait WithAllowed extends MacroBase {
         // If there are code blocks remaining that have arbitrary zio values it means that
         // they will be lost because the transformations for block-stmts to map/flatMap chains are already done.
         case Block(stmts, output) =>
+          // TODO Need to use tree traverse to walk into statements and check for ZIO there
+          // because they could be inside of something e.g. a block { foo; (ZIO.succeed(123), blah); bar }
+          // where the ZIO is not directly the output of an intermediate statement, it's inside
           stmts.foreach(Unsupported.Warn.checkUnmooredZio(_))
         case tree @ RunCall(_) =>
           Unsupported.Error.withTree(tree, Messages.RunRemainingAfterTransformer)
