@@ -17,7 +17,8 @@ import zio.direct.core.norm.WithComputeType
 import zio.direct.core.norm.WithReconstructTree
 import zio.direct.core.norm.WithDecomposeTree
 import zio.direct.core.util.ShowDetails
-import zio.direct.Dsl.Internal.deferred
+import zio.direct.Internal.deferred
+import zio.direct.core.util.Announce
 
 class Transformer(inputQuotes: Quotes)
     extends WithIR
@@ -45,10 +46,10 @@ class Transformer(inputQuotes: Quotes)
     // // Do the main transformation
     val transformedRaw = Decompose(instructions)(value)
 
-    def fileShow = FileShow.FullPath(posFileStr(valueRaw.asTerm.pos))
+    def fileShow = Announce.FileShow.FullPath(posFileStr(valueRaw.asTerm.pos))
 
     if (instructions.info != InfoBehavior.Silent)
-      Announce.section("TRANSFORMING AT", "", fileShow, Volume.Loud)
+      Announce.section("TRANSFORMING AT", "", fileShow, Announce.Volume.Loud)
 
     if (instructions.info.showDeconstructed)
       Announce.section("Deconstructed Instructions", PrintIR(transformedRaw), fileShow)
@@ -59,7 +60,7 @@ class Transformer(inputQuotes: Quotes)
       if (transformedSameAsRaw)
         Announce.section("Monadified Tries", PrintIR(transformed), fileShow)
       else
-        Announce.section("Monadified Tries (No Changes)", fileShow)
+        Announce.section("Monadified Tries (No Changes)", "", fileShow)
     }
 
     val output = ReconstructTree(instructions).fromIR(transformed)

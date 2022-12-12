@@ -2,7 +2,6 @@ package zio.direct.core.metaprog
 
 import scala.quoted._
 import zio.direct.core.util.Format
-import zio.direct.Dsl.Params
 import zio.direct.core.util.TraceType
 
 object Unliftables {
@@ -14,9 +13,6 @@ object Unliftables {
 
   def unliftInfoBehavior(info: Expr[InfoBehavior])(using Quotes) =
     Implicits.unliftInfoBehavior.unliftOrfail(info)
-
-  def unliftParams(info: Expr[Params])(using Quotes) =
-    Implicits.unliftParams.unliftOrfail(info)
 
   def unliftTraceTypes(traceTypes: Expr[List[TraceType]])(using Quotes) =
     import Implicits.{given, _}
@@ -88,23 +84,6 @@ object Unliftables {
       def tpe = Type.of[TraceType]
       def unlift =
         case '{ TraceType.TypeCompute } => TraceType.TypeCompute
-    }
-
-    given unliftParams: Unlifter[Params] with {
-      def tpe = Type.of[Params]
-      def unlift =
-        case '{ Params($collect, $verify, $typeUnion, $traceTypes) } =>
-          Params(collect.fromExpr, verify.fromExpr, typeUnion.fromExpr, traceTypes.fromExpr)
-        case '{ Params(($collect: Collect)) } =>
-          Params(collect.fromExpr, Verify.default, TypeUnion.default, Nil)
-        case '{ Params(($verify: Verify)) } =>
-          Params(Collect.default, verify.fromExpr, TypeUnion.default, Nil)
-        case '{ Params(($typeUnion: TypeUnion)) } =>
-          Params(Collect.default, Verify.default, typeUnion.fromExpr, Nil)
-        case '{ Params(($traceTypes: List[TraceType])) } =>
-          Params(Collect.default, Verify.default, TypeUnion.default, traceTypes.fromExpr)
-        case '{ Params.apply() } =>
-          Params(Collect.default, Verify.default, TypeUnion.default, Nil)
     }
   }
 }

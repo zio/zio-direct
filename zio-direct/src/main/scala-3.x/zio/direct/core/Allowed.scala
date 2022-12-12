@@ -11,8 +11,8 @@ import zio.direct.core.metaprog.Instructions
 import zio.direct.core.metaprog.Verify
 import zio.direct.core.util.ShowDetails
 import zio.direct.core.metaprog.InfoBehavior
-import zio.direct.Dsl.Internal.deferred
-import zio.direct.Dsl.Internal.ignore
+import zio.direct.Internal.deferred
+import zio.direct.Internal.ignore
 
 object Allowed {
 

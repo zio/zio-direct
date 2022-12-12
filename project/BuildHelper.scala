@@ -195,6 +195,7 @@ object BuildHelper {
   }
 
   lazy val crossProjectSettings = Seq(
+    crossScalaVersions := Seq(Scala213, ScalaDotty),
     Compile / unmanagedSourceDirectories ++= {
       crossPlatformSources(
         scalaVersion.value,

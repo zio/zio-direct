@@ -15,10 +15,9 @@ object Embedder {
     else if (b =:= TypeRepr.of[Nothing]) a
     else if (a =:= TypeRepr.of[Any] || b =:= TypeRepr.of[Any]) TypeRepr.of[Any]
     else
-      val isectRaw = ListSet(a.widen.baseClasses: _*).intersect(ListSet(b.widen.baseClasses: _*))
-      val isect = isectRaw.map(a.select(_))
-      if (isect.isEmpty) TypeRepr.of[Any]
-      else isect.head
+      val isectOpt = ListSet(a.widen.baseClasses: _*).intersect(ListSet(b.widen.baseClasses: _*)).headOption
+      val isectTypeOpt = isectOpt.map(baseClassSymbol => baseClassSymbol.typeRef)
+      isectTypeOpt.getOrElse(TypeRepr.of[Any])
 
   def topLevelOwner(using Quotes): quotes.reflect.Symbol =
     import quotes.reflect._

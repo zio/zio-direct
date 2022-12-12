@@ -8,7 +8,6 @@ import zio.direct._
 import scala.compiletime.testing.typeCheckErrors
 import zio.direct.core.metaprog.Verify
 import zio.direct.core.metaprog.Collect
-import zio.direct.Dsl.Params
 import zio.direct.core.util.Format
 import zio.internal.stacktracer.SourceLocation
 
@@ -19,14 +18,14 @@ object DeferRunSpec {
     '{ SourceLocation(${ Expr(name) }, ${ Expr(line) }) }
   }
 
-  def isType[T: Type](intput: Expr[Any])(using Quotes): Expr[Boolean] =
+  def isType[T: Type](input: Expr[Any])(using Quotes): Expr[Boolean] =
     import quotes.reflect._
     val expectedTpe = TypeRepr.of[T]
-    val actualType = intput.asTerm.tpe.widenTermRefByName
+    val actualType = input.asTerm.tpe.widenTermRefByName
     if (expectedTpe =:= actualType)
       '{ true }
     else
-      report.warning(s"Expected type to be: ${Format.TypeRepr(expectedTpe)} but got: ${Format.TypeRepr(actualType)}")
+      report.warning(s"Expected type to be: ${Format(Printer.TypeReprStructure.show(expectedTpe))} but got: ${Format(Printer.TypeReprStructure.show(actualType))}")
       '{ false }
 }
 
@@ -84,7 +83,7 @@ trait DeferRunSpec extends ZIOSpecDefault {
   }
 
   inline def runLiftTestLenient[T](expected: T)(inline body: T) = {
-    val deferBody = defer(Params(Verify.Lenient))(body)
+    val deferBody = defer(Use.withLenientCheck)(body)
     // Not sure why but If I don't cast to .asInstanceOf[ZIO[Any, Nothing, ?]]
     // zio says it expects a layer of scala.Nothing
 
@@ -95,7 +94,7 @@ trait DeferRunSpec extends ZIOSpecDefault {
 
   transparent inline def runLiftFailLenientMsg(errorStringContains: String)(body: String) = {
     val errors =
-      typeCheckErrors("defer(zio.direct.Dsl.Params(zio.direct.core.metaprog.Verify.Lenient)) {" + body + "}").map(_.message)
+      typeCheckErrors("defer(zio.direct.Use.withLenientCheck) {" + body + "}").map(_.message)
 
     // assert(errors)(exists(containsString(errorStringContains)))
     zio.test.UseSmartAssert.of(errors, None, None)(exists(containsString(errorStringContains)))(sourceLocation)

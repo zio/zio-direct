@@ -15,8 +15,8 @@ import zio.direct.core.metaprog.Embedder._
 import zio.direct.core.norm.WithComputeType
 import zio.direct.core.norm.WithReconstructTree
 import zio.direct.core.util.ShowDetails
-import zio.direct.Dsl.Internal.deferred
-import zio.direct.Dsl.Internal.ignore
+import zio.direct.Internal.deferred
+import zio.direct.Internal.ignore
 import zio.direct.core.util.Unsupported
 
 trait WithDecomposeTree {

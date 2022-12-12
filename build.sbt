@@ -32,6 +32,7 @@ addCommandAlias(
 lazy val root = (project in file("."))
   .aggregate(
     `zio-direct`,
+    `zio-direct-test`,
     docs
   )
   .settings(
@@ -47,8 +48,8 @@ lazy val `zio-direct` = project
   .settings(buildInfoSettings("zio.direct"))
   .enablePlugins(BuildInfoPlugin)
   .settings(
+    crossScalaVersions := Seq(Scala213, ScalaDotty),
     Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat,
-    scalaVersion := Scala213,
     resolvers ++= Seq(
       Resolver.mavenLocal,
       "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots",
@@ -64,8 +65,7 @@ lazy val `zio-direct` = project
       `scala-java8-compat`,
       `scala-collection-compat`,
       `zio-test`,
-      `zio-test-sbt`,
-      "org.scalamacros" %% "resetallattrs" % "1.0.0"
+      `zio-test-sbt`
     )
   )
 
@@ -77,8 +77,8 @@ lazy val `zio-direct-test` = project
   .settings(buildInfoSettings("zio.direct"))
   .enablePlugins(BuildInfoPlugin)
   .settings(
+    crossScalaVersions := Seq(Scala213, ScalaDotty),
     Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat,
-    scalaVersion := Scala213,
     resolvers ++= Seq(
       Resolver.mavenLocal,
       "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots",
@@ -94,8 +94,7 @@ lazy val `zio-direct-test` = project
       `scala-java8-compat`,
       `scala-collection-compat`,
       `zio-test`,
-      `zio-test-sbt`,
-      "org.scalamacros" %% "resetallattrs" % "1.0.0"
+      `zio-test-sbt`
     )
   )
   .dependsOn(`zio-direct` % "compile->compile;test->test")
