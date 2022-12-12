@@ -197,7 +197,9 @@ trait WithDecomposeTree extends MacroBase {
           //   import blah._          // 2nd part, will recurse 2nd time (here)
           //   val b = unlift(ZIO.succeed(value).asInstanceOf[Task[Int]]) // Then will match valdef case
           case head :: BlockN(DecomposeBlock(parts)) =>
-            Unsupported.Warn.checkUnmooredZio(head)
+            // In scala 2 don't do the check here since types could be null and we need to typecheck
+            // in the fututre could try to typecheck here as well but I do know know what the consequences of that are.
+            // Unsupported.Warn.checkUnmooredZio(head)
             Some(IR.Block(head, parts))
 
           case other =>
@@ -216,7 +218,7 @@ trait WithDecomposeTree extends MacroBase {
           // is should ONLY be used to test code.
           // TODO Make sure it's dsl.unsafe i.e. the pattern is right
           case IgnoreCall(code) =>
-            if (isZIO(code.tpe))
+            if (isTermZIO(code))
               Some(IR.Monad(code, IR.Monad.Source.IgnoreCall))
             else
               Some(IR.Monad(ZioApply.succeed(code)))

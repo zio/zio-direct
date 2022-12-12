@@ -3,14 +3,12 @@ package zio.direct
 import zio.direct.{run => runBlock}
 import zio.test._
 import zio.test.Assertion._
-import zio.direct.core.util.debug.PrintMac
 import zio._
 import ZIO.{unsafe => _, _}
-import zio.direct.core.metaprog.Verify
-import zio.direct.Dsl.Params
-import zio.direct.Dsl.Internal._
 import zio.direct.core.util.Messages
+import scala.annotation.nowarn
 
+@nowarn("msg=is never used")
 object VariaSpec extends DeferRunSpec {
   case class Config1(value: Int)
   case class Config2(value: Int)
@@ -24,8 +22,8 @@ object VariaSpec extends DeferRunSpec {
     def open() = new SomeService(true)
   }
 
-  val spec = suite("VariaSpec") {
-    suite("odd placements of defer/run") {
+  val spec = suite("VariaSpec")(
+    suite("odd placements of defer/run")(
       test("defer in defer") {
         val out =
           defer {
@@ -36,8 +34,7 @@ object VariaSpec extends DeferRunSpec {
             v.run.value + 1
           }
         assertZIO(out.provide(ZLayer.succeed(ConfigInt(3))))(equalTo(4))
-      }
-      +
+      },
       test("four services") {
         val out =
           defer {
@@ -53,8 +50,7 @@ object VariaSpec extends DeferRunSpec {
             ZLayer.succeed(Config4(4))
           )
         assertZIO(provided)(equalTo(10))
-      }
-      +
+      },
       test("services with match statement") {
         val out =
           defer {
@@ -71,19 +67,17 @@ object VariaSpec extends DeferRunSpec {
             ZLayer.succeed(Config3(4))
           )
         assertZIO(provided)(equalTo(7))
-      }
-      +
+      },
       test("using scope") {
         val out =
-          defer {
+          defer.tpe {
             val value = ZIO.acquireRelease(ZIO.succeed(SomeService.open()))(svc => ZIO.succeed(svc.close())).run
             value.isOpen
           }
         val withScope =
           scoped { out }
         assertZIO(withScope)(equalTo(true))
-      }
-      +
+      },
       test("double tuple deconstruct") {
         val out =
           defer {
@@ -92,8 +86,7 @@ object VariaSpec extends DeferRunSpec {
             x + x1 + y + y1
           }
         assertZIO(out)(equalTo("fooAfoobarBbar"))
-      }
-      +
+      },
       test("multi zios in run") {
         val out = defer {
           if (
@@ -122,10 +115,10 @@ object VariaSpec extends DeferRunSpec {
         } yield {
           assert(a)(equalTo("foo")) && assert(b)(equalTo("bar"))
         }
-      }
-      +
+      },
       test("catch run inside run") {
         val msg = Messages.RunRemainingAfterTransformer
+        import zio.direct.Internal.ignore
         runLiftFailMsg(msg) {
           """
           val x = succeed(123).run
@@ -136,8 +129,7 @@ object VariaSpec extends DeferRunSpec {
           x + y
           """
         }
-      }
-      +
+      },
       test("disallow mutable collection use") {
         import scala.collection.mutable.ArrayBuffer
         val v = new ArrayBuffer[Int](4)
@@ -146,8 +138,7 @@ object VariaSpec extends DeferRunSpec {
           v += 4
           """
         }
-      }
-      +
+      },
       test("disallow mutable collection use - declare but not use") {
         import scala.collection.mutable.ArrayBuffer
         runLiftFailMsg(Messages.MutableCollectionDetected) {
@@ -156,8 +147,7 @@ object VariaSpec extends DeferRunSpec {
           ZIO.succeed(123).run
           """
         }
-      }
-      +
+      },
       test("disallow implicit defs") {
         runLiftFailMsg(Messages.ImplicitsNotAllowed) {
           """
@@ -165,8 +155,7 @@ object VariaSpec extends DeferRunSpec {
           x
           """
         }
-      }
-      +
+      },
       test("deconstruct and import") {
         class Blah(val value: Int)
         runLiftTest(4) {
@@ -176,8 +165,7 @@ object VariaSpec extends DeferRunSpec {
           val b = runBlock(ZIO.succeed(value))
           a + b
         }
-      }
-      +
+      },
       test("deconstruct and multiple import") {
         class Blah(val value: Int)
         class Blah0(val value0: Int)
@@ -193,8 +181,7 @@ object VariaSpec extends DeferRunSpec {
           val b = ZIO.succeed(value).run
           a + a1 + b
         }
-      }
-      +
+      },
       test("disallow implicit mutable use") {
         var x = 1
         runLiftFailMsg(Messages.MutableAndLazyVariablesNotAllowed) {
@@ -202,8 +189,7 @@ object VariaSpec extends DeferRunSpec {
           val y = x
           """
         }
-      }
-      +
+      },
       test("disallow implicit mutable use") {
         var x = 1
         runLiftFailMsg(Messages.DeclarationNotAllowed) {
@@ -212,6 +198,6 @@ object VariaSpec extends DeferRunSpec {
           """
         }
       }
-    }
-  }
+    )
+  )
 }

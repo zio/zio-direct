@@ -17,8 +17,12 @@ trait MacroBase {
 
   import c.universe._
 
-  def isZIO(tpe: Type) =
-    tpe <:< typeOf[ZIO[Any, Any, Any]] && !(tpe =:= typeOf[Nothing])
+  // Make this pass a term instead of a tree Type since Scala2 does not differentiate
+  // between Trees that Terms and just Statements, the .tpe of a statement will just be null
+  // which is a very unsafe behavior. Instead, for the user to pass in the tree that can
+  // be checked 1st to see if it is a term.
+  def isTermZIO(term: Tree) =
+    term.isTerm && term.tpe <:< typeOf[ZIO[Any, Any, Any]] && !(term.tpe =:= typeOf[Nothing])
 
   object report {
     def errorAndAbort(msg: String) = c.abort(c.enclosingPosition, msg)
@@ -98,7 +102,7 @@ trait MacroBase {
   }
 
   object IgnoreCall {
-    private val applyIgnoreMethod = new ApplyZioDirectMethod("ignore")
+    private val applyIgnoreMethod = new ApplyZioDirectMethod("Internal.ignore")
     def unapply(tree: Tree): Option[Tree] =
       tree match {
         case applyIgnoreMethod(v, _) => Some(v)

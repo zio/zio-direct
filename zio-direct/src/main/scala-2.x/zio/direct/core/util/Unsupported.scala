@@ -92,8 +92,7 @@ trait WithUnsupported extends WithFormat with MacroBase {
       }
 
       def checkUnmooredZio(term: Tree) = {
-
-        isZIO(term.tpe) match {
+        isTermZIO(term) match {
           case true =>
             report.warning(
               s"""|Found a ZIO term that will not be executed (type: ${Format.Type(term.tpe)})
