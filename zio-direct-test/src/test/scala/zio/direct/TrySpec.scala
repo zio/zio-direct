@@ -115,6 +115,7 @@ object TrySpec extends DeferRunSpec {
           // we have the error in the fail channel so it is not a defect.
           val out = defer {
             try {
+              // Only one kind of error so the error-type should be FooError either way
               (123, { throw succeed(makeFooError).run })
             } catch {
               case `e` => (111, 222)
@@ -125,7 +126,7 @@ object TrySpec extends DeferRunSpec {
             assertIsType[ZIO[Any, FooError, Tuple2[Int, Int]]](out)
         },
         test("not caught error in parallel block (die-channel) - both sides") {
-          val out = defer {
+          val out = defer(Use.withAbstractError) {
             try {
               ({ throw ZIO.succeed(makeFooError).run }, { throw ZIO.succeed(makeBarError).run })
             } catch {
