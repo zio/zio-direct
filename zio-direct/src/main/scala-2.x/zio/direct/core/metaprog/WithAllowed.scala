@@ -69,6 +69,7 @@ trait WithAllowed extends MacroBase {
 
     implicit class SymbolOps(sym: Symbol) {
       def isSynthetic = sym.isSynthetic || SymbolExt.isSynthetic(sym)
+      def isMutableVariable = sym.isTerm && sym.asTerm.isVar
     }
 
     implicit class ValDefOps(v: ValDef) {
@@ -176,8 +177,8 @@ trait WithAllowed extends MacroBase {
           case v @ Ident(name) =>
             // Not throw error for lazy things here because modules & functions also have the lazy flag. Would need
             // to be sure to allow all of those constructs with other flags.
-            if (v.symbol.isImplicit && !v.symbol.isSynthetic)
-              Unsupported.Error.withTree(v, Messages.MutableAndLazyVariablesNotAllowed + s"\n=========\n(flags: ${v.symbol.info})")
+            if (v.symbol.isMutableVariable && !v.symbol.isSynthetic)
+              Unsupported.Error.withTree(v, Messages.MutableAndLazyVariablesNotAllowed)
             Next.Proceed
           case Select(qualifier, name) => Next.Proceed
           case This(qual)              => Next.Proceed

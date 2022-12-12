@@ -1,20 +1,16 @@
 package zio.direct
 
-import zio.direct.{run => runBlock}
 import zio.test._
-import zio.test.Assertion._
-import zio.direct.core.util.debug.PrintMac
-import zio._
-import zio.direct.core.metaprog.Collect
-import zio.direct.core.metaprog.Verify
-import zio.direct.Dsl.Params
 import scala.annotation.nowarn
 import scala.collection.mutable.ArrayBuffer
 import zio.direct.core.util.Messages
+import zio.ZIO
 
+@nowarn("msg=is never used") // cases for variable non-usage
+@nowarn("msg=is never updated") // cases for array buffer non-usage
 object MutableSpec extends DeferRunSpec {
   val spec = suite("MutableSpec")(
-    suite("Mutable Var") {
+    suite("Mutable Var")(
       test("in effect") {
         var x = 1
         @nowarn
@@ -24,8 +20,7 @@ object MutableSpec extends DeferRunSpec {
           }
         assertZIO(out)(Assertion.equalTo((2, 2))) andAssert
           assertTrue(x == 2)
-      }
-      +
+      },
       test("plain not allowed") {
         var x = 1
         runLiftFailMsg(Messages.AssignmentNotAllowed) {
@@ -33,8 +28,7 @@ object MutableSpec extends DeferRunSpec {
           x = x + 1; x
           """
         }
-      }
-      +
+      },
       test("use of mutable not allowed") {
         var x = 1
         runLiftFailMsg(Messages.MutableAndLazyVariablesNotAllowed) {
@@ -43,8 +37,8 @@ object MutableSpec extends DeferRunSpec {
           """
         }
       }
-    },
-    suite("Mutable Collection") {
+    ),
+    suite("Mutable Collection")(
       test("in effect") {
         var buff = new ArrayBuffer[Int]()
         buff.addOne(1)
@@ -54,8 +48,7 @@ object MutableSpec extends DeferRunSpec {
           }
         assertZIO(out)(Assertion.equalTo((2, 2))) andAssert
           assertTrue(buff(0) == 2)
-      }
-      +
+      },
       test("plain not allowed") {
         var buff = new ArrayBuffer[Int]()
         buff.addOne(1)
@@ -65,6 +58,6 @@ object MutableSpec extends DeferRunSpec {
           """
         }
       }
-    }
+    )
   )
 }
