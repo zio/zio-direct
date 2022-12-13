@@ -1,4 +1,4 @@
-package zio.direct.core.testing
+package zio.direct.testing
 
 import scala.reflect.macros.whitebox.Context
 import scala.language.experimental.macros
@@ -11,7 +11,7 @@ import scala.reflect.macros.ParseException
 import zio.direct.core.metaprog.Verify
 import zio.direct.testing.TestSupportRuntime
 
-private[direct] trait TestSupport extends TestSupportRuntime {
+trait TestSupport extends TestSupportRuntime {
   def runLiftTest[T](expected: T)(body: T): ZIO[Any, Any, TestResult] = macro TestSupportMacro.runLiftTest[T]
   def runLiftTestLenient[T](expected: T)(body: T): ZIO[Any, Any, TestResult] = macro TestSupportMacro.runLiftTestLenient[T]
   def runLiftFail[T](body: T): TestResult = macro TestSupportMacro.runLiftFail[T]

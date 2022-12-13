@@ -2,7 +2,7 @@ package zio.direct
 
 import zio._
 import zio.test._
-import zio.direct.core.testing.TestSupport
+import zio.direct.testing.TestSupport
 
 trait DeferRunSpec extends ZIOSpecDefault with TestSupport {
   // various config parameters to test zio dependency
