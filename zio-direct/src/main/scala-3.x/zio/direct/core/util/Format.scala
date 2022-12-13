@@ -50,13 +50,6 @@ object Format {
       import qctx.reflect._
       Printer.TreeStructure.show(term.asInstanceOf[qctx.reflect.Term])
 
-  /** Same as TypeRepr but also widens the type since frequently types are singleton i.e. 'person.name' has the type 'name' as opposed to String */
-  object TypeReprW {
-    def apply(typeRepr: Quotes#reflectModule#TypeRepr)(using qctx: Quotes) =
-      import qctx.reflect._
-      Printer.TypeReprShortCode.show(typeRepr.asInstanceOf[qctx.reflect.TypeRepr].widen)
-  }
-
   object Type {
     def apply(tpe: scala.quoted.Type[_])(using Quotes) =
       import quotes.reflect._

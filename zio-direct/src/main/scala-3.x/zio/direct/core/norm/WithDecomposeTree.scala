@@ -15,8 +15,8 @@ import zio.direct.core.metaprog.Embedder._
 import zio.direct.core.norm.WithComputeType
 import zio.direct.core.norm.WithReconstructTree
 import zio.direct.core.util.ShowDetails
-import zio.direct.Dsl.Internal.deferred
-import zio.direct.Dsl.Internal.ignore
+import zio.direct.Internal.deferred
+import zio.direct.Internal.ignore
 import zio.direct.core.util.Unsupported
 
 trait WithDecomposeTree {
@@ -209,6 +209,7 @@ trait WithDecomposeTree {
             Some(out)
 
           // If the rest of the structure is a pure tree then exit
+          // TODO should be checking all of them, need example of treel with multiple statements
           case BlockN(PureTree(tree)) =>
             None
 
@@ -269,8 +270,9 @@ trait WithDecomposeTree {
             }
 
           case tryTerm @ Try(tryBlock, caseDefs, finallyBlock) =>
-            val tryBlockIR = DecomposeTree.orPure(tryBlock)
-            val cases = DecomposeCases(caseDefs)
+            // Don't need the above terms
+            // val tryBlockIR = DecomposeTree.orPure(tryBlock)
+            // val cases = DecomposeCases(caseDefs)
             Some(IR.Try(DecomposeTree.orPure(tryBlock), DecomposeCases(caseDefs), tryTerm.tpe, finallyBlock.map(DecomposeTree.orPure(_))))
 
           case Seal('{ throw $e }) =>

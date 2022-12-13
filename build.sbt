@@ -32,6 +32,7 @@ addCommandAlias(
 lazy val root = (project in file("."))
   .aggregate(
     `zio-direct`,
+    `zio-direct-test`,
     docs
   )
   .settings(
@@ -47,8 +48,8 @@ lazy val `zio-direct` = project
   .settings(buildInfoSettings("zio.direct"))
   .enablePlugins(BuildInfoPlugin)
   .settings(
+    crossScalaVersions := Seq(Scala213, ScalaDotty),
     Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat,
-    scalaVersion := ScalaDotty,
     resolvers ++= Seq(
       Resolver.mavenLocal,
       "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots",
@@ -56,13 +57,47 @@ lazy val `zio-direct` = project
     ),
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework"),
     libraryDependencies ++= Seq(
-      pprint,
       zio,
       `quill-util`,
+      pprint,
+      sourcecode,
+      fansi,
+      `scala-java8-compat`,
+      `scala-collection-compat`,
       `zio-test`,
       `zio-test-sbt`
     )
   )
+
+lazy val `zio-direct-test` = project
+  .in(file("zio-direct-test"))
+  .settings(stdSettings("zio-direct-test"))
+  .settings(crossProjectSettings)
+  .settings(dottySettings)
+  .settings(buildInfoSettings("zio.direct"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(
+    crossScalaVersions := Seq(Scala213, ScalaDotty),
+    Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat,
+    resolvers ++= Seq(
+      Resolver.mavenLocal,
+      "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots",
+      "Sonatype OSS Releases" at "https://oss.sonatype.org/content/repositories/releases"
+    ),
+    testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework"),
+    libraryDependencies ++= Seq(
+      zio,
+      `quill-util`,
+      pprint,
+      sourcecode,
+      fansi,
+      `scala-java8-compat`,
+      `scala-collection-compat`,
+      `zio-test`,
+      `zio-test-sbt`
+    )
+  )
+  .dependsOn(`zio-direct` % "compile->compile;test->test")
 
 lazy val docs = project
   .in(file("zio-direct-docs"))
@@ -70,9 +105,13 @@ lazy val docs = project
   .settings(macroDefinitionSettings)
   .settings(
     excludeDependencies ++= Seq(
-      "com.geirsson" % "metaconfig-core_2.13",
-      "com.geirsson" % "metaconfig-typesafe-config_2.13",
-      "org.typelevel" % "paiges-core_2.13"
+      ("org.scala-lang.modules" % "scala-collection-compat_2.13"),
+      ("com.lihaoyi" % "pprint_2.13"),
+      ("com.lihaoyi" % "fansi_2.13"),
+      ("com.lihaoyi" % "sourcecode_2.13"),
+      ("com.geirsson" % "metaconfig-core_2.13"),
+      ("com.geirsson" % "metaconfig-typesafe-config_2.13"),
+      ("org.typelevel" % "paiges-core_2.13")
     ),
     crossScalaVersions := Seq(ScalaDotty),
     scalaVersion := ScalaDotty,

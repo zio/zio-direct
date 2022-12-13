@@ -54,6 +54,9 @@ trait WithPrintIR {
         case m: IR.Monad =>
           Tree.Apply("IR.Monad", Iterator(treeify(m.code), treeify(m.source)))
 
+        case v: IR.Parallel =>
+          Tree.Apply("IR.Parallel", Iterator(treeify(v.monads), treeify(v.body)))
+
         // Need to ignore the 'orig' code element of ValDef since it would add too much info to the tree
         case v: IR.ValDef =>
           Tree.Apply("IR.ValDef", Iterator(treeify(v.symbol), treeify(v.assignment), treeify(v.bodyUsingVal)))
@@ -72,12 +75,8 @@ trait WithPrintIR {
           super.treeify(x)
       }
 
-    private def TreeApplyList(prefix: String, body: List[Tree]) = Tree.Apply(prefix, body.iterator)
-
-    private def l(trees: Tree*): List[Tree] = List[Tree](trees: _*)
-
     def apply(x: Any): fansi.Str = {
-      fansi.Str.join(this.tokenize(x).toSeq: _*)
+      fansi.Str.apply(this.tokenize(x).toSeq: _*)
     }
 
     def tokenize(x: Any): Iterator[fansi.Str] = {

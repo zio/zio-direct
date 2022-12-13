@@ -113,6 +113,9 @@ trait WithComputeType {
           val bodyTpe = apply(body)
           condTpe.flatMappedWith(bodyTpe).mappedWithType(TypeRepr.of[Unit])
 
+        // TODO Follow the same pattern as Scala2 zio-direct and specialize the fromMulti method
+        // it is actually better that way because things can be widened etc... the only two
+        // remaining places where ZioType can be created (i.e. the fromPure and fromZIO methods)
         case ir @ IR.Foreach(monad, _, _, body) =>
           val monadType = apply(monad)
           val bodyType = apply(body)

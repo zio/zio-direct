@@ -11,8 +11,8 @@ import zio.direct.core.metaprog.Instructions
 import zio.direct.core.metaprog.Verify
 import zio.direct.core.util.ShowDetails
 import zio.direct.core.metaprog.InfoBehavior
-import zio.direct.Dsl.Internal.deferred
-import zio.direct.Dsl.Internal.ignore
+import zio.direct.Internal.deferred
+import zio.direct.Internal.ignore
 
 object Allowed {
 
@@ -167,6 +167,8 @@ object Allowed {
         case Select(qualifier, name) => Next.Proceed
         case This(qual)              => Next.Proceed
         case Super(qual, mix)        => Next.Proceed
+
+        // How come we don't have "Throw" here??? How is that valid
 
         case applyNode @ Apply(fun, args) =>
           // If we find implicit arguments in the Apply do not check them. It is very important to skip checking of implicit arguments

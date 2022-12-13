@@ -17,7 +17,8 @@ import zio.direct.core.norm.WithComputeType
 import zio.direct.core.norm.WithReconstructTree
 import zio.direct.core.norm.WithDecomposeTree
 import zio.direct.core.util.ShowDetails
-import zio.direct.Dsl.Internal.deferred
+import zio.direct.Internal.deferred
+import zio.direct.core.util.Announce
 
 class Transformer(inputQuotes: Quotes)
     extends WithIR
@@ -31,13 +32,6 @@ class Transformer(inputQuotes: Quotes)
   implicit val macroQuotes = inputQuotes
   import quotes.reflect._
 
-  def symbolLineage(sym: Symbol): Unit =
-    if (sym.isNoSymbol) {
-      ()
-    } else {
-      symbolLineage(sym.owner)
-    }
-
   protected def posFileStr(pos: Position): String =
     val path = pos.sourceFile.path
     s"$path:${pos.startLine + 1}:${pos.startColumn}"
@@ -45,46 +39,28 @@ class Transformer(inputQuotes: Quotes)
   def apply[T: Type](valueRaw: Expr[T], instructions: Instructions): Expr[ZIO[?, ?, ?]] = {
     val value = valueRaw.asTerm.underlyingArgument
 
-    def printSection(heading: String, section: String = "", showFile: Boolean = false, loud: Boolean = false) =
-      import zio.direct.core.util.IndentExt._
-      val headingText =
-        if (loud)
-          s"******* $heading *************************"
-        else
-          s"=== $heading ========"
-      val fileText = s"[${posFileStr(valueRaw.asTerm.pos)}]"
-      val buff = new StringBuilder
-
-      val text =
-        List(
-          Some(headingText),
-          (if (showFile) Some(fileText + "\n") else None),
-          (if (section != "") Some(section.indent(1) + "\n") else None)
-        ).collect {
-          case Some(value) => value
-        }.mkString("\n")
-      println(text)
-
-    // // Do a top-level transform to check that there are no invalid constructs
+    // Do a top-level transform to check that there are no invalid constructs
     if (instructions.verify != Verify.None)
       Allowed.validateBlocksIn(value.asExpr, instructions)
+
     // // Do the main transformation
     val transformedRaw = Decompose(instructions)(value)
 
+    def fileShow = Announce.FileShow.FullPath(posFileStr(valueRaw.asTerm.pos))
+
     if (instructions.info != InfoBehavior.Silent)
-      // valueRaw.asTerm.po
-      printSection("TRANSFORMING AT", "", true, true)
+      Announce.section("TRANSFORMING AT", "", fileShow, Announce.Volume.Loud)
 
     if (instructions.info.showDeconstructed)
-      printSection("Deconstructed Instructions", PrintIR(transformedRaw))
+      Announce.section("Deconstructed Instructions", PrintIR(transformedRaw), fileShow)
 
     val transformed = WrapUnsafes(transformedRaw)
     val transformedSameAsRaw = transformed != transformedRaw
     if (instructions.info.showDeconstructed) {
       if (transformedSameAsRaw)
-        printSection("Monadified Tries", PrintIR(transformed))
+        Announce.section("Monadified Tries", PrintIR(transformed), fileShow)
       else
-        printSection("Monadified Tries (No Changes)")
+        Announce.section("Monadified Tries (No Changes)", "", fileShow)
     }
 
     val output = ReconstructTree(instructions).fromIR(transformed)
@@ -95,10 +71,10 @@ class Transformer(inputQuotes: Quotes)
           case InfoBehavior.Verbose     => ShowDetails.Standard
           case _                        => ShowDetails.Compact
         }
-      printSection("Reconstituted Code", Format.Expr(output, Format.Mode.DottyColor(showDetailsMode)))
+      Announce.section("Reconstituted Code", Format.Expr(output, Format.Mode.DottyColor(showDetailsMode)), fileShow)
 
     if (instructions.info.showReconstructedTree)
-      printSection("Reconstituted Code Raw", Format(Printer.TreeStructure.show(output.asTerm)))
+      Announce.section("Reconstituted Code Raw", Format(Printer.TreeStructure.show(output.asTerm)), fileShow)
 
     val computedType = ComputeType.fromIR(transformed)(using instructions)
 

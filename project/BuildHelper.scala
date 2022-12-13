@@ -17,6 +17,8 @@ object BuildHelper {
     val list = yaml.get("jobs").get("test").get("strategy").get("matrix").get("scala").asScala
     list.map(v => (v.split('.').take(2).mkString("."), v)).toMap
   }
+
+  val Scala213: String                      = versions("2.13")
   val ScalaDotty: String                    = versions("3.2")
 
   val SilencerVersion = "1.7.12"
@@ -193,6 +195,7 @@ object BuildHelper {
   }
 
   lazy val crossProjectSettings = Seq(
+    crossScalaVersions := Seq(Scala213, ScalaDotty),
     Compile / unmanagedSourceDirectories ++= {
       crossPlatformSources(
         scalaVersion.value,
