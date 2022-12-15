@@ -3,34 +3,13 @@ package zio
 import zio.direct.core.NotDeferredException
 import language.experimental.macros
 import zio.ZIO
+import scala.util.matching.Regex
 
 package object direct {
   def unsafe[T](value: T): T = NotDeferredException.fromNamed("unsafe")
 
-  object defer {
-    def apply[T](value: T): ZIO[_, _, _] = macro core.Macro.defer[T]
-    def use[T](use: Use)(value: T): ZIO[_, _, _] = macro core.Macro.deferWithUse[T]
-
-    object tpe {
-      def apply[T](value: T): ZIO[_, _, _] = macro core.Macro.tpe[T]
-      def use[T](use: Use)(value: T): ZIO[_, _, _] = macro core.Macro.tpeWithUse[T]
-    }
-
-    object info {
-      def apply[T](value: T): ZIO[_, _, _] = macro core.Macro.info[T]
-      def use[T](use: Use)(value: T): ZIO[_, _, _] = macro core.Macro.infoWithUse[T]
-    }
-
-    object verbose {
-      def apply[T](value: T): ZIO[_, _, _] = macro core.Macro.verbose[T]
-      def use[T](use: Use)(value: T): ZIO[_, _, _] = macro core.Macro.verboseWithUse[T]
-    }
-
-    object verboseTree {
-      def apply[T](value: T): ZIO[_, _, _] = macro core.Macro.verboseTree[T]
-      def use[T](use: Use)(value: T): ZIO[_, _, _] = macro core.Macro.verboseTreeWithUse[T]
-    }
-  }
+  def defer[T](value: T): ZIO[_, _, _] = macro core.Macro.deferImpl[T]
+  // def defer[T](regex: Regex)(value: T): ZIO[_, _, _] = ???
 
   implicit class ZioRunOps[R, E, A](value: ZIO[R, E, A]) {
     def run: A = NotDeferredException.fromNamed("run")

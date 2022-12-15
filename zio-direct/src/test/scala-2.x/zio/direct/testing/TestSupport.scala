@@ -87,9 +87,9 @@ private[direct] class TestSupportMacro(val c: Context) extends Transformer {
   private def wrapDefer(body: String, verify: Verify = Verify.Strict) = {
     verify match {
       case Verify.Lenient =>
-        "defer.use(zio.direct.Use.withLenientCheck) {\n" + body + "\n}"
+        "defer {\n" + body + "\n}"
       case Verify.None =>
-        "defer.use(zio.direct.Use.withNoCheck) {\n" + body + "\n}"
+        "defer {\n" + body + "\n}"
       case Verify.Strict =>
         "defer {\n" + body + "\n}"
     }

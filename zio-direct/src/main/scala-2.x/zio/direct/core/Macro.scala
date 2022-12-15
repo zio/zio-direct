@@ -5,39 +5,17 @@ import zio.direct.core.Transformer
 import zio.direct.core.metaprog.Instructions
 import zio.direct.core.metaprog.InfoBehavior
 import zio.direct.core.metaprog.WithUseParser
+import scala.util.matching.Regex
+import zio.ZIO
 
 class Macro(val c: Context) extends Transformer with WithUseParser {
-  import c.universe.Tree
+  import c.universe._
 
-  def defer[T](value: Tree): Tree =
-    apply(value, Instructions.default)
-  def info[T](value: Tree): Tree =
-    apply(value, Instructions.default.copy(info = InfoBehavior.Info))
-  def tpe[T](value: Tree): Tree =
-    apply(value, Instructions.default.copy(info = InfoBehavior.Tpe))
-  def verbose[T](value: Tree): Tree =
-    apply(value, Instructions.default.copy(info = InfoBehavior.Verbose))
-  def verboseTree[T](value: Tree): Tree =
-    apply(value, Instructions.default.copy(info = InfoBehavior.VerboseTree))
-
-  def deferWithUse[T](use: Tree)(value: Tree): Tree = {
-    val instr = RefineInstructions.fromUseTree(use, Instructions.default)
-    apply(value, instr)
-  }
-  def infoWithUse[T](use: Tree)(value: Tree): Tree = {
-    val instr = RefineInstructions.fromUseTree(use, Instructions.default.copy(info = InfoBehavior.Info))
-    apply(value, instr)
-  }
-  def tpeWithUse[T](use: Tree)(value: Tree): Tree = {
-    val instr = RefineInstructions.fromUseTree(use, Instructions.default.copy(info = InfoBehavior.Tpe))
-    apply(value, instr)
-  }
-  def verboseWithUse[T](use: Tree)(value: Tree): Tree = {
-    val instr = RefineInstructions.fromUseTree(use, Instructions.default.copy(info = InfoBehavior.Verbose))
-    apply(value, instr)
-  }
-  def verboseTreeWithUse[T](use: Tree)(value: Tree): Tree = {
-    val instr = RefineInstructions.fromUseTree(use, Instructions.default.copy(info = InfoBehavior.VerboseTree))
-    apply(value, instr)
-  }
+  def deferImpl[T](value: Expr[T])(tt: c.WeakTypeTag[T]): Expr[ZIO[_, _, _]] =
+    c.Expr[ZIO[_, _, _]](apply(value.tree, Instructions.default.copy(info = InfoBehavior.Verbose)))
+  // def deferWithUse[T](use: Regex)(value: Tree): Tree = {
+  //   // val instr = RefineInstructions.fromUseTree(use, Instructions.default)
+  //   // apply(value, Instructions.default)
+  //   ???
+  // }
 }

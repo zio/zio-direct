@@ -1,31 +1,24 @@
 package zio.direct
 
 import zio.direct.Internal.ignore
-import zio.direct.examples.RunNow
 import zio.direct.core.util.debug.PrintMac
 import zio.ZIO._
 import zio.ZIO
 import java.sql.SQLException
 import java.io.IOException
+import zio.Ref
 
 object Example {
 
-  sealed trait Error[+T]
-  object Error {
-    case class ErrorOne[T](t: T) extends Error[T]
-    case class ErrorTwo[T](t: T) extends Error[T]
-  }
+  val out =
+    defer {
+      val i = Ref.make(0).run
+      while (i.get.run < 3)
+        i.getAndUpdate(i => i + 1).run
+      i.get.run
+    }
 
-  def main(args: Array[String]): Unit = {
+  // println("===== Output: " + RunNow(out))
+  println(out)
 
-    val out =
-      defer.use(Use.withLenientCheck) {
-        if (true)
-          ZIO.fail(Error.ErrorOne(new IOException("foo")))
-        else
-          ZIO.fail(Error.ErrorTwo(new SQLException("foo")))
-      }
-
-    println("===== Output: " + RunNow(out))
-  }
 }
