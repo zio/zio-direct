@@ -58,7 +58,7 @@ object ParallelSpec extends DeferRunSpec {
         assertZIO(out.exit)(fails(anything))
       },
       test("Inferred Environment both sides error impure - least base type") {
-        val out = defer.use(Use.withAbstractError) {
+        val out = defer(Use.withAbstractError) {
           (fail(makeFooError).run, fail(makeBarError).run)
         }
         assertZIO(out.exit)(fails(anything))

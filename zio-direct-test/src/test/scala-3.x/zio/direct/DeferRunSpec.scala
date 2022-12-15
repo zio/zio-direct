@@ -83,7 +83,7 @@ trait DeferRunSpec extends ZIOSpecDefault {
   }
 
   inline def runLiftTestLenient[T](expected: T)(inline body: T) = {
-    val deferBody = defer.use(Use.withLenientCheck)(body)
+    val deferBody = defer(Use.withLenientCheck)(body)
     // Not sure why but If I don't cast to .asInstanceOf[ZIO[Any, Nothing, ?]]
     // zio says it expects a layer of scala.Nothing
 
@@ -94,7 +94,7 @@ trait DeferRunSpec extends ZIOSpecDefault {
 
   transparent inline def runLiftFailLenientMsg(errorStringContains: String)(body: String) = {
     val errors =
-      typeCheckErrors("defer.use(zio.direct.Use.withLenientCheck) {" + body + "}").map(_.message)
+      typeCheckErrors("defer(zio.direct.Use.withLenientCheck) {" + body + "}").map(_.message)
 
     // assert(errors)(exists(containsString(errorStringContains)))
     zio.test.UseSmartAssert.of(errors, None, None)(exists(containsString(errorStringContains)))(sourceLocation)
