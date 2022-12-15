@@ -19,7 +19,7 @@ object Example {
   def main(args: Array[String]): Unit = {
 
     val out =
-      defer.use(Use.withLenientCheck) {
+      defer(Use.withLenientCheck) {
         if (true)
           ZIO.fail(Error.ErrorOne(new IOException("foo")))
         else

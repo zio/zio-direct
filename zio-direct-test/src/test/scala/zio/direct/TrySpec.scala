@@ -126,7 +126,7 @@ object TrySpec extends DeferRunSpec {
             assertIsType[ZIO[Any, FooError, Tuple2[Int, Int]]](out)
         },
         test("not caught error in parallel block (die-channel) - both sides") {
-          val out = defer.use(Use.withAbstractError) {
+          val out = defer(Use.withAbstractError) {
             try {
               ({ throw ZIO.succeed(makeFooError).run }, { throw ZIO.succeed(makeBarError).run })
             } catch {
@@ -170,7 +170,7 @@ object TrySpec extends DeferRunSpec {
       def c() = called = true
       // runLiftTest(true)
       val out =
-        defer.use(Use.withLenientCheck) {
+        defer(Use.withLenientCheck) {
           val _ =
             try 1
             catch {

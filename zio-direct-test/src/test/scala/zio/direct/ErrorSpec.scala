@@ -10,21 +10,21 @@ object ErrorSpec extends DeferRunSpec {
     suite("Different Kinds of ways that errors can be thrown")(
       test("Directly thrown error should always go to error channel") {
         val out =
-          defer.use(Use.withNoCheck) {
+          defer(Use.withNoCheck) {
             throw new FooError
           }
         assertZIO(out.exit)(fails(isSubtype[FooError](anything)))
       },
       test("Indirect error function WITH 'unsafe' should be a failure") {
         val out =
-          defer.use(Use.withNoCheck) {
+          defer(Use.withNoCheck) {
             unsafe { throwFoo() }
           }
         assertZIO(out.exit)(fails(isSubtype[FooError](anything)))
       },
       test("Indirect error function WITHOUT 'unsafe' should be a defect") {
         val out =
-          defer.use(Use.withNoCheck) {
+          defer(Use.withNoCheck) {
             throwFoo()
           }
         assertZIO(out.exit)(dies(isSubtype[FooError](anything)))
@@ -32,7 +32,7 @@ object ErrorSpec extends DeferRunSpec {
       test("Operations order multiple should be correct") {
         var extern = "foo"
         val out =
-          defer.use(Use.withNoCheck) {
+          defer(Use.withNoCheck) {
             extern = extern + "bar"
             extern = extern + "baz"
             throwFoo()
@@ -46,7 +46,7 @@ object ErrorSpec extends DeferRunSpec {
         // a useful test to see if blocks are re-composed correctly.
         var extern = "foo"
         val out =
-          defer.use(Use.withNoCheck) {
+          defer(Use.withNoCheck) {
             extern = extern + "bar"
             ZIO.succeed(extern + "effect").run
             extern = extern + "baz"
@@ -62,7 +62,7 @@ object ErrorSpec extends DeferRunSpec {
       test("External error function without 'unsafe' should be a defect - odd case") {
         var extern = 1
         val out =
-          defer.use(Use.withNoCheck) {
+          defer(Use.withNoCheck) {
             extern = extern + 1
             throwFoo()
             try {
@@ -77,7 +77,7 @@ object ErrorSpec extends DeferRunSpec {
       test("External error function without 'unsafe' should be a defect - odd case + environment") {
         var extern = 1
         val out =
-          defer.use(Use.withNoCheck) {
+          defer(Use.withNoCheck) {
             extern = extern + 1
             throwFoo()
             try {

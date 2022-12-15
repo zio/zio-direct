@@ -12,7 +12,7 @@ object WhileSpec extends DeferRunSpec {
     suite("run condition")(
       test("pure body") {
         val out =
-          defer.use(Use.withLenientCheck) {
+          defer(Use.withLenientCheck) {
             var i = 0
             while (runBlock(succeed(i)) < 3)
               succeed(i += 1).run
@@ -22,7 +22,7 @@ object WhileSpec extends DeferRunSpec {
       },
       test("impure body") {
         val out =
-          defer.use(Use.withLenientCheck) {
+          defer(Use.withLenientCheck) {
             var i = 0
             while (runBlock(succeed(i)) < 3) {
               val add = succeed(1).run
@@ -36,7 +36,7 @@ object WhileSpec extends DeferRunSpec {
     suite("pure condition")(
       test("pure body") {
         val out =
-          defer.use(Use.withLenientCheck) {
+          defer(Use.withLenientCheck) {
             var i = 0
             while (i < 3)
               succeed(i += 1).run
@@ -59,7 +59,7 @@ object WhileSpec extends DeferRunSpec {
           i
         }
         val out =
-          defer.use(Use.withLenientCheck) {
+          defer(Use.withLenientCheck) {
             while (i < 3)
               (succeed(incrementA()).run, succeed(incrementB()).run)
             i
