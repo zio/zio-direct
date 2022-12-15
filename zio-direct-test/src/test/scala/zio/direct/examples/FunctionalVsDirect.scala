@@ -34,7 +34,7 @@
 //       // original imperative code
 //       {
 
-//         defer(Use.withNoCheck) {
+//         defer.use(Use.withNoCheck) {
 //           val db = Database.open
 //           while (db.hasNextRow()) {
 //             if (!db.lockNextRow()) doSomethingWith(db.nextRow()) else waitT()

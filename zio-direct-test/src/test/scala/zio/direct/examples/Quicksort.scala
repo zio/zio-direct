@@ -12,7 +12,7 @@
 //       arr(j) = temp
 //     }
 
-//     def sort(l: Int, r: Int): ZIO[Any, Nothing, Unit] = defer(Use.withLenientCheck) {
+//     def sort(l: Int, r: Int): ZIO[Any, Nothing, Unit] = defer.use(Use.withLenientCheck) {
 //       val pivot = arr((l + r) / 2)
 //       val i = Ref.make(l).run
 //       val j = Ref.make(r).run

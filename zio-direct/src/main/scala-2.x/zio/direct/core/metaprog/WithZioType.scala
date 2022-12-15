@@ -148,9 +148,9 @@ trait WithZioType extends MacroBase {
     // Not using the typeUnion here because Scala 2 has no type unions
     @nowarn
     private def or(a: Type, b: Type)(implicit typeUnion: TypeUnion): Type = {
-      val out = computeCommonBaseClass(a.widen, b.widen)
+      // val out = computeCommonBaseClass(a.widen, b.widen)
       // println(s"============= Common BaseClass of ${show(a)} and ${show(b)} -is- ${show(out)}")
-      out
+      c.typecheck(q"{ if (true) { val av: $a = ???; av } else { val bv: $b = ???; bv } }").tpe
     }
 
     private def and(a: Type, b: Type) = {
