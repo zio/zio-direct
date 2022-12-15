@@ -52,11 +52,7 @@ jobs:
       - name: Cache scala dependencies
         uses: coursier/cache-action@v6
       - name: Run tests
-        if: ${{ !startsWith(matrix.scala, '3.2.') }}
-        run: sbt ++${{ matrix.scala }}! test${{ matrix.platform }}
-      - name: Run dotty tests
-        if: ${{ startsWith(matrix.scala, '3.2.') && matrix.platform == 'JVM' }}
-        run: sbt ++${{ matrix.scala }}! testJVM
+        run: sbt ++${{ matrix.scala }}! test
 
   ci:
     runs-on: ubuntu-20.04
