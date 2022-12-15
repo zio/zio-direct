@@ -310,7 +310,7 @@
 //       makeFile().flatMap { file =>
 //         val buffer = new StringBuffer()
 
-//         defer(Use.withLenientCheck) {
+//         defer.use(Use.withLenientCheck) {
 //           val line0 = file.readLine().run
 //           var line: String = line0
 //           while (line != null) {
@@ -348,7 +348,7 @@
 
 //       makeFile().flatMap { file =>
 //         val buffer = new StringBuffer()
-//         defer(Use.withLenientCheck) {
+//         defer.use(Use.withLenientCheck) {
 //           val line0 = file.readLine().run
 //           var line: String = line0
 //           while (line != null) {

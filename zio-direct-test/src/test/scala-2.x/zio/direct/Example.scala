@@ -1,26 +1,31 @@
-// package zio.direct
+package zio.direct
 
-// import zio.direct.Internal.ignore
-// import zio.direct.examples.RunNow
-// import zio.direct.core.util.debug.PrintMac
-// import zio.ZIO._
-// import zio.ZIO
+import zio.direct.Internal.ignore
+import zio.direct.examples.RunNow
+import zio.direct.core.util.debug.PrintMac
+import zio.ZIO._
+import zio.ZIO
+import java.sql.SQLException
+import java.io.IOException
 
-// object Example {
+object Example {
 
-//   // TODO Need a test in the Scala 2 space with a couple constructs
-//   // that specifically does NOT import zio to make sure we don't have a missing (zio.)ZIO
-//   // anywhere in the Scala 2 macros.
-//   def main(args: Array[String]): Unit = { // // // // // // // //
+  sealed trait Error[+T]
+  object Error {
+    case class ErrorOne[T](t: T) extends Error[T]
+    case class ErrorTwo[T](t: T) extends Error[T]
+  }
 
-//     var v = 1
-//     val out =
-//       defer.verbose(Use.withLenientCheck) {
-//         for (i <- ZIO.succeed(List(1, 2, 3)).run) {
-//           v += i
-//         }
-//       }
+  def main(args: Array[String]): Unit = {
 
-//     println("===== Output: " + RunNow(out))
-//   }
-// }
+    val out =
+      defer.use(Use.withLenientCheck) {
+        if (true)
+          ZIO.fail(Error.ErrorOne(new IOException("foo")))
+        else
+          ZIO.fail(Error.ErrorTwo(new SQLException("foo")))
+      }
+
+    println("===== Output: " + RunNow(out))
+  }
+}

@@ -214,7 +214,7 @@ object BuildHelper {
 
   def stdSettings(prjName: String) = Seq(
     name                                   := s"$prjName",
-    ThisBuild / scalaVersion               := ScalaDotty,
+    ThisBuild / scalaVersion               := Scala213,
     scalacOptions                          := stdOptions ++ extraOptions(scalaVersion.value),
   )
 
