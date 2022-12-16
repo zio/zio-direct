@@ -10,22 +10,27 @@ import java.io.IOException
 
 object Example {
 
-  sealed trait Error[+T]
+  sealed trait Error
   object Error {
-    case class ErrorOne[T](t: T) extends Error[T]
-    case class ErrorTwo[T](t: T) extends Error[T]
+    class ErrorOne extends Error
+    class ErrorTwo extends Error
   }
 
   def main(args: Array[String]): Unit = {
+    val x =
+      if (true)
+        new java.io.IOException("foo")
+      else
+        new java.sql.SQLException("bar")
 
-    val out =
-      defer(Use.withLenientCheck) {
-        if (true)
-          ZIO.fail(Error.ErrorOne(new IOException("foo")))
-        else
-          ZIO.fail(Error.ErrorTwo(new SQLException("foo")))
-      }
+    // val out =
+    //   defer(Use.withLenientCheck) {
+    //     if (true)
+    //       ZIO.fail(Error.ErrorOne(new IOException("foo")))
+    //     else
+    //       ZIO.fail(Error.ErrorTwo(new SQLException("foo")))
+    //   }
 
-    println("===== Output: " + RunNow(out))
+    // println("===== Output: " + RunNow(out))
   }
 }

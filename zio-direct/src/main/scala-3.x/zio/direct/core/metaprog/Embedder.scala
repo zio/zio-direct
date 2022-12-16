@@ -7,8 +7,16 @@ import zio.ZIO
 
 object Embedder {
 
-  def computeCommonBaseClass(using Quotes)(a: quotes.reflect.TypeRepr, b: quotes.reflect.TypeRepr): quotes.reflect.TypeRepr =
+  def computeCommonBaseClass(using Quotes)(a: quotes.reflect.TypeRepr, b: quotes.reflect.TypeRepr): quotes.reflect.TypeRepr = {
     import quotes.reflect._
+    // As an alterantive, can construct a statement similar to Scala2-zio-direct but
+    // somehow this still seems to make a type union. Need to investigate
+    // (a.asType, b.asType) match
+    //   case ('[aTpe], '[bTpe]) =>
+    //     '{
+    //       if (true) { val av: aTpe = ???; av }
+    //       else { val bv: bTpe = ???; bv }
+    //     }.asTerm.tpe
     import scala.collection.immutable.ListSet
     if (a =:= TypeRepr.of[Nothing] && b =:= TypeRepr.of[Nothing]) TypeRepr.of[Nothing]
     else if (a =:= TypeRepr.of[Nothing]) b
@@ -18,6 +26,7 @@ object Embedder {
       val isectOpt = ListSet(a.widen.baseClasses: _*).intersect(ListSet(b.widen.baseClasses: _*)).headOption
       val isectTypeOpt = isectOpt.map(baseClassSymbol => baseClassSymbol.typeRef)
       isectTypeOpt.getOrElse(TypeRepr.of[Any])
+  }
 
   def topLevelOwner(using Quotes): quotes.reflect.Symbol =
     import quotes.reflect._
