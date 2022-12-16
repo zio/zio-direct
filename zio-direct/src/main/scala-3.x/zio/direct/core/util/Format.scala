@@ -2,7 +2,6 @@ package zio.direct.core.util
 
 import scala.util.{Try, Success, Failure}
 import scala.quoted._
-import io.getquill.util.ScalafmtFormat
 import zio.direct.core.metaprog.Trees
 import zio.direct.core.metaprog.Extractors.Seal
 import scala.meta.internal.semanticdb.Scala
@@ -133,29 +132,5 @@ object Format {
       }
 
     unEnclose(formatted)
-  }
-
-  object ScalafmtFormat {
-    import io.getquill.util.ThrowableOps._
-    import org.scalafmt.config.ScalafmtConfig
-    import org.scalafmt.{Formatted, Scalafmt}
-
-    def apply(code: String, showErrorTrace: Boolean = false): String = {
-      val style = ScalafmtConfig(runner = ScalafmtRunner(dialect = ScalafmtRunner.Dialect.scala3))
-      Scalafmt.format(code, style, Set.empty, "<input>") match {
-        case Formatted.Success(formattedCode) =>
-          formattedCode
-        case Formatted.Failure(e) =>
-          if (showErrorTrace)
-            println(
-              s"""===== Failed to format the code ====
-                |$code
-                |---
-                |${e.stackTraceToString}.
-                |""".stripMargin
-            )
-          code
-      }
-    }
   }
 }

@@ -50,6 +50,7 @@ lazy val `zio-direct` = project
   .settings(crossProjectSettings)
   .settings(dottySettings)
   .settings(buildInfoSettings("zio.direct"))
+  .settings(macroDefinitionSettings)
   .enablePlugins(BuildInfoPlugin)
   .settings(
     crossScalaVersions := Seq(Scala212, Scala213, ScalaDotty),
@@ -62,14 +63,14 @@ lazy val `zio-direct` = project
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework"),
     libraryDependencies ++= Seq(
       zio,
-      `quill-util`,
       pprint,
       sourcecode,
       fansi,
       `scala-java8-compat`,
       `scala-collection-compat`,
       `zio-test`,
-      `zio-test-sbt`
+      `zio-test-sbt`,
+      `scalafmt-core`
     )
   )
 
@@ -79,6 +80,7 @@ lazy val `zio-direct-test` = project
   .settings(crossProjectSettings)
   .settings(dottySettings)
   .settings(buildInfoSettings("zio.direct"))
+  .settings(macroDefinitionSettings)
   .enablePlugins(BuildInfoPlugin)
   .settings(
     crossScalaVersions := Seq(Scala212, Scala213, ScalaDotty),
@@ -91,16 +93,15 @@ lazy val `zio-direct-test` = project
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework"),
     libraryDependencies ++= Seq(
       zio,
-      `quill-util`,
       pprint,
       sourcecode,
       fansi,
       `scala-java8-compat`,
       `scala-collection-compat`,
       `zio-test`,
-      `zio-test-sbt`
-    ),
-    publish / skip := true,
+      `zio-test-sbt`,
+      `scalafmt-core`
+    )
   )
   .dependsOn(`zio-direct` % "compile->compile;test->test")
 

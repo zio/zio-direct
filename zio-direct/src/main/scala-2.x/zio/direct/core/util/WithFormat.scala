@@ -1,6 +1,5 @@
 package zio.direct.core.util
 
-// import io.getquill.util.ScalafmtFormat
 // import org.scalafmt.config.ScalafmtRunner
 import zio.direct.core.metaprog.MacroBase
 
@@ -118,30 +117,6 @@ trait WithFormat extends MacroBase {
         }
 
       unEnclose(formatted)
-    }
-
-    object ScalafmtFormat {
-      import io.getquill.util.ThrowableOps._
-      import org.scalafmt.config.ScalafmtConfig
-      import org.scalafmt.{Formatted, Scalafmt}
-
-      def apply(code: String, showErrorTrace: Boolean = false): String = {
-        val style = ScalafmtConfig() // runner = ScalafmtRunner(dialect = ScalafmtRunner.Dialect.scala213)
-        Scalafmt.format(code, style, Set.empty, "<input>") match {
-          case Formatted.Success(formattedCode) =>
-            formattedCode
-          case Formatted.Failure(e) =>
-            if (showErrorTrace)
-              println(
-                s"""===== Failed to format the code ====
-                |$code
-                |---
-                |${e.stackTraceToString}.
-                |""".stripMargin
-              )
-            code
-        }
-      }
     }
   }
 

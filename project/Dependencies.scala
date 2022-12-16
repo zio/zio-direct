@@ -21,7 +21,6 @@ object Dependencies {
   val SourceCodeVersion = "0.2.8"
   val CompatVersion = "1.0.1"
   val CollectionCompatVersion = "2.9.0"
-  val QuillUtilVersion = "4.6.0"
 
   val zio               = "dev.zio" %% "zio"             % ZioVersion
   val `zio-test`        = "dev.zio" %% "zio-test"        % ZioVersion % "test"
@@ -33,7 +32,14 @@ object Dependencies {
 
   val `scala-java8-compat`    = "org.scala-lang.modules" %% "scala-java8-compat" % CompatVersion
   val `scala-collection-compat`    = "org.scala-lang.modules" %% "scala-collection-compat" % CollectionCompatVersion
-  // Get the ability to optionally format code from here. TODO remove this dependency
-  val `quill-util`      = ("io.getquill" %% "quill-util" % QuillUtilVersion).excludeVersionConflicting
+
+  val `scalafmt-core` = ("org.scalameta" %% "scalafmt-core" % "3.1.0")
+    .excludeAll(
+      (Seq(
+        ExclusionRule(organization = "com.lihaoyi"),
+        ExclusionRule(organization = "org.scala-lang.modules")
+      )): _*
+    )
+    .cross(CrossVersion.for3Use2_13)
 
 }
