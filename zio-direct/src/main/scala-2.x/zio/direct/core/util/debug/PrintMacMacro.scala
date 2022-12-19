@@ -24,12 +24,10 @@ class PrintMacMacro(val c: MacroContext) extends WithFormat {
         Format(showRaw(value))
     )
 
-    Trees.traverse(c)(value) {
-      // case v: ValDef =>
-      //   println(s"========= ${show(v)} - isLazy: ${v.mods.hasFlag(Flag.LAZY)} - isMutable: ${v.mods.hasFlag(Flag.MUTABLE)} - isImplicit: ${v.mods.hasFlag(Flag.IMPLICIT)}")
-      case AssignOrNamedArg(lhs, _) =>
-        println(s"========= ${lhs} - is a paramter: ${lhs.symbol.isParameter} - is mutable ${lhs.symbol.isTerm && lhs.symbol.asTerm.isVar}")
-    }
+    // Trees.traverse(c)(value) {
+    //   // case v: ValDef =>
+    //   //   println(s"========= ${show(v)} - isLazy: ${v.mods.hasFlag(Flag.LAZY)} - isMutable: ${v.mods.hasFlag(Flag.MUTABLE)} - isImplicit: ${v.mods.hasFlag(Flag.IMPLICIT)}")
+    // }
 
     q"()"
   }
