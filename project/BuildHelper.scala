@@ -21,13 +21,16 @@ object BuildHelper {
     list.map(v => (v.split('.').take(2).mkString("."), v)).toMap
   }
 
+  val Scala211: String                      = versions("2.11")
   val Scala212: String                      = versions("2.12")
   val Scala213: String                      = versions("2.13")
   val ScalaDotty: String                    = versions("3.2")
 
   val `zd.scala.version` = {
     readVersionFromSysProps().orElse(readVersionFromFile()) match {
-      case Some(value) => value
+      case Some(value) =>
+        println(s"=== [VERSION] Final `zd.scala.version` ${value} ===")
+        value
       case None =>
         println(s"=== [VERSION] No version from sys-props or file, defaulting to ${ScalaDotty} ===")
         ScalaDotty
@@ -47,6 +50,9 @@ object BuildHelper {
     if (Files.exists(zdPath)) {
       val strOpt = Files.readAllLines(zdPath).toArray().headOption
       strOpt match {
+        case Some("2.11") =>
+          println(s"=== [VERSION] Reading Version from .zd.scala.version file: ${Scala211} ===")
+          Some(Scala211)
         case Some("2.12") =>
           println(s"=== [VERSION] Reading Version from .zd.scala.version file: ${Scala212} ===")
           Some(Scala212)
@@ -57,7 +63,7 @@ object BuildHelper {
           println(s"=== [VERSION] Reading Version from .zd.scala.version file: ${ScalaDotty} ===")
           Some(ScalaDotty)
         case Some(v) =>
-          throw new IllegalArgumentException(s"Only three values supported for .zd.scala.version 2.12/2.13/3 but `${v}` found.")
+          throw new IllegalArgumentException(s"Only three values supported for .zd.scala.version 2.11/2.12/2.13/3 but `${v}` found.")
         case None =>
           println("=== [VERSION] Found a .zio.scala.version file but was empty. Skipping ===")
           None
@@ -248,7 +254,7 @@ object BuildHelper {
   }
 
   lazy val crossProjectSettings = Seq(
-    crossScalaVersions := Seq(Scala212, Scala213, ScalaDotty),
+    crossScalaVersions := Seq(Scala211, Scala212, Scala213, ScalaDotty),
     Compile / unmanagedSourceDirectories ++= {
       crossPlatformSources(
         scalaVersion.value,

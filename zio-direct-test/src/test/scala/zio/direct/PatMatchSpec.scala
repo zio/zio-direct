@@ -36,7 +36,7 @@ object PatMatchSpec extends DeferRunSpec {
           }
         },
         test("impure cases") {
-          runLiftTest(3) {
+           runLiftTest(3) {
             runBlock(defer("b")) match {
               case "a" => runBlock(defer(2))
               case "b" => runBlock(defer(3))

@@ -53,7 +53,7 @@ lazy val `zio-direct` = project
   .settings(macroDefinitionSettings)
   .enablePlugins(BuildInfoPlugin)
   .settings(
-    crossScalaVersions := Seq(Scala212, Scala213, ScalaDotty),
+    crossScalaVersions := Seq(Scala211, Scala212, Scala213, ScalaDotty),
     Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat,
     resolvers ++= Seq(
       Resolver.mavenLocal,
@@ -83,7 +83,7 @@ lazy val `zio-direct-test` = project
   .settings(macroDefinitionSettings)
   .enablePlugins(BuildInfoPlugin)
   .settings(
-    crossScalaVersions := Seq(Scala212, Scala213, ScalaDotty),
+    crossScalaVersions := Seq(Scala211, Scala212, Scala213, ScalaDotty),
     Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat,
     resolvers ++= Seq(
       Resolver.mavenLocal,

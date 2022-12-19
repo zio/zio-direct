@@ -8,15 +8,15 @@ trait WithZioType extends MacroBase {
 
   import c.universe._
 
-  protected case class ZioType private (val r: Type, val e: Type, val a: Type) {
+  protected class ZioType private (val r: Type, val e: Type, val a: Type) {
     def show = s"ZioType(${Format.Type(r)}, ${Format.Type(e)}, ${Format.Type(a)})"
 
     def transformR(f: Type => Type) =
-      ZioType(f(r), e, a)
+      new ZioType(f(r), e, a)
     def transformE(f: Type => Type) =
-      ZioType(r, f(e), a)
+      new ZioType(r, f(e), a)
     def transformA(f: Type => Type) =
-      ZioType(r, e, f(a))
+      new ZioType(r, e, f(a))
 
     def asTypeTuple = (r, e, a)
 
@@ -27,13 +27,13 @@ trait WithZioType extends MacroBase {
       }
 
     def flatMappedWith(other: ZioType)(implicit typeUnion: TypeUnion) =
-      ZioType(ZioType.and(r, other.r), ZioType.or(e, other.e)(typeUnion), other.a)
+      new ZioType(ZioType.and(r, other.r), ZioType.or(e, other.e)(typeUnion), other.a)
 
     def mappedWith(other: Tree) =
-      ZioType(r, e, c.typecheck(other).tpe)
+      new ZioType(r, e, c.typecheck(other).tpe)
 
     def mappedWithType(tpe: Type) =
-      ZioType(r, e, tpe)
+      new ZioType(r, e, tpe)
   }
   protected object ZioType {
     def fromPrimaryWithOthers(primary: ZioType)(others: ZioType*)(implicit typeUnion: TypeUnion) = {
@@ -53,7 +53,7 @@ trait WithZioType extends MacroBase {
     }
 
     def fromMultiTypes(rs: List[Type], es: List[Type], as: List[Type])(implicit typeUnion: TypeUnion) =
-      ZioType(
+      new ZioType(
         ZioType.andN(rs),
         ZioType.orN(es)(typeUnion),
         ZioType.orN(as)
@@ -65,7 +65,7 @@ trait WithZioType extends MacroBase {
     def fromZIO(treeRaw: Tree) = {
       val tree = c.typecheck(treeRaw)
       val (r, e, a) = decomposeZioTypeFromTree(tree)
-      ZioType(r, e, a)
+      new ZioType(r, e, a)
     }
 
     private def decomposeZioTypeFromTree(zioTree: Tree) =
@@ -88,7 +88,7 @@ trait WithZioType extends MacroBase {
       val tpe =
         if (tree.tpe != null) tree.tpe
         else c.typecheck(tree).tpe
-      ZioType(typeOf[Any], typeOf[Nothing], tpe)
+      new ZioType(typeOf[Any], typeOf[Nothing], tpe)
     }
 
     def apply(r: Type, e: Type, a: Type) = {
@@ -101,7 +101,7 @@ trait WithZioType extends MacroBase {
 
     def composeN(zioTypes: List[ZioType])(implicit typeUnion: TypeUnion): ZioType = {
       val (rs, es, as) = zioTypes.map(zt => (zt.r, zt.e, zt.a)).unzip3
-      ZioType(andN(rs), orN(es), andN(as))
+      new ZioType(andN(rs), orN(es), andN(as))
     }
 
     private def andN(types: List[Type]) =
@@ -121,7 +121,7 @@ trait WithZioType extends MacroBase {
         typeOf[Nothing]
 
     def compose(a: ZioType, b: ZioType)(implicit typeUnion: TypeUnion): ZioType =
-      ZioType(and(a.r, b.r), or(a.e, b.e), or(a.a, b.a))
+      new ZioType(and(a.r, b.r), or(a.e, b.e), or(a.a, b.a))
 
     def computeCommonBaseClass(a: Type, b: Type): Type = {
       import scala.collection.immutable.ListSet

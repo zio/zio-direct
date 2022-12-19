@@ -33,7 +33,7 @@ object Dependencies {
   val `scala-java8-compat`    = "org.scala-lang.modules" %% "scala-java8-compat" % CompatVersion
   val `scala-collection-compat`    = "org.scala-lang.modules" %% "scala-collection-compat" % CollectionCompatVersion
 
-  val `scalafmt-core` = ("org.scalameta" %% "scalafmt-core" % "3.1.0")
+  val `scalafmt-core` = ("org.scalameta" %% "scalafmt-core" % "3.0.0-RC1")
     .excludeAll(
       (Seq(
         ExclusionRule(organization = "com.lihaoyi"),
