@@ -6,8 +6,7 @@ import scala.collection.mutable.ArrayBuffer
 import zio.direct.core.util.Messages
 import zio.ZIO
 
-@nowarn("msg=is never used") // cases for variable non-usage
-@nowarn("msg=is never updated") // cases for array buffer non-usage
+@nowarn
 object MutableSpec extends DeferRunSpec {
   val spec = suite("MutableSpec")(
     suite("Mutable Var")(
@@ -41,7 +40,7 @@ object MutableSpec extends DeferRunSpec {
     suite("Mutable Collection")(
       test("in effect") {
         var buff = new ArrayBuffer[Int]()
-        buff.addOne(1)
+        buff += 1
         val out =
           defer {
             (ZIO.succeed({ buff.update(0, buff(0) + 1); buff(0) }).run, ZIO.succeed(buff(0)).run)
@@ -51,7 +50,7 @@ object MutableSpec extends DeferRunSpec {
       },
       test("plain not allowed") {
         var buff = new ArrayBuffer[Int]()
-        buff.addOne(1)
+        buff += 1
         runLiftFailMsg(Messages.MutableCollectionDetected) {
           """
           buff.update(0, buff(0) + 1); buff(0)

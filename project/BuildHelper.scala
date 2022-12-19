@@ -2,6 +2,9 @@ import sbt.Keys._
 import sbt._
 import sbtbuildinfo.BuildInfoKeys._
 import sbtbuildinfo._
+import java.nio.file.FileSystem
+import java.nio.file.FileSystems
+import java.nio.file.Files
 
 
 object BuildHelper {
@@ -18,8 +21,58 @@ object BuildHelper {
     list.map(v => (v.split('.').take(2).mkString("."), v)).toMap
   }
 
+  val Scala212: String                      = versions("2.12")
   val Scala213: String                      = versions("2.13")
   val ScalaDotty: String                    = versions("3.2")
+
+  val `zd.scala.version` = {
+    readVersionFromSysProps().orElse(readVersionFromFile()) match {
+      case Some(value) => value
+      case None =>
+        println(s"=== [VERSION] No version from sys-props or file, defaulting to ${ScalaDotty} ===")
+        ScalaDotty
+    }
+  }
+
+  def readVersionFromSysProps() = {
+    val version = sys.props.get("zd.scala.version")
+    if (version.isDefined) {
+      println(s"=== [VERSION] Reading Version from Sys Props: ${version} ===")
+    }
+    version
+  }
+
+  def readVersionFromFile() = {
+    val zdPath = FileSystems.getDefault().getPath(".zd.scala.version")
+    if (Files.exists(zdPath)) {
+      val strOpt = Files.readAllLines(zdPath).toArray().headOption
+      strOpt match {
+        case Some("2.12") =>
+          println(s"=== [VERSION] Reading Version from .zd.scala.version file: ${Scala212} ===")
+          Some(Scala212)
+        case Some("2.13") =>
+          println(s"=== [VERSION] Reading Version from .zd.scala.version file: ${Scala213} ===")
+          Some(Scala213)
+        case Some("3") =>
+          println(s"=== [VERSION] Reading Version from .zd.scala.version file: ${ScalaDotty} ===")
+          Some(ScalaDotty)
+        case Some(v) =>
+          throw new IllegalArgumentException(s"Only three values supported for .zd.scala.version 2.12/2.13/3 but `${v}` found.")
+        case None =>
+          println("=== [VERSION] Found a .zio.scala.version file but was empty. Skipping ===")
+          None
+      }
+    } else {
+      println("=== [VERSION] Found a .zio.scala.version file but was empty. Skipping ===")
+      None
+    }
+  }
+
+  def isScala3 =
+    CrossVersion.partialVersion(`zd.scala.version`) match {
+      case Some((3, 0)) => true
+      case _ => false
+    }
 
   val SilencerVersion = "1.7.12"
 
@@ -195,7 +248,7 @@ object BuildHelper {
   }
 
   lazy val crossProjectSettings = Seq(
-    crossScalaVersions := Seq(Scala213, ScalaDotty),
+    crossScalaVersions := Seq(Scala212, Scala213, ScalaDotty),
     Compile / unmanagedSourceDirectories ++= {
       crossPlatformSources(
         scalaVersion.value,
@@ -214,7 +267,7 @@ object BuildHelper {
 
   def stdSettings(prjName: String) = Seq(
     name                                   := s"$prjName",
-    ThisBuild / scalaVersion               := Scala213,
+    ThisBuild / scalaVersion               := `zd.scala.version`,
     scalacOptions                          := stdOptions ++ extraOptions(scalaVersion.value),
   )
 

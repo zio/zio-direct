@@ -1,11 +1,12 @@
 package zio.direct.core.metaprog
 
+import zio.direct.core.metaprog.compat.WithAllowedCompat
 import zio.direct.core.util.WithUnsupported
 import zio.direct.core.util.Messages
 import zio.Chunk
 
 trait WithAllowed extends MacroBase {
-  self: WithUnsupported =>
+  self: WithUnsupported with WithAllowedCompat =>
 
   import c.universe._
 
@@ -55,22 +56,9 @@ trait WithAllowed extends MacroBase {
           Unsupported.Error.withTree(tree, Messages.RunInRunError)
 
         // Assignment in an run allowed by not recommenteded
-        case asi: Assign if (instructions.verify == Verify.Strict) =>
+        case asi @ AssignCompat(_) if (instructions.verify == Verify.Strict) =>
           Unsupported.Warn.withTree(asi, Messages.RunAssignmentNotRecommended)
       }
-
-    object SymbolExt {
-      def isSynthetic(s: Symbol) = isSyntheticName(getName(s))
-      private def isSyntheticName(name: String) = {
-        name == "<init>" || (name.startsWith("<local ") && name.endsWith(">")) || name == "$anonfun"
-      }
-      private def getName(s: Symbol) = s.name.decodedName.toString.trim
-    }
-
-    implicit class SymbolOps(sym: Symbol) {
-      def isSynthetic = sym.isSynthetic || SymbolExt.isSynthetic(sym)
-      def isMutableVariable = sym.isTerm && sym.asTerm.isVar
-    }
 
     implicit class ValDefOps(v: ValDef) {
       def isMutable = v.mods.hasFlag(Flag.MUTABLE)
@@ -166,7 +154,7 @@ trait WithAllowed extends MacroBase {
       def validateTerm(expr: Tree): Next = {
         expr match {
           // special error for assignment
-          case asi: Assign =>
+          case asi @ AssignCompat(_) =>
             Unsupported.Error.withTree(asi, Messages.AssignmentNotAllowed)
 
           case _ if (FromMutablePackage.check(expr.tpe)) =>
@@ -180,10 +168,6 @@ trait WithAllowed extends MacroBase {
             if (v.symbol.isMutableVariable && !v.symbol.isSynthetic)
               Unsupported.Error.withTree(v, Messages.MutableAndLazyVariablesNotAllowed)
             Next.Proceed
-          case Select(qualifier, name) => Next.Proceed
-          case This(qual)              => Next.Proceed
-          case Super(qual, mix)        => Next.Proceed
-          case Throw(_)                => Next.Proceed
 
           case applyNode @ Apply(fun, args) =>
             // If we find implicit arguments in the Apply do not check them. It is very important to skip checking of implicit arguments
@@ -196,7 +180,7 @@ trait WithAllowed extends MacroBase {
             def gatherArgs(possibleApply: Tree): Chunk[Tree] =
               possibleApply match {
                 case Apply(inner, args) =>
-                  gatherArgs(inner) ++ Chunk.from(args)
+                  gatherArgs(inner) ++ Chunk.fromIterable(args)
                 case other =>
                   Chunk.single(other)
               }
@@ -206,23 +190,28 @@ trait WithAllowed extends MacroBase {
             val allNonImplicitSubArgs = gatherArgs(applyWithoutImplicits)
             Next.ProceeedSpecific(fun +: allNonImplicitSubArgs.toList)
 
-          case TypeApply(fun, args)   => Next.Proceed
-          case Literal(const)         => Next.Proceed
-          case New(tpt)               => Next.Proceed
-          case Typed(expr, tpt)       => Next.Proceed
-          case Block(stats, expr)     => Next.Proceed
-          case If(cond, thenp, elsep) => Next.Proceed
           // Generally lambda-definitions are not allowed in `defer` blocks
           // but sometimes the scala-compiler will generate them when for-loops are
           // use e.g: `for (i <- List(1, 2, 3)) { ZIO.succeed(v += i).run }`
           case v @ Function(_, _) if (v.symbol.isSynthetic) =>
             Next.Proceed
-          case EmptyTree              => Next.Proceed
-          case NamedArg(_, _)         => Next.Proceed
-          case Annotated(_, _)        => Next.Proceed
-          case Match(selector, cases) => Next.Proceed
-          case Return(expr)           => Next.Proceed
-          case Bind(_, _)             => Next.Proceed
+
+          case TypeApply(fun, args)    => Next.Proceed
+          case Literal(const)          => Next.Proceed
+          case New(tpt)                => Next.Proceed
+          case Typed(expr, tpt)        => Next.Proceed
+          case Block(stats, expr)      => Next.Proceed
+          case If(cond, thenp, elsep)  => Next.Proceed
+          case Select(qualifier, name) => Next.Proceed
+          case This(qual)              => Next.Proceed
+          case Super(qual, mix)        => Next.Proceed
+          case Throw(_)                => Next.Proceed
+          case EmptyTree               => Next.Proceed
+          case NamedArgCompat(_)       => Next.Proceed
+          case Annotated(_, _)         => Next.Proceed
+          case Match(selector, cases)  => Next.Proceed
+          case Return(expr)            => Next.Proceed
+          case Bind(_, _)              => Next.Proceed
           // a while-loop
           case LabelDef(_, _, _)            => Next.Proceed
           case Try(block, cases, finalizer) => Next.Proceed
