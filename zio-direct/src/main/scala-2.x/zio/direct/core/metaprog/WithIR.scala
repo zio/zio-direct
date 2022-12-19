@@ -24,6 +24,19 @@ trait MacroBase {
   def isTermZIO(term: Tree) =
     term.isTerm && term.tpe <:< typeOf[ZIO[Any, Any, Any]] && !(term.tpe =:= typeOf[Nothing])
 
+  object SymbolExt {
+    def isSynthetic(s: Symbol) = isSyntheticName(getName(s))
+    private def isSyntheticName(name: String) = {
+      name == "<init>" || (name.startsWith("<local ") && name.endsWith(">")) || name == "$anonfun"
+    }
+    private def getName(s: Symbol) = s.name.decodedName.toString.trim
+  }
+
+  implicit class SymbolOps(sym: Symbol) {
+    def isSynthetic = sym.isSynthetic || SymbolExt.isSynthetic(sym)
+    def isMutableVariable = sym.isTerm && sym.asTerm.isVar
+  }
+
   object report {
     def errorAndAbort(msg: String) = c.abort(c.enclosingPosition, msg)
     def errorAndAbort(msg: String, tree: Tree) = c.abort(tree.pos, msg)

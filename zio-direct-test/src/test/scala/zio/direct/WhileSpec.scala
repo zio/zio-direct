@@ -50,12 +50,12 @@ object WhileSpec extends DeferRunSpec {
         val buff2 = new ArrayBuffer[Int]()
         def incrementA() = {
           i += 1
-          buff1.addOne(i)
+          buff1 += i
           i
         }
         def incrementB() = {
           i += 1
-          buff2.addOne(i)
+          buff2 += i
           i
         }
         val out =

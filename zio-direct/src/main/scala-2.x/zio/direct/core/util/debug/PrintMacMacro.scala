@@ -7,15 +7,16 @@ import zio.direct.core.metaprog.Trees
 class PrintMacMacro(val c: MacroContext) extends WithFormat {
   import c.universe._
 
-  def apply(value: Tree): Tree = {
+  def apply(valueRaw: Tree): Tree = {
     println(
       "================= Printing Tree =================\n" +
-        show(value)
+        show(valueRaw)
     )
     q"()"
   }
 
-  def detail(value: Tree): Tree = {
+  def detail(valueRaw: Tree): Tree = {
+    val value = c.typecheck(valueRaw)
     println(
       "================= Printing Tree =================\n" +
         show(value) + "\n" +
@@ -26,8 +27,8 @@ class PrintMacMacro(val c: MacroContext) extends WithFormat {
     Trees.traverse(c)(value) {
       // case v: ValDef =>
       //   println(s"========= ${show(v)} - isLazy: ${v.mods.hasFlag(Flag.LAZY)} - isMutable: ${v.mods.hasFlag(Flag.MUTABLE)} - isImplicit: ${v.mods.hasFlag(Flag.IMPLICIT)}")
-      case id: Ident =>
-        println(s"========= ${show(id)} - isImplicit: ${id.symbol}")
+      case AssignOrNamedArg(lhs, _) =>
+        println(s"========= ${lhs} - is a paramter: ${lhs.symbol.isParameter} - is mutable ${lhs.symbol.isTerm && lhs.symbol.asTerm.isVar}")
     }
 
     q"()"

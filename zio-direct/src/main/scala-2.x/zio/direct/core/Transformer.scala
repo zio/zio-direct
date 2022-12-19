@@ -14,6 +14,7 @@ import zio.direct.core.norm.WithReconstructTree
 import zio.direct.core.metaprog.InfoBehavior
 import zio.direct.core.metaprog.WithAllowed
 import zio.direct.core.metaprog.Verify
+import zio.direct.core.metaprog.compat.WithAllowedCompat
 
 abstract class Transformer
     extends WithIR
@@ -27,7 +28,8 @@ abstract class Transformer
     with WithUnsupported
     with WithComputeType
     with WithReconstructTree
-    with WithAllowed {
+    with WithAllowed
+    with WithAllowedCompat {
 
   import c.universe._
 

@@ -29,13 +29,17 @@ addCommandAlias(
   ";zio-direct/test"
 )
 
+lazy val modules =
+  Seq[sbt.ClasspathDep[sbt.ProjectReference]](
+    `zio-direct`, `zio-direct-test`
+  ) ++ {
+    if (isScala3) Seq[sbt.ClasspathDep[sbt.ProjectReference]](docs) else Seq[sbt.ClasspathDep[sbt.ProjectReference]]()
+  }
+
 lazy val root = (project in file("."))
-  .aggregate(
-    `zio-direct`,
-    `zio-direct-test`,
-    docs
-  )
+  .aggregate(modules.map(_.project): _*)
   .settings(
+    scalaVersion := `zd.scala.version`,
     crossScalaVersions := Nil,
     publish / skip := true
   )
@@ -48,7 +52,7 @@ lazy val `zio-direct` = project
   .settings(buildInfoSettings("zio.direct"))
   .enablePlugins(BuildInfoPlugin)
   .settings(
-    crossScalaVersions := Seq(Scala213, ScalaDotty),
+    crossScalaVersions := Seq(Scala212, Scala213, ScalaDotty),
     Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat,
     resolvers ++= Seq(
       Resolver.mavenLocal,
@@ -77,7 +81,7 @@ lazy val `zio-direct-test` = project
   .settings(buildInfoSettings("zio.direct"))
   .enablePlugins(BuildInfoPlugin)
   .settings(
-    crossScalaVersions := Seq(Scala213, ScalaDotty),
+    crossScalaVersions := Seq(Scala212, Scala213, ScalaDotty),
     Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat,
     resolvers ++= Seq(
       Resolver.mavenLocal,
@@ -95,7 +99,8 @@ lazy val `zio-direct-test` = project
       `scala-collection-compat`,
       `zio-test`,
       `zio-test-sbt`
-    )
+    ),
+    publish / skip := true,
   )
   .dependsOn(`zio-direct` % "compile->compile;test->test")
 

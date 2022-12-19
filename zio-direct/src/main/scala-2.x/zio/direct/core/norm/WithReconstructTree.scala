@@ -379,13 +379,12 @@ trait WithReconstructTree extends MacroBase {
               }
             }
           val (terms, names, tpes) = unliftTriples.unzip3
-          val termsExpr = q"scala.List(..$terms)" // Expr.ofList(terms.map(_.asExprOf[ZIO[?, ?, ?]]))
           val collect =
             instructions.collect match {
               case Collect.Sequence =>
-                q"zio.ZIO.collectAll(zio.Chunk.from($termsExpr))"
+                q"zio.ZIO.collectAll(List(..$terms))"
               case Collect.Parallel =>
-                q"zio.ZIO.collectAllPar(zio.Chunk.from($termsExpr))"
+                q"zio.ZIO.collectAllPar(List(..$terms))"
             }
 
           val list = freshName("list")

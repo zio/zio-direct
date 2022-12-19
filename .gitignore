@@ -2,6 +2,9 @@
 nohup.out
 *.force_ignore*
 
+# Version file to point to a particular scala version, useful for working with metals
+.zd.scala.version
+
 # Dropbox settings and caches
 .dropbox
 .dropbox.attr

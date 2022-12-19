@@ -16,16 +16,12 @@ object Example {
     case class ErrorTwo[T](t: T) extends Error[T]
   }
 
+  def fun(foo: String = "foo", bar: String = "bar") = foo + bar
+
   def main(args: Array[String]): Unit = {
 
-    val out =
-      defer(Use.withLenientCheck) {
-        if (true)
-          ZIO.fail(Error.ErrorOne(new IOException("foo")))
-        else
-          ZIO.fail(Error.ErrorTwo(new SQLException("foo")))
-      }
+    var x = 123
 
-    println("===== Output: " + RunNow(out))
+    PrintMac.detail(fun(bar = "blah")) // // //
   }
 }
