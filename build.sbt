@@ -123,7 +123,15 @@ lazy val docs = project
     publish / skip := true,
     moduleName := "zio-direct-docs",
     scalacOptions -= "-Yno-imports",
-    scalacOptions -= "-Xfatal-warnings"
+    scalacOptions -= "-Xfatal-warnings",
+    projectName       := "ZIO Direct Style",
+    badgeInfo         := Some(
+      BadgeInfo(
+        artifact = "zio-direct_2.12",
+        projectStage = ProjectStage.Development
+      )
+    ),
+    docsPublishBranch := "main"
   )
   .dependsOn(`zio-direct`)
   .enablePlugins(WebsitePlugin)
