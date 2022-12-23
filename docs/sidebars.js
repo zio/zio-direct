@@ -1,6 +1,12 @@
 const sidebars = {
   sidebar: [
-    "index"
+    {
+      type: "category",
+      label: "ZIO Direct Style",
+      collapsed: false,
+      link: { type: "doc", id: "index" },
+      items: [ ]
+    }
   ]
 };
 
