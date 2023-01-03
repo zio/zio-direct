@@ -4,7 +4,7 @@ import Dependencies._
 inThisBuild(
   List(
     organization := "dev.zio",
-    homepage := Some(url("https://zio.github.io/zio-direct/")),
+    homepage := Some(url("https://zio.dev/zio-direct")),
     licenses := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
     developers := List(
       Developer(
@@ -31,7 +31,8 @@ addCommandAlias(
 
 lazy val modules =
   Seq[sbt.ClasspathDep[sbt.ProjectReference]](
-    `zio-direct`, `zio-direct-test`
+    `zio-direct`,
+    `zio-direct-test`
   ) ++ {
     if (isScala3) Seq[sbt.ClasspathDep[sbt.ProjectReference]](docs) else Seq[sbt.ClasspathDep[sbt.ProjectReference]]()
   }
@@ -100,13 +101,13 @@ lazy val `zio-direct-test` = project
       `zio-test`,
       `zio-test-sbt`
     ),
-    publish / skip := true,
+    publish / skip := true
   )
   .dependsOn(`zio-direct` % "compile->compile;test->test")
 
 lazy val docs = project
   .in(file("zio-direct-docs"))
-  .settings(stdSettings("zio-direct"))
+  .settings(stdSettings("zio-direct-docs"))
   .settings(macroDefinitionSettings)
   .settings(
     excludeDependencies ++= Seq(
@@ -124,10 +125,10 @@ lazy val docs = project
     moduleName := "zio-direct-docs",
     scalacOptions -= "-Yno-imports",
     scalacOptions -= "-Xfatal-warnings",
-    projectName       := "ZIO Direct Style",
-    badgeInfo         := Some(
+    projectName := "ZIO Direct Style",
+    badgeInfo := Some(
       BadgeInfo(
-        artifact = "zio-direct_2.12",
+        artifact = "zio-direct_3",
         projectStage = ProjectStage.Development
       )
     ),
