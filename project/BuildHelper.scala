@@ -70,7 +70,7 @@ object BuildHelper {
 
   def isScala3 =
     CrossVersion.partialVersion(`zd.scala.version`) match {
-      case Some((3, 0)) => true
+      case Some((3, _)) => true
       case _ => false
     }
 
