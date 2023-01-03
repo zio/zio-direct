@@ -55,6 +55,15 @@ lazy val `zio-direct` = project
   .settings(
     crossScalaVersions := Seq(Scala212, Scala213, ScalaDotty),
     Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat,
+    Compile / resourceGenerators += Def.task {
+      val rootFolder = (Compile / resourceManaged).value / "META-INF"
+      rootFolder.mkdirs()
+      val compatFile = rootFolder / "intellij-compat.json"
+      val compatFileContent = s"""{ "artifact": "${(ThisBuild / organization).value} % zio-direct-intellij_2.13 % ${version.value}" }"""
+      println(s"--- Writing compat file: ${compatFile} - ${compatFileContent} ---")
+      IO.write(compatFile, compatFileContent)
+      Seq(compatFile)
+    },
     resolvers ++= Seq(
       Resolver.mavenLocal,
       "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots",
