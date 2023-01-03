@@ -13,7 +13,7 @@ ZIO Direct Style is a library that allows using directly-style i.e. imperative p
 To use zio-direct, add the following to your `build.sbt` file.
 
 ```scala
-libraryDependencies += "dev.zio" % "zio-direct_3" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-direct" % "@VERSION@"
 ```
 
 ## Introduction
