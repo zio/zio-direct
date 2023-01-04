@@ -17,14 +17,22 @@ import zio.direct.core.metaprog.RefineInstructions
 def unsafe[T](value: T): T = NotDeferredException.fromNamed("unsafe")
 
 object defer {
+  @scala.reflect.macros.internal.macroImpl
   transparent inline def apply[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Silent }, '{ Use }) }
+  @scala.reflect.macros.internal.macroImpl
   transparent inline def info[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Info }, '{ Use }) }
+  @scala.reflect.macros.internal.macroImpl
   transparent inline def verbose[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Verbose }, '{ Use }) }
+  @scala.reflect.macros.internal.macroImpl
   transparent inline def verboseTree[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.VerboseTree }, '{ Use }) }
 
+  @scala.reflect.macros.internal.macroImpl
   transparent inline def apply[T](inline params: Use)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Silent }, 'params) }
+  @scala.reflect.macros.internal.macroImpl
   transparent inline def info[T](inline params: Use)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Info }, 'params) }
+  @scala.reflect.macros.internal.macroImpl
   transparent inline def verbose[T](inline params: Use)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Verbose }, 'params) }
+  @scala.reflect.macros.internal.macroImpl
   transparent inline def verboseTree[T](inline params: Use)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.VerboseTree }, 'params) }
 }
 
