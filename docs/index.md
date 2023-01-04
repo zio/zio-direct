@@ -16,6 +16,10 @@ To use zio-direct, add the following to your `build.sbt` file.
 libraryDependencies += "dev.zio" %% "zio-direct" % "@VERSION@"
 ```
 
+## IDE Support
+
+The preferred IDE to use with ZIO-Direct is Visual Studio Code + Metals. This is because Metals correctly reads the returns from `defer` calls directly from the Scala compiler which is not the case of IntelliJ. To remedy this issue, a Library Extension is provided for ZIO-Direct. See the [IntelliJ Support](intellij-support) section for more details.
+
 ## Introduction
 
 Talk at Functional Scala 2022:
