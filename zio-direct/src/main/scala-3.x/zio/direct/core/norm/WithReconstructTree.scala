@@ -80,7 +80,8 @@ trait WithReconstructTree {
               Apply(
                 Apply(
                   TypeApply(
-                    Select.unique(monadExpr.asTerm, "flatMap"),
+                    // still need to do .asInstanceOf[ZIO[?, ?, t]] otherwise various tests will fail because .asExprOf is used everywhere
+                    Select.unique('{ $monadExpr.asInstanceOf[ZIO[?, ?, t]] }.asTerm, "flatMap"),
                     List(Inferred(anyToNothing), Inferred(anyToNothing), Inferred(anyToNothing))
                     // List(Inferred(TypeRepr.of[AnyKind]), Inferred(TypeRepr.of[AnyKind]), Inferred(TypeRepr.of[AnyKind]))
                     // List(TypeTree.ref(Wildcard().symbol), TypeTree.ref(Wildcard().symbol), TypeTree.ref(Wildcard().symbol))
