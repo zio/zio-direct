@@ -18,6 +18,7 @@ import zio.direct.core.util.Unsupported
 import org.scalafmt.util.LogLevel.info
 import zio.direct.core.metaprog.Collect.Sequence
 import zio.direct.core.metaprog.Collect.Parallel
+import java.lang.reflect.WildcardType
 
 trait WithReconstructTree {
   self: WithIR with WithZioType with WithComputeType with WithPrintIR with WithInterpolator =>
@@ -69,13 +70,25 @@ trait WithReconstructTree {
 
           symbolType match
             case '[t] =>
-              '{
-                $monadExpr.asInstanceOf[ZIO[?, ?, t]].flatMap((v: t) =>
-                  ${
-                    replaceSymbolInBodyMaybe(using macroQuotes)(bodyExpr.asTerm)(valSymbol, ('v).asTerm).asExprOf[ZIO[?, ?, ?]]
-                  }
-                )
-              }
+              val applyLambda =
+                '{ (v: t) =>
+                  ${ replaceSymbolInBodyMaybe(using macroQuotes)(bodyExpr.asTerm)(valSymbol, ('v).asTerm).asExprOf[ZIO[?, ?, ?]] }
+                }.asTerm
+
+              val anyToNothing = TypeBounds(TypeRepr.of[Nothing], TypeRepr.of[Any])
+
+              Apply(
+                Apply(
+                  TypeApply(
+                    Select.unique(monadExpr.asTerm, "flatMap"),
+                    List(Inferred(anyToNothing), Inferred(anyToNothing), Inferred(anyToNothing))
+                    // List(Inferred(TypeRepr.of[AnyKind]), Inferred(TypeRepr.of[AnyKind]), Inferred(TypeRepr.of[AnyKind]))
+                    // List(TypeTree.ref(Wildcard().symbol), TypeTree.ref(Wildcard().symbol), TypeTree.ref(Wildcard().symbol))
+                  ),
+                  List(applyLambda)
+                ),
+                List(Expr.summon[zio.Trace].get.asTerm)
+              ).asExprOf[ZIO[?, ?, ?]]
         }
 
         case IR.ValDef(origStmt, symbol, assignment, bodyUsingVal) =>
