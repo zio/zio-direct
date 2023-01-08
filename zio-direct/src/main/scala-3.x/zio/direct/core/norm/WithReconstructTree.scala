@@ -26,6 +26,38 @@ trait WithReconstructTree {
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._
 
+  private def applyFlatMap(monadExpr: Term, applyLambda: Term) = {
+    val anyToNothing = TypeBounds(TypeRepr.of[Nothing], TypeRepr.of[Any])
+    Apply(
+      Apply(
+        TypeApply(
+          // still need to do .asInstanceOf[ZIO[?, ?, t]] otherwise various tests will fail because .asExprOf is used everywhere
+          Select.unique(monadExpr, "flatMap"),
+          List(Inferred(anyToNothing), Inferred(anyToNothing), Inferred(anyToNothing))
+          // List(Inferred(TypeRepr.of[AnyKind]), Inferred(TypeRepr.of[AnyKind]), Inferred(TypeRepr.of[AnyKind]))
+          // List(TypeTree.ref(Wildcard().symbol), TypeTree.ref(Wildcard().symbol), TypeTree.ref(Wildcard().symbol))
+        ),
+        List(applyLambda)
+      ),
+      List(Expr.summon[zio.Trace].get.asTerm)
+    )
+  }
+
+  private def applyMap(monadExpr: Term, applyLambda: Term) = {
+    val anyToNothing = TypeBounds(TypeRepr.of[Nothing], TypeRepr.of[Any])
+    Apply(
+      Apply(
+        TypeApply(
+          // still need to do .asInstanceOf[ZIO[?, ?, t]] otherwise various tests will fail because .asExprOf is used everywhere
+          Select.unique(monadExpr, "map"),
+          List(Inferred(anyToNothing))
+        ),
+        List(applyLambda)
+      ),
+      List(Expr.summon[zio.Trace].get.asTerm)
+    )
+  }
+
   protected object ReconstructTree {
     def apply(instructions: Instructions) =
       new ReconstructTree(instructions)
@@ -48,9 +80,9 @@ trait WithReconstructTree {
         case nextBlock: IR.Block =>
           compressBlock(accum :+ block.head, nextBlock)
         case otherMonad =>
-          (accum :+ block.head, apply(otherMonad).asTerm)
+          (accum :+ block.head, apply(otherMonad))
 
-    private def apply(ir: IR, isTopLevel: Boolean = false): Expr[ZIO[?, ?, ?]] = {
+    private def apply(ir: IR, isTopLevel: Boolean = false): Term = {
       ir match
         case IR.Pure(code) => ZioApply.succeed(code)
 
@@ -62,7 +94,7 @@ trait WithReconstructTree {
         case IR.FlatMap(monad, valSymbol, body) => {
           val monadExpr = apply(monad)
           val bodyExpr = apply(body)
-          def symbolType = computeSymbolType(valSymbol, monadExpr.asTerm)
+          def symbolType = computeSymbolType(valSymbol, monadExpr)
           // Symbol type needs to be the same as the A-parameter of the ZIO, if not it's an error
           // should possibly introduce an asserition for that
           // Also:
@@ -72,24 +104,9 @@ trait WithReconstructTree {
             case '[t] =>
               val applyLambda =
                 '{ (v: t) =>
-                  ${ replaceSymbolInBodyMaybe(using macroQuotes)(bodyExpr.asTerm)(valSymbol, ('v).asTerm).asExprOf[ZIO[?, ?, ?]] }
+                  ${ replaceSymbolInBodyMaybe(using macroQuotes)(bodyExpr)(valSymbol, ('v).asTerm).asExprOf[ZIO[?, ?, ?]] }
                 }.asTerm
-
-              val anyToNothing = TypeBounds(TypeRepr.of[Nothing], TypeRepr.of[Any])
-
-              Apply(
-                Apply(
-                  TypeApply(
-                    // still need to do .asInstanceOf[ZIO[?, ?, t]] otherwise various tests will fail because .asExprOf is used everywhere
-                    Select.unique('{ $monadExpr.asInstanceOf[ZIO[?, ?, t]] }.asTerm, "flatMap"),
-                    List(Inferred(anyToNothing), Inferred(anyToNothing), Inferred(anyToNothing))
-                    // List(Inferred(TypeRepr.of[AnyKind]), Inferred(TypeRepr.of[AnyKind]), Inferred(TypeRepr.of[AnyKind]))
-                    // List(TypeTree.ref(Wildcard().symbol), TypeTree.ref(Wildcard().symbol), TypeTree.ref(Wildcard().symbol))
-                  ),
-                  List(applyLambda)
-                ),
-                List(Expr.summon[zio.Trace].get.asTerm)
-              ).asExprOf[ZIO[?, ?, ?]]
+              applyFlatMap(monadExpr, applyLambda)
         }
 
         case IR.ValDef(origStmt, symbol, assignment, bodyUsingVal) =>
@@ -105,9 +122,9 @@ trait WithReconstructTree {
             // 3. Impure/Impure - { val x = succeed(123).run; somethingMonadic }
             case (_, pureBody: IR.Pure) =>
               // remove the 1st case by making the assingment monadic (wrap it if needed)
-              apply(IR.Map(IR.Monad(apply(assignment).asTerm), symbol, pureBody))
+              apply(IR.Map(IR.Monad(apply(assignment)), symbol, pureBody))
             case (_, monadicBody: IR.Monadic) =>
-              apply(IR.FlatMap(IR.Monad(apply(assignment).asTerm), symbol, monadicBody))
+              apply(IR.FlatMap(IR.Monad(apply(assignment)), symbol, monadicBody))
           }
 
         case IR.Foreach(listIR, listType, elementSymbol, body) =>
@@ -116,8 +133,8 @@ trait WithReconstructTree {
           // the `sym` is of type E because it is `e`
           // We need to transform it into something like:
           //   ZIO.succeed(list).map { (l:Iterable[E] => ZIO.foreach(l)(body) }
-          val monadExpr = apply(listIR)
-          val bodyMonad = apply(body)
+          val monadExpr = apply(listIR).asExpr
+          val bodyMonad = apply(body).asExpr
           val elementType = elementSymbol.termRef.widenTermRefByName.asType
           (listType.widen.asType, elementType) match
             case ('[l], '[e]) =>
@@ -129,7 +146,7 @@ trait WithReconstructTree {
                         ${ replaceSymbolInBodyMaybe(using macroQuotes)(bodyMonad.asTerm.changeOwner(('v).asTerm.symbol))(Some(elementSymbol), ('v).asTerm).asExprOf[ZIO[?, ?, ?]] }
                       ).map(_ => ())
                     )
-                  }
+                  }.asTerm
                 case Parallel =>
                   '{
                     $monadExpr.asInstanceOf[ZIO[?, ?, l]].flatMap((list: l) =>
@@ -137,37 +154,38 @@ trait WithReconstructTree {
                         ${ replaceSymbolInBodyMaybe(using macroQuotes)(bodyMonad.asTerm.changeOwner(('v).asTerm.symbol))(Some(elementSymbol), ('v).asTerm).asExprOf[ZIO[?, ?, ?]] }
                       ).map(_ => ())
                     )
-                  }
+                  }.asTerm
 
         // Pull out the value from IR.Pure and use it directly in the mapping
         case IR.Map(monad, valSymbol, IR.Pure(body)) =>
           val monadExpr = apply(monad)
-          def symbolType = computeSymbolType(valSymbol, monadExpr.asTerm)
+          def symbolType = computeSymbolType(valSymbol, monadExpr)
           symbolType match
             // Check that 'a' is the same as 't' here in computeSymbolType
             case '[t] =>
-              '{
-                $monadExpr.asInstanceOf[ZIO[?, ?, t]].map((v: t) =>
-                  ${ replaceSymbolInBodyMaybe(using macroQuotes)(body)(valSymbol, ('v).asTerm).asExpr }
-                )
-              }
+              val applyLambda =
+                '{
+                  (v: t) =>
+                    ${ replaceSymbolInBodyMaybe(using macroQuotes)(body)(valSymbol, ('v).asTerm).asExpr }
+                }.asTerm
+              applyMap(monadExpr, applyLambda)
 
-        case IR.Monad(code) => code.asExprOf[ZIO[?, ?, ?]]
+        case IR.Monad(code) => code
 
         case IR.Fail(error) =>
           error match {
             case IR.Pure(value) =>
               ComputeType.fromIR(error).a.widen.asType match
                 case '[a] =>
-                  '{ ZIO.fail[a](${ value.asExpr }.asInstanceOf[a]) }
+                  '{ ZIO.fail[a](${ value.asExpr }.asInstanceOf[a]) }.asTerm
             // TODO test the case where error is constructed via an run
             case m: IR.Monadic =>
               ComputeType.fromIR(error).asTypeTuple match
                 case ('[r], '[e], '[a]) =>
                   val monad = apply(m)
-                  monad.asTerm.tpe.asType match
+                  monad.tpe.asType match
                     case '[t] =>
-                      '{ ${ monad }.asInstanceOf[ZIO[r, e, a]].flatMap(err => ZIO.fail(err)) }
+                      applyFlatMap(monad, '{ (err: Any) => ZIO.fail(err) }.asTerm)
           }
 
         case block: IR.Block =>
@@ -176,9 +194,9 @@ trait WithReconstructTree {
           // if we are on the top-level we are not inside of any map or flatMap
           // which means that we need to nest any possible exceptions into ZIO.succeed
           // so that they will go into the effect system instead of directly to the outside
-          val blockExpr = Block(stmts, term).asExprOf[ZIO[?, ?, ?]]
+          val blockExpr = Block(stmts, term)
           if (isTopLevel)
-            '{ ZIO.succeed($blockExpr).flatten }
+            applyFlatMap('{ ZIO.unit }.asTerm, blockExpr)
           else
             blockExpr
 
@@ -191,34 +209,34 @@ trait WithReconstructTree {
         case expr @ IR.And(left, right) =>
           (left, right) match {
             case (a: IR.Monadic, b: IR.Monadic) =>
-              '{ ${ apply(a) }.flatMap { case true => ${ apply(b) }; case false => ${ ZioApply.False } } }
+              applyFlatMap(apply(a), '{ (r: Any) => r match { case true => ${ apply(b).asExpr }; case false => ${ ZioApply.False.asExpr } } }.asTerm)
             case (a: IR.Monadic, IR.Pure(b)) =>
-              '{ ${ apply(a) }.map { case true => ${ b.asExpr }; case false => ${ ZioApply.False } } }
+              applyMap(apply(a), '{ (r: Any) => r match { case true => ${ b.asExpr }; case false => ${ ZioApply.False.asExpr } } }.asTerm)
             case (IR.Pure(a), b: IR.Monadic) =>
               '{
-                if (${ a.asExprOf[Boolean] }) ${ apply(b) }
-                else ${ ZioApply.False }
-              }
+                if (${ a.asExprOf[Boolean] }) ${ apply(b).asExpr }
+                else ${ ZioApply.False.asExpr }
+              }.asTerm
             // case Pure/Pure is taken care by in the transformer on a higher-level via the PureTree case. Still, handle them just in case
             case (IR.Pure(a), IR.Pure(b)) =>
-              '{ ZIO.succeed(${ a.asExprOf[Boolean] } && ${ b.asExprOf[Boolean] }) }
+              ZioApply.succeed('{ ${ a.asExprOf[Boolean] } && ${ b.asExprOf[Boolean] } }.asTerm)
             case _ => report.errorAndAbort(s"Invalid boolean variable combination:\n${PrintIR(expr)}")
           }
 
         case expr @ IR.Or(left, right) =>
           (left, right) match {
             case (a: IR.Monadic, b: IR.Monadic) =>
-              '{ ${ apply(a) }.flatMap { case true => ${ ZioApply.True }; case false => ${ apply(b) } } }
+              applyFlatMap(apply(a), '{ (r: Any) => r match { case true => ${ ZioApply.True.asExpr }; case false => ${ apply(b).asExpr } } }.asTerm)
             case (a: IR.Monadic, IR.Pure(b)) =>
-              '{ ${ apply(a) }.map { case true => ${ ZioApply.True }; case false => ${ b.asExpr } } }
+              applyMap(apply(a), '{ (r: Any) => r match { case true => ${ ZioApply.True.asExpr }; case false => ${ b.asExpr } } }.asTerm)
             case (IR.Pure(a), b: IR.Monadic) =>
               '{
-                if (${ a.asExprOf[Boolean] }) ${ ZioApply.True }
-                else ${ apply(b) }
-              }
+                if (${ a.asExprOf[Boolean] }) ${ ZioApply.True.asExpr }
+                else ${ apply(b).asExpr }
+              }.asTerm
             // case Pure/Pure is taken care by in the transformer on a higher-level via the PureTree case. Still, handle them just in case
             case (IR.Pure(a), IR.Pure(b)) =>
-              '{ ZIO.succeed(${ a.asExprOf[Boolean] } || ${ b.asExprOf[Boolean] }) }
+              '{ ZIO.succeed(${ a.asExprOf[Boolean] } || ${ b.asExprOf[Boolean] }) }.asTerm
             case _ => report.errorAndAbort(s"Invalid boolean variable combination:\n${PrintIR(expr)}")
           }
 
@@ -235,7 +253,7 @@ trait WithReconstructTree {
             IR.If(
               whileCond,
               IR.FlatMap(
-                IR.Monad(apply(whileBody).asTerm), // apply().asTerm.changeOwner(methSym),
+                IR.Monad(apply(whileBody)), // apply().asTerm.changeOwner(methSym),
                 None,
                 IR.Monad(Apply(Ref(methSym), Nil))
               ),
@@ -244,9 +262,9 @@ trait WithReconstructTree {
           val newMethodBodyExpr =
             methOutputComputed.asTypeTuple match
               case ('[r], '[e], '[a]) =>
-                '{ ${ apply(newMethodBody) }.asInstanceOf[ZIO[r, e, a]] }
+                apply(newMethodBody)
 
-          val newMethod = DefDef(methSym, sm => Some(newMethodBodyExpr.asTerm))
+          val newMethod = DefDef(methSym, sm => Some(newMethodBodyExpr))
           // Block(List(newMethod), Apply(Ref(methSym), Nil)).asExprOf[ZIO[?, ?, ?]]
           apply(IR.Block(newMethod, IR.Monad(Apply(Ref(methSym), Nil))))
 
@@ -256,7 +274,7 @@ trait WithReconstructTree {
               val newCaseDefs = reconstructCaseDefs(cases)
               val resultType = ComputeType.fromIR(tryIR).toZioType
               val tryTerm = apply(tryBlock)
-              (tryTerm.asTerm.tpe.asType, resultType.asType) match
+              (tryTerm.tpe.asType, resultType.asType) match
                 case ('[ZIO[r0, e0, a0]], '[ZIO[r, e, b]]) => {
                   // A normal lambda looks something like:
                   //   Block(List(
@@ -289,15 +307,15 @@ trait WithReconstructTree {
                   // Assemble the peices together into a closure
                   val closure = Closure(Ref(methSym), Some(pfTree))
                   val functionBlock = '{ ${ Block(List(method), closure).asExpr }.asInstanceOf[PartialFunction[er, ZIO[r, e, b]]] }
-                  val monadExpr = '{ ${ tryTerm }.asInstanceOf[ZIO[rr, er, ar]].catchSome { ${ functionBlock } } }
+                  val monadExpr = '{ ${ tryTerm.asExpr }.asInstanceOf[ZIO[rr, er, ar]].catchSome { ${ functionBlock } } }
 
                   finallyBlock match {
                     case Some(ir) =>
                       val finallyExpr = apply(ir)
-                      '{ $monadExpr.ensuring(ZioUtil.wrapWithThrowable($finallyExpr).orDie) }
+                      '{ $monadExpr.ensuring(ZioUtil.wrapWithThrowable(${ finallyExpr.asExprOf[ZIO[?, ?, ?]] }).orDie) }.asTerm
 
                     case None =>
-                      monadExpr
+                      monadExpr.asTerm
                   }
                 }
 
@@ -305,35 +323,35 @@ trait WithReconstructTree {
           reconstructParallel(value)
     }
 
-    def reconstructMatch(value: IR.Match) =
+    def reconstructMatch(value: IR.Match): Term =
       val IR.Match(scrutinee, caseDefs) = value
       scrutinee match
         case value: IR.Monadic =>
           val monadExpr = apply(value)
           // use the symbol instead of the monad as the scrutinee because the monad needs to be flatmapped first
           // (Note don't think you need to change ownership of caseDef.rhs to the new symbol but possible.)
-          val matchSymbol = Symbol.newVal(Symbol.spliceOwner, "matchVar", monadExpr.asTerm.tpe, Flags.EmptyFlags, Symbol.noSymbol)
+          val matchSymbol = Symbol.newVal(Symbol.spliceOwner, "matchVar", monadExpr.tpe, Flags.EmptyFlags, Symbol.noSymbol)
           val newCaseDefs = reconstructCaseDefs(caseDefs)
           // Possible exploration: if the content of the match is pure we lifted it into a monad. If we want to optimize we
           // change the IR.CaseDef.rhs to be IR.Pure as well as IR.Monadic and handle both cases
           val newMatch = Match(Ref(matchSymbol), newCaseDefs)
           // We can synthesize the monadExpr.flatMap call from the monad at this point but I would rather pass it to the FlatMap case to take care of
-          apply(IR.FlatMap(IR.Monad(monadExpr.asTerm), matchSymbol, IR.Monad(newMatch)))
+          apply(IR.FlatMap(IR.Monad(monadExpr), matchSymbol, IR.Monad(newMatch)))
         case IR.Pure(termValue) =>
           val newCaseDefs = reconstructCaseDefs(caseDefs)
           val newMatch = Match(termValue, newCaseDefs)
           // recall that the expressions in the case defs need all be ZIO instances (i.e. monadic) we we can
           // treat the whole thing as a ZIO (i.e. monadic) expression
-          newMatch.asExprOf[ZIO[?, ?, ?]]
+          newMatch
     end reconstructMatch
 
     private def reconstructCaseDefs(caseDefs: List[IR.Match.CaseDef]) =
       caseDefs.map { caseDef =>
         val bodyExpr = apply(caseDef.rhs)
-        CaseDef(caseDef.pattern, caseDef.guard, bodyExpr.asTerm)
+        CaseDef(caseDef.pattern, caseDef.guard, bodyExpr)
       }
 
-    def reconstructIf(value: IR.If) =
+    def reconstructIf(value: IR.If): Term =
       val IR.If(cond, ifTrue, ifFalse) = value
       enum ConditionState:
         case BothPure(ifTrue: Term, ifFalse: Term)
@@ -342,8 +360,8 @@ trait WithReconstructTree {
       val conditionState =
         (ifTrue, ifFalse) match {
           case (IR.Pure(a), IR.Pure(b))       => ConditionState.BothPure(a, b)
-          case (a: IR.Pure, b: IR.Monadic)    => ConditionState.BothMonadic(IR.Monad(apply(a).asTerm), b)
-          case (a: IR.Monadic, b: IR.Pure)    => ConditionState.BothMonadic(a, IR.Monad(apply(b).asTerm))
+          case (a: IR.Pure, b: IR.Monadic)    => ConditionState.BothMonadic(IR.Monad(apply(a)), b)
+          case (a: IR.Monadic, b: IR.Pure)    => ConditionState.BothMonadic(a, IR.Monad(apply(b)))
           case (a: IR.Monadic, b: IR.Monadic) => ConditionState.BothMonadic(a, b)
         }
 
@@ -355,8 +373,8 @@ trait WithReconstructTree {
             // => something.map(ifVar => (foo, bar) /*replace-to-ifVar*/)
             // Note that in this case we embed foo, bar into the if-statement. They are ZIO-values which is why we need a flatMap
             case ConditionState.BothMonadic(ifTrue, ifFalse) =>
-              val ifTrueTerm = apply(ifTrue).asTerm
-              val ifFalseTerm = apply(ifFalse).asTerm
+              val ifTrueTerm = apply(ifTrue)
+              val ifFalseTerm = apply(ifFalse)
               apply(IR.FlatMap(m, sym, IR.Monad(If(Ref(sym), ifTrueTerm, ifFalseTerm))))
             // For example: if(run(something)) "foo" else "bar"
             case ConditionState.BothPure(ifTrue, ifFalse) =>
@@ -366,9 +384,9 @@ trait WithReconstructTree {
         case IR.Pure(value) => {
           conditionState match {
             case ConditionState.BothMonadic(ifTrue, ifFalse) =>
-              val ifTrueTerm = apply(ifTrue).asTerm
-              val ifFalseTerm = apply(ifFalse).asTerm
-              If(value, ifTrueTerm, ifFalseTerm).asExprOf[ZIO[?, ?, ?]]
+              val ifTrueTerm = apply(ifTrue)
+              val ifFalseTerm = apply(ifFalse)
+              If(value, ifTrueTerm, ifFalseTerm)
             case ConditionState.BothPure(ifTrue, ifFalse) =>
               val ifStatement = If(value, ifTrue, ifFalse)
               apply(IR.Pure(ifStatement))
@@ -377,13 +395,13 @@ trait WithReconstructTree {
       }
     end reconstructIf
 
-    def reconstructParallel(value: IR.Parallel): Expr[ZIO[?, ?, ?]] =
+    def reconstructParallel(value: IR.Parallel): Term =
       val IR.Parallel(_, unlifts, newTree) = value
       unlifts.toList match {
         case List() =>
           newTree match
-            case IR.Pure(newTree)  => '{ ZIO.succeed(${ newTree.asExpr }) }
-            case IR.Monad(newTree) => newTree.asExprOf[ZIO[?, ?, ?]]
+            case IR.Pure(newTree)  => ZioApply.succeed(newTree)
+            case IR.Monad(newTree) => newTree
 
         /*
         For a expression (in a single block-line) that has one run in the middle of things e.g.
@@ -409,7 +427,7 @@ trait WithReconstructTree {
           }
 
           val monadExpr = apply(monad)
-          (monadExpr.asTerm.tpe.asType) match {
+          (monadExpr.tpe.asType) match {
             case '[ZIO[x, y, t]] =>
               newTree match {
                 case IR.Pure(newTree) =>
@@ -434,7 +452,7 @@ trait WithReconstructTree {
             unlifts.map((monad, monadSymbol) => {
               val monadExpr = apply(monad)
               val tpe = monadSymbol.termRef.widenTermRefByName
-              (monadExpr.asTerm, monadSymbol, tpe)
+              (monadExpr, monadSymbol, tpe)
             })
           val (terms, names, types) = unliftTriples.unzip3
           val termsExpr = Expr.ofList(terms.map(_.asExprOf[ZIO[?, ?, ?]]))

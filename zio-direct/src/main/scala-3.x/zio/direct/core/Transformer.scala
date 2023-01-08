@@ -71,10 +71,10 @@ class Transformer(inputQuotes: Quotes)
           case InfoBehavior.Verbose     => ShowDetails.Standard
           case _                        => ShowDetails.Compact
         }
-      Announce.section("Reconstituted Code", Format.Expr(output, Format.Mode.DottyColor(showDetailsMode)), fileShow)
+      Announce.section("Reconstituted Code", Format.Term(output, Format.Mode.DottyColor(showDetailsMode)), fileShow)
 
     if (instructions.info.showReconstructedTree)
-      Announce.section("Reconstituted Code Raw", Format(Printer.TreeStructure.show(output.asTerm)), fileShow)
+      Announce.section("Reconstituted Code Raw", Format(Printer.TreeStructure.show(output)), fileShow)
 
     val computedType = ComputeType.fromIR(transformed)(using instructions)
 
@@ -84,8 +84,8 @@ class Transformer(inputQuotes: Quotes)
       println(
         s"""-------------
         |Computed-Type: ${Format.TypeRepr(zioType)}
-        |Discovered-Type: ${Format.TypeRepr(output.asTerm.tpe)}
-        |Is Subtype: ${zioType <:< output.asTerm.tpe}
+        |Discovered-Type: ${Format.TypeRepr(output.tpe)}
+        |Is Subtype: ${zioType <:< output.tpe}
         |""".stripMargin
       )
 
@@ -94,7 +94,7 @@ class Transformer(inputQuotes: Quotes)
 
     // If there are any remaining run-calls in the tree then fail
     // TODO need to figure out a way to test this
-    Allowed.finalValidtyCheck(output, instructions)
+    Allowed.finalValidtyCheck(output.asExprOf[ZIO[?, ?, ?]], instructions)
 
     computedType.asTypeTuple match {
       case ('[r], '[e], '[a]) =>
@@ -107,7 +107,7 @@ class Transformer(inputQuotes: Quotes)
             case None =>
               report.info(computedTypeMsg)
           }
-        '{ deferred($output.asInstanceOf[ZIO[r, e, a]]) }
+        '{ deferred(${ output.asExpr }.asInstanceOf[ZIO[r, e, a]]) }
     }
   }
 }
