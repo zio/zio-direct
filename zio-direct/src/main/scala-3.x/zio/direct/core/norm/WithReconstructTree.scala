@@ -28,16 +28,37 @@ trait WithReconstructTree {
 
   private def applyFlatMap(monadExpr: Term, applyLambda: Term) = {
     val anyToNothing = TypeBounds(TypeRepr.of[Nothing], TypeRepr.of[Any])
+    val flatMapSig = Select.unique(monadExpr, "flatMap")
+    // val firstParam = flatMapMethod.symbol.paramSymss(0)(0)
+    // val firstParamType = TypeTree.ref(firstParam).tpe
+    val flatMapMethod =
+      TypeApply(
+        // still need to do .asInstanceOf[ZIO[?, ?, t]] otherwise various tests will fail because .asExprOf is used everywhere
+        flatMapSig,
+        List(Inferred(anyToNothing), Inferred(anyToNothing), Inferred(anyToNothing))
+        // List(Inferred(TypeRepr.of[AnyKind]), Inferred(TypeRepr.of[AnyKind]), Inferred(TypeRepr.of[AnyKind]))
+        // List(TypeTree.ref(Wildcard().symbol), TypeTree.ref(Wildcard().symbol), TypeTree.ref(Wildcard().symbol))
+      )
+
+    val flatMapMethodApply = flatMapMethod.etaExpand(Symbol.spliceOwner)
+
+    val valDef =
+      flatMapMethodApply match
+        case Lambda(List(valDef), term) => valDef
+        case _                          => report.errorAndAbort("Eta-expanded flatMap is not of correct form")
+
+    val firstParamType = valDef.tpt.tpe
+    println(s"============== First Param Type: ${firstParamType.show} =============")
+
     Apply(
       Apply(
-        TypeApply(
-          // still need to do .asInstanceOf[ZIO[?, ?, t]] otherwise various tests will fail because .asExprOf is used everywhere
-          Select.unique(monadExpr, "flatMap"),
-          List(Inferred(anyToNothing), Inferred(anyToNothing), Inferred(anyToNothing))
-          // List(Inferred(TypeRepr.of[AnyKind]), Inferred(TypeRepr.of[AnyKind]), Inferred(TypeRepr.of[AnyKind]))
-          // List(TypeTree.ref(Wildcard().symbol), TypeTree.ref(Wildcard().symbol), TypeTree.ref(Wildcard().symbol))
-        ),
-        List(applyLambda)
+        flatMapMethod,
+        List({
+          // whatever the type of the flatMap is supposed to be cast it to that
+          firstParamType.asType match
+            case '[t] =>
+              '{ ${ applyLambda.asExpr }.asInstanceOf[t] }.asTerm
+        })
       ),
       List(Expr.summon[zio.Trace].get.asTerm)
     )
@@ -196,7 +217,9 @@ trait WithReconstructTree {
           // so that they will go into the effect system instead of directly to the outside
           val blockExpr = Block(stmts, term)
           if (isTopLevel)
-            applyFlatMap('{ ZIO.unit }.asTerm, blockExpr)
+            val zioModule = Symbol.requiredModule("zio.ZIO")
+            val zioModuleUnit = Select.unique(Ref(zioModule), "unit")
+            applyFlatMap(zioModuleUnit, '{ (a: Any) => ${ blockExpr.asExpr } }.asTerm)
           else
             blockExpr
 
