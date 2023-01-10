@@ -48,7 +48,7 @@ trait WithReconstructTree {
         case _                          => report.errorAndAbort("Eta-expanded flatMap is not of correct form")
 
     val firstParamType = valDef.tpt.tpe
-    println(s"============== First Param Type: ${firstParamType.show} =============")
+    // println(s"============== First Param Type: ${firstParamType.show} =============")
 
     Apply(
       Apply(
@@ -270,6 +270,8 @@ trait WithReconstructTree {
           val methOutputTpe = methOutputComputed.toZioType
 
           val methodType = MethodType(Nil)(_ => Nil, _ => methOutputTpe)
+          println(s"========== Output Method Type: ${methOutputTpe.show} =====")
+
           val methSym = Symbol.newMethod(Symbol.spliceOwner, "whileFunc", methodType)
 
           val newMethodBody =
@@ -282,10 +284,16 @@ trait WithReconstructTree {
               ),
               IR.Pure('{ () }.asTerm)
             )
+          // val newMethodBodyExpr =
+          //   methOutputComputed.asTypeTuple match
+          //     case ('[r], '[e], '[a]) =>
+          //       apply(newMethodBody)
+
           val newMethodBodyExpr =
-            methOutputComputed.asTypeTuple match
-              case ('[r], '[e], '[a]) =>
-                apply(newMethodBody)
+            methOutputTpe.asType match
+              case '[t] =>
+                val newMethodBodyTerm = apply(newMethodBody)
+                '{ ${ newMethodBodyTerm.asExpr }.asInstanceOf[t] }.asTerm
 
           val newMethod = DefDef(methSym, sm => Some(newMethodBodyExpr))
           // Block(List(newMethod), Apply(Ref(methSym), Nil)).asExprOf[ZIO[?, ?, ?]]
