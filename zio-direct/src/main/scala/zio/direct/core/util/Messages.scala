@@ -14,10 +14,10 @@ val ImplicitsNotAllowed =
 Implicits are not allowed inside defer clauses (they are allowed inside of `run(...)` blocks.
 """.trimLeft
 
-def MutableCollectionDetected(collectionName: String) =
+def MutableCollectionDetected(methodName: String, collectionName: String) =
 s"""
-Detected the use of a collection mutation inside a defer clause
-(of the type: ${collectionName}).
+Detected the use of a collection mutation operator a defer clause
+(method `${methodName}` of the collection: `${collectionName}`).
 Mutable collections can cause many potential issues as a result of defer-clause
 rewrites so they are not allowed (Unless it is inside of a run-call).
 """.trimLeft

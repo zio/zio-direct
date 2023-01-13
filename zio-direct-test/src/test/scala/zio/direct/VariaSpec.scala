@@ -135,7 +135,7 @@ object VariaSpec extends DeferRunSpec {
       test("disallow mutable collection mutation method use") {
         import scala.collection.mutable.ArrayBuffer
         val v = new ArrayBuffer[Int](4)
-        runLiftFailMsg(Messages.MutableCollectionDetected("scala.collection.mutable.ArrayBuffer")) {
+        runLiftFailMsg(Messages.MutableCollectionDetected("+=", "scala.collection.mutable.ArrayBuffer")) {
           """
           v += 4
           """
@@ -144,10 +144,8 @@ object VariaSpec extends DeferRunSpec {
       test("allow mutable collection declare but not mutation") {
         import scala.collection.mutable.ArrayBuffer
         runLiftTest(new ArrayBuffer[Int](4)) {
-          """
           val v = new ArrayBuffer[Int](4)
           ZIO.succeed(v).run
-          """
         }
       },
       test("disallow implicit defs") {

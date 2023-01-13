@@ -6,6 +6,7 @@ object CollectionMethodWhitelist {
 
   private val list =
     Set(
+      "<init>",
       "empty",
       "from",
       "getClass",

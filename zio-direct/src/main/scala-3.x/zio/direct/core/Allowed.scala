@@ -185,7 +185,7 @@ object Allowed {
         case CollectionOp(opType, arr, method, args) =>
           opType match
             case CollectionOp.OpType.Mutation =>
-              Unsupported.Error.withTree(expr, s"Using method `${method}`. " + Messages.ArrayMutationSuspected)
+              Unsupported.Error.withTree(expr, Messages.MutableCollectionDetected(method, arr.tpe.widen.typeSymbol.fullName))
             case CollectionOp.OpType.NonMutation =>
               Next.ProceeedSpecific(arr +: args.toList)
 
