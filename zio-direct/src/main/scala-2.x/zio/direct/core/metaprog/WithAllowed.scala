@@ -19,7 +19,6 @@ trait WithAllowed extends MacroBase {
         (
           fullName.startsWith("scala.collection.mutable") ||
             tpe <:< typeOf[scala.collection.Iterator[Any]] ||
-            tpe <:< typeOf[scala.Array[Any]] ||
             tpe <:< typeOf[java.util.Collection[Any]] ||
             tpe <:< typeOf[java.util.Map[Any, Any]]
         ) && (!(tpe =:= typeOf[Nothing]))

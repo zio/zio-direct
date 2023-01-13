@@ -4,9 +4,45 @@ import scala.quoted._
 import scala.quoted.Varargs
 import zio.direct.core.util.Format
 import zio.ZIO
+import zio.Chunk
 
 object Extractors {
   import zio.direct._
+
+  object ApplySomeMethod {
+    def unapply(using Quotes)(term: quotes.reflect.Term) =
+      import quotes.reflect.*
+      term match {
+        case ApplyMatroshka(Select(obj, methodName), args) => Some((obj, methodName, args))
+        case _                                             => None
+      }
+  }
+
+  object ApplyMatroshka {
+    private object ApplyThing:
+      def unapply(using Quotes)(term: quotes.reflect.Term) =
+        import quotes.reflect.*
+        term match
+          case Apply(core, args)  => Some((core, Chunk.from(args)))
+          case TypeApply(core, _) => Some((core, Chunk.empty))
+          case Typed(core, _)     => Some((core, Chunk.empty))
+          case _                  => None
+
+    def recurse(using Quotes)(innerTerm: quotes.reflect.Term, accum: Chunk[Chunk[quotes.reflect.Term]]): (quotes.reflect.Term, Chunk[Chunk[quotes.reflect.Term]]) =
+      import quotes.reflect.*
+      innerTerm match
+        case ApplyThing(innerTree, args) => recurse(innerTree, args +: accum)
+        case other                       => (other, accum)
+
+    def unapply(using Quotes)(term: quotes.reflect.Term): Option[(quotes.reflect.Term, Chunk[Chunk[quotes.reflect.Term]])] =
+      import quotes.reflect.*
+      term match
+        case ApplyThing(tree, args) =>
+          // start with the args list of the innermost apply in case they are curried
+          Some(recurse(tree, Chunk(args)))
+        case other =>
+          None
+  }
 
   object RunCall {
     def unapply(using Quotes)(tree: quotes.reflect.Tree): Option[Expr[ZIO[?, ?, ?]]] =

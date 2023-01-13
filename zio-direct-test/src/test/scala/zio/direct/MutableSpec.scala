@@ -51,7 +51,7 @@ object MutableSpec extends DeferRunSpec {
       test("plain not allowed") {
         var buff = new ArrayBuffer[Int]()
         buff += 1
-        runLiftFailMsg(Messages.MutableCollectionDetected) {
+        runLiftFailMsg(Messages.MutableCollectionDetected("scala.collection.mutable.ArrayBuffer")) {
           """
           buff.update(0, buff(0) + 1); buff(0)
           """

@@ -28,15 +28,6 @@ object PrintMac {
       println(Format(Printer.TreeStructure.show(any.asTerm)))
     }
 
-    // Trees.traverse(any.asTerm, Symbol.spliceOwner) {
-    //   case v: Ident => println(
-    //       s"""|Symbol Flags (${v.show}): ${v.symbol.flags.show}
-    //           |Term Symbol Flags (${v.show}): ${v.tpe.termSymbol.flags.show}
-    //           |Type Symbol Flags (${v.show}): ${v.tpe.typeSymbol.flags.show}
-    //           |""".stripMargin
-    //     )
-    // }
-
     any
   }
 }

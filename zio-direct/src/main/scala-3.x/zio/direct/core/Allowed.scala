@@ -13,20 +13,47 @@ import zio.direct.core.util.ShowDetails
 import zio.direct.core.metaprog.InfoBehavior
 import zio.direct.Internal.deferred
 import zio.direct.Internal.ignore
+import zio.direct.core.util.CollectionMethodWhitelist
 
 object Allowed {
+
+  object CollectionOp {
+    sealed trait OpType
+    object OpType {
+      case object Mutation extends OpType
+      case object NonMutation extends OpType
+    }
+
+    def isImmutableMethod(methodName: String): Boolean =
+      CollectionMethodWhitelist.contains(methodName)
+
+    def unapply(using Quotes)(term: quotes.reflect.Term) = {
+      import quotes.reflect._
+      term match {
+        case ApplySomeMethod(obj, method, argss) if (FromMutablePackage.check(obj.tpe)) =>
+          if (isImmutableMethod(method))
+            Some((OpType.NonMutation, obj, method, argss.flatten))
+          else
+            Some((OpType.Mutation, obj, method, argss.flatten))
+        case _ =>
+          None
+      }
+    }
+  }
 
   object FromMutablePackage {
     def check(using Quotes)(tpe: quotes.reflect.TypeRepr) = {
       import quotes.reflect._
-      val fullName = tpe.typeSymbol.fullName
-      (
-        fullName.startsWith("scala.collection.mutable") ||
-          tpe <:< TypeRepr.of[scala.collection.Iterator[_]] ||
-          tpe <:< TypeRepr.of[scala.Array[_]] ||
-          tpe <:< TypeRepr.of[java.util.Collection[_]] ||
-          tpe <:< TypeRepr.of[java.util.Map[_, _]]
-      ) && (!(tpe =:= TypeRepr.of[Nothing]))
+      val fullName = tpe.widen.typeSymbol.fullName
+      val detected =
+        (
+          fullName.startsWith("scala.collection.mutable") ||
+            tpe <:< TypeRepr.of[scala.Array[_]] ||
+            tpe <:< TypeRepr.of[scala.collection.Iterator[_]] ||
+            tpe <:< TypeRepr.of[java.util.Collection[_]] ||
+            tpe <:< TypeRepr.of[java.util.Map[_, _]]
+        ) && (!(tpe =:= TypeRepr.of[Nothing]))
+      detected
     }
   }
 
@@ -153,8 +180,14 @@ object Allowed {
         case asi: Assign =>
           Unsupported.Error.withTree(asi, Messages.AssignmentNotAllowed)
 
-        case _ if (FromMutablePackage.check(expr.tpe)) =>
-          Unsupported.Error.withTree(expr, Messages.MutableCollectionDetected)
+        // If you run into some function on a array e.g. (Array(1,2,3)).something(a, b)(c, d)
+        // then check that `something` is not mutable and recurse on `Array(1,2,3)` and then List(a, b, c, d)
+        case CollectionOp(opType, arr, method, args) =>
+          opType match
+            case CollectionOp.OpType.Mutation =>
+              Unsupported.Error.withTree(expr, s"Using method `${method}`. " + Messages.ArrayMutationSuspected)
+            case CollectionOp.OpType.NonMutation =>
+              Next.ProceeedSpecific(arr +: args.toList)
 
         // All the kinds of valid things a Term can be in defer blocks
         // Originally taken from TreeMap.transformTerm in Quotes.scala
