@@ -41,15 +41,12 @@ trait WithReconstructTree {
       )
 
     val flatMapMethodApply = flatMapMethod.etaExpand(Symbol.spliceOwner)
-
     val valDef =
       flatMapMethodApply match
         case Lambda(List(valDef), term) => valDef
         case _                          => report.errorAndAbort("Eta-expanded flatMap is not of correct form")
 
     val firstParamType = valDef.tpt.tpe
-    // println(s"============== First Param Type: ${firstParamType.show} =============")
-
     Apply(
       Apply(
         flatMapMethod,
@@ -60,7 +57,7 @@ trait WithReconstructTree {
               '{ ${ applyLambda.asExpr }.asInstanceOf[t] }.asTerm
         })
       ),
-      List(Expr.summon[zio.Trace].get.asTerm)
+      List('{ zio.CanFail }.asTerm, Expr.summon[zio.Trace].get.asTerm)
     )
   }
 
@@ -74,6 +71,35 @@ trait WithReconstructTree {
           List(Inferred(anyToNothing))
         ),
         List(applyLambda)
+      ),
+      List(Expr.summon[zio.Trace].get.asTerm)
+    )
+  }
+
+  private def applyCatchSome(monadExpr: Term, partialFunctionLambda: Term) = {
+    val anyToNothing = TypeBounds(TypeRepr.of[Nothing], TypeRepr.of[Any])
+    val catchSomeMethod =
+      TypeApply(
+        Select.unique(monadExpr, "catchSome"),
+        List(Inferred(anyToNothing), Inferred(anyToNothing), Inferred(anyToNothing))
+      )
+
+    val catchSomeMethodApply = catchSomeMethod.etaExpand(Symbol.spliceOwner)
+    val valDef =
+      catchSomeMethodApply match
+        case Lambda(List(valDef), term) => valDef
+        case _                          => report.errorAndAbort("Eta-expanded catchSome is not of correct form")
+
+    val firstParamType = valDef.tpt.tpe
+    Apply(
+      Apply(
+        catchSomeMethod,
+        List({
+          // whatever the type of the flatMap is supposed to be cast it to that
+          firstParamType.asType match
+            case '[t] =>
+              '{ ${ partialFunctionLambda.asExpr }.asInstanceOf[t] }.asTerm
+        })
       ),
       List(Expr.summon[zio.Trace].get.asTerm)
     )
@@ -306,14 +332,14 @@ trait WithReconstructTree {
 
         case tryIR @ IR.Try(tryBlock, cases, _, finallyBlock) =>
           val computedType = ComputeType.fromIR(tryBlock)
-          computedType.asTypeTuple match
-            case ('[rr], '[er], '[ar]) =>
+          (computedType.toZioType.asType, computedType.e.asType) match
+            case ('[zioRET], '[er]) =>
               println(s"========== IR.Try try block type: ${computedType.toZioType.show} =====")
               val newCaseDefs = reconstructCaseDefs(cases)
               val resultType = ComputeType.fromIR(tryIR).toZioType
               val tryTerm = apply(tryBlock)
               (tryTerm.tpe.asType, resultType.asType) match
-                case ('[ZIO[r0, e0, a0]], '[ZIO[r, e, b]]) => {
+                case ('[ZIO[r0, e0, a0]], '[zioREB]) /* e.g. ZIO[r,e,b] */ => {
                   // A normal lambda looks something like:
                   //   Block(List(
                   //     DefDef(newMethodSymbol, terms:List[List[Tree]] => Option(body))
@@ -332,7 +358,7 @@ trait WithReconstructTree {
                   // Note:
                   //   The `e` type can change because you can specify a ZIO in the response to the try
                   //   e.g: (x:ZIO[Any, Throwable, A]).catchSome { case io: IOException => y:ZIO[Any, OtherExcpetion, A] }
-                  val methodType = MethodType(List("tryLamParam"))(_ => List(TypeRepr.of[er]), _ => TypeRepr.of[ZIO[r, e, b]])
+                  val methodType = MethodType(List("tryLamParam"))(_ => List(TypeRepr.of[er]), _ => TypeRepr.of[zioRET])
 
                   println(s"           Method input=>output: ${methodType.show} =====")
 
@@ -343,21 +369,26 @@ trait WithReconstructTree {
                   val method = DefDef(methSym, sm => Some(Match(sm(0)(0).asInstanceOf[Term], newCaseDefs.map(_.changeOwner(methSym)))))
                   // NOTE: Be sure that error here is the same one as used to define tryLamParam. Otherwise, AbstractMethodError errors
                   // saying that .isDefinedAt is abstract will happen.
-                  val pfTree = TypeRepr.of[PartialFunction[er, ZIO[r, e, b]]]
+                  val pfTree = TypeRepr.of[PartialFunction[er, zioREB]]
 
                   // Assemble the peices together into a closure
                   val closure = Closure(Ref(methSym), Some(pfTree))
-                  val functionBlock = '{ ${ Block(List(method), closure).asExpr }.asInstanceOf[PartialFunction[er, ZIO[r, e, b]]] }
-                  val monadExpr = '{ ${ tryTerm.asExpr }.asInstanceOf[ZIO[rr, er, ar]].catchSome { ${ functionBlock } } }
+                  val functionBlock = '{ ${ Block(List(method), closure).asExpr }.asInstanceOf[PartialFunction[er, zioRET]] }
+                  val tryExpr = '{ ${ tryTerm.asExpr }.asInstanceOf[zioRET] }
+                  // val monadExpr = '{ ${ tryTerm.asExpr }.asInstanceOf[zioRET].catchSome { ${ functionBlock } } }
+                  val monadExpr = applyCatchSome(tryExpr.asTerm, functionBlock.asTerm)
 
-                  finallyBlock match {
-                    case Some(ir) =>
-                      val finallyExpr = apply(ir)
-                      '{ $monadExpr.ensuring(ZioUtil.wrapWithThrowable(${ finallyExpr.asExprOf[ZIO[?, ?, ?]] }).orDie) }.asTerm
+                  // TODO finish this
+                  // finallyBlock match {
+                  //   case Some(ir) =>
+                  //     val finallyExpr = apply(ir)
+                  //     '{ $monadExpr.ensuring(ZioUtil.wrapWithThrowable(${ finallyExpr.asExprOf[ZIO[?, ?, ?]] }).orDie) }.asTerm
 
-                    case None =>
-                      monadExpr.asTerm
-                  }
+                  //   case None =>
+                  //     monadExpr.asTerm
+                  // }
+
+                  monadExpr
                 }
 
         case value: IR.Parallel =>
