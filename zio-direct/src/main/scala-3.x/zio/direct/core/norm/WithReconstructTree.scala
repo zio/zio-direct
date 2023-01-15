@@ -126,6 +126,7 @@ trait WithReconstructTree {
                         ${ replaceSymbolInBodyMaybe(using macroQuotes)(body.changeOwner('v.asTerm.symbol))(valSymbol, ('v).asTerm).asExpr }
                   )
                     // make the lambda accept anything because the symbol-type computations for what `t` is are not always correct for what `t` is are not always
+                    // maybe something like this is needed for the flatMap case too?
                     .asInstanceOf[Any => ?]
                 }.asTerm
               applyMap(monadExpr, applyLambda)
@@ -143,7 +144,7 @@ trait WithReconstructTree {
             case '[t] =>
               val applyLambda =
                 '{ (v: t) =>
-                  ${ replaceSymbolInBodyMaybe(using macroQuotes)(bodyExpr)(valSymbol, ('v).asTerm).asExprOf[ZIO[?, ?, ?]] }
+                  ${ replaceSymbolInBodyMaybe(using macroQuotes)(bodyExpr.changeOwner('v.asTerm.symbol))(valSymbol, ('v).asTerm).asExprOf[ZIO[?, ?, ?]] }
                 }.asTerm
               applyFlatMap(monadExpr, applyLambda)
         }
