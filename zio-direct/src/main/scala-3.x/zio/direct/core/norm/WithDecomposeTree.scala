@@ -147,6 +147,7 @@ trait WithDecomposeTree {
 
                 case originalTerm @ DecomposeSingleTermConstruct(monad) =>
                   val tpe = originalTerm.tpe
+                  println(s"************* Original Term: ${originalTerm.show}. Type: ${originalTerm.tpe.show}")
                   val sym = Symbol.newVal(Symbol.spliceOwner, "singleVal", tpe, Flags.EmptyFlags, Symbol.noSymbol)
                   unlifts += ((monad, sym))
                   Ref(sym)

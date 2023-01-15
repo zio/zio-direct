@@ -270,7 +270,7 @@ trait WithReconstructTree {
           val methOutputTpe = methOutputComputed.toZioType
 
           val methodType = MethodType(Nil)(_ => Nil, _ => methOutputTpe)
-          println(s"========== Output Method Type: ${methOutputTpe.show} =====")
+          // println(s"========== Output Method Type: ${methOutputTpe.show} =====")
 
           val methSym = Symbol.newMethod(Symbol.spliceOwner, "whileFunc", methodType)
 
@@ -300,8 +300,10 @@ trait WithReconstructTree {
           apply(IR.Block(newMethod, IR.Monad(Apply(Ref(methSym), Nil))))
 
         case tryIR @ IR.Try(tryBlock, cases, _, finallyBlock) =>
-          ComputeType.fromIR(tryBlock).asTypeTuple match
+          val computedType = ComputeType.fromIR(tryBlock)
+          computedType.asTypeTuple match
             case ('[rr], '[er], '[ar]) =>
+              println(s"========== IR.Try try block type: ${computedType.toZioType.show} =====")
               val newCaseDefs = reconstructCaseDefs(cases)
               val resultType = ComputeType.fromIR(tryIR).toZioType
               val tryTerm = apply(tryBlock)
@@ -326,6 +328,9 @@ trait WithReconstructTree {
                   //   The `e` type can change because you can specify a ZIO in the response to the try
                   //   e.g: (x:ZIO[Any, Throwable, A]).catchSome { case io: IOException => y:ZIO[Any, OtherExcpetion, A] }
                   val methodType = MethodType(List("tryLamParam"))(_ => List(TypeRepr.of[er]), _ => TypeRepr.of[ZIO[r, e, b]])
+
+                  println(s"           Method input=>output: ${methodType.show} =====")
+
                   val methSym = Symbol.newMethod(Symbol.spliceOwner, "tryLam", methodType)
 
                   // Now we actually make the method with the body:
@@ -445,35 +450,67 @@ trait WithReconstructTree {
          */
         case List((monad, oldSymbol)) => {
           // wrap a body of code that pointed to some identifier whose symbol is prevValSymbol
-          def wrapWithLambda[T: Type, R: Type](body: Term, prevValSymbol: Symbol) = {
-            val mtpe = MethodType(List("sm"))(_ => List(TypeRepr.of[T]), _ => TypeRepr.of[R])
+          def wrapWithLambda(inputType: TypeRepr, outputType: TypeRepr)(body: Term, prevValSymbol: Symbol) = {
+            // Can use the type of the previous value symbol because as the input to the lambda that is what it was prior to being spliced
+            // For example, this:
+            //   (foo:Foo, ZIO.succeed(bar:Bar).run)
+            // would become:
+            //   ZIO.succeed(bar:Bar).run.map(v:VVV => (foo: Foo, v:VVV)) so the type of VVV is Bar
+            val mtpe = MethodType(List("sm"))(_ => List(inputType), _ => outputType)
+            println(s"lambda-type: ${mtpe.show}")
             Lambda(
               Symbol.spliceOwner,
               mtpe,
               {
-                case (methSym, List(sm: Term)) => replaceSymbolIn(body)(prevValSymbol, sm).changeOwner(methSym)
-                case _                         => report.errorAndAbort("Not a possible state")
+                case (methSym, List(sm: Term)) =>
+                  replaceSymbolIn(body)(prevValSymbol, sm).changeOwner(methSym)
+                case _ =>
+                  report.errorAndAbort("Not a possible state")
               }
             )
           }
 
+          println(s"Inside IR (map): ${PrintIR(monad)}")
+
           val monadExpr = apply(monad)
+          val monadType = ComputeType.fromIR(monad)
+
           (monadExpr.tpe.asType) match {
             case '[ZIO[x, y, t]] =>
+              println(s"Monad Expr Type: ${monadExpr.tpe.show} output type: ${TypeRepr.of[ZIO[x, y, t]].show}")
+
               newTree match {
                 case IR.Pure(newTree) =>
                   newTree.tpe.widenTermRefByName.asType match {
                     case '[r] =>
-                      val lam = wrapWithLambda[t, r](newTree, oldSymbol)
-                      apply(IR.Monad('{ ${ monadExpr.asExprOf[ZIO[?, ?, t]] }.map[r](${ lam.asExprOf[t => r] }) }.asTerm))
+                      // println(s"expected lambda (map): ${TypeRepr.of[t].show} => ${TypeRepr.of[r].show}")
+                      val lamRaw = wrapWithLambda(monadType.a, TypeRepr.of[r])(newTree, oldSymbol)
+                      // Often the Scala compiler doesn't know what the the real output type of the castMonadExpr which is the input type of `lam`
+                      // so we cast it to an existential type here
+                      val lam = '{ ${ lamRaw.asExpr }.asInstanceOf[Any => r] }
+                      // println(s"------------ wrapped lambda (map): ${lam.asTerm.tpe.show}")
+                      // val mappedMonadExpr = monadExpr.asExprOf[ZIO[?, ?, t]]
+                      val castMonadExpr = '{ ${ monadExpr.asExpr }.asInstanceOf[ZIO[?, ?, Any]] }
+                      // println(s"=========== monad expr type (map): ${castMonadExpr.asTerm.tpe.show}")
+
+                      val output = apply(IR.Monad(applyMap(monadExpr, lam.asTerm)))
+                      // println(s"output type (map): ${output.tpe.show}")
+                      println(s"========== output ZIO Type (map): ${output.tpe.show}")
+                      output
                   }
                 case IR.Monad(newTree) =>
-                  newTree.tpe.asType match {
-                    case '[ZIO[x1, y1, r]] =>
-                      val lam = wrapWithLambda[t, ZIO[x1, y1, r]](newTree, oldSymbol)
-                      // could also work like this?
-                      // apply(IR.Monad('{ ${monadExpr.asExprOf[ZIO[Any, Nothing, t]]}.flatMap[Any, Nothing, r](${lam.asExprOf[t => ZIO[Any, Nothing, r]]}) }.asTerm))
-                      apply(IR.Monad('{ ${ monadExpr.asExprOf[ZIO[?, ?, t]] }.flatMap(${ lam.asExprOf[t => ZIO[x1, y1, r]] }) }.asTerm))
+                  newTree.tpe.widenTermRefByName.asType match {
+                    case '[zr] =>
+                      // newTree.tpe.asType match {
+                      // case '[ZIO[x1, y1, r]] =>
+
+                      val lamRaw = wrapWithLambda(monadType.a, newTree.tpe)(newTree, oldSymbol)
+                      val lam = '{ ${ lamRaw.asExpr }.asInstanceOf[Any => zr] }
+
+                      apply(IR.Monad(applyFlatMap(monadExpr, lam.asTerm)))
+                    // could also work like this?
+                    // apply(IR.Monad('{ ${monadExpr.asExprOf[ZIO[Any, Nothing, t]]}.flatMap[Any, Nothing, r](${lam.asExprOf[t => ZIO[Any, Nothing, r]]}) }.asTerm))
+                    // apply(IR.Monad('{ ${ monadExpr.asExprOf[ZIO[?, ?, t]] }.flatMap(${ lam.asExprOf[t => zr] }) }.asTerm))
                   }
               }
           }
