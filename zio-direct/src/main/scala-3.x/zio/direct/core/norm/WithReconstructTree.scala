@@ -112,6 +112,24 @@ trait WithReconstructTree {
         case IR.Unsafe(body) =>
           apply(body)
 
+        // Pull out the value from IR.Pure and use it directly in the mapping
+        case IR.Map(monad, valSymbol, IR.Pure(body)) =>
+          val monadExpr = apply(monad)
+          def symbolType = computeSymbolType(valSymbol, monadExpr)
+          symbolType match
+            // Check that 'a' is the same as 't' here in computeSymbolType
+            case '[t] =>
+              val applyLambda =
+                '{
+                  (
+                      (v: t) =>
+                        ${ replaceSymbolInBodyMaybe(using macroQuotes)(body.changeOwner('v.asTerm.symbol))(valSymbol, ('v).asTerm).asExpr }
+                  )
+                    // make the lambda accept anything because the symbol-type computations for what `t` is are not always correct for what `t` is are not always
+                    .asInstanceOf[Any => ?]
+                }.asTerm
+              applyMap(monadExpr, applyLambda)
+
         case IR.FlatMap(monad, valSymbol, body) => {
           val monadExpr = apply(monad)
           val bodyExpr = apply(body)
@@ -176,22 +194,6 @@ trait WithReconstructTree {
                       ).map(_ => ())
                     )
                   }.asTerm
-
-        // Pull out the value from IR.Pure and use it directly in the mapping
-        case IR.Map(monad, valSymbol, IR.Pure(body)) =>
-          val monadExpr = apply(monad)
-          def symbolType = computeSymbolType(valSymbol, monadExpr)
-          symbolType match
-            // Check that 'a' is the same as 't' here in computeSymbolType
-            case '[t] =>
-              val applyLambda =
-                '{
-                  (
-                      (v: t) =>
-                        ${ replaceSymbolInBodyMaybe(using macroQuotes)(body)(valSymbol, ('v).asTerm).asExpr }
-                  ).asInstanceOf[Any => ?]
-                }.asTerm
-              applyMap(monadExpr, applyLambda)
 
         case IR.Monad(code) => code
 
