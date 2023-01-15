@@ -186,8 +186,10 @@ trait WithReconstructTree {
             case '[t] =>
               val applyLambda =
                 '{
-                  (v: t) =>
-                    ${ replaceSymbolInBodyMaybe(using macroQuotes)(body)(valSymbol, ('v).asTerm).asExpr }
+                  (
+                      (v: t) =>
+                        ${ replaceSymbolInBodyMaybe(using macroQuotes)(body)(valSymbol, ('v).asTerm).asExpr }
+                  ).asInstanceOf[Any => ?]
                 }.asTerm
               applyMap(monadExpr, applyLambda)
 
