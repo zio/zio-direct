@@ -57,23 +57,26 @@ trait WithReconstructTree {
               '{ ${ applyLambda.asExpr }.asInstanceOf[t] }.asTerm
         })
       ),
-      List('{ zio.CanFail }.asTerm, Expr.summon[zio.Trace].get.asTerm)
+      List(Expr.summon[zio.Trace].get.asTerm)
     )
   }
 
   private def applyMap(monadExpr: Term, applyLambda: Term) = {
     val anyToNothing = TypeBounds(TypeRepr.of[Nothing], TypeRepr.of[Any])
-    Apply(
+    val out =
       Apply(
-        TypeApply(
-          // still need to do .asInstanceOf[ZIO[?, ?, t]] otherwise various tests will fail because .asExprOf is used everywhere
-          Select.unique(monadExpr, "map"),
-          List(Inferred(anyToNothing))
+        Apply(
+          TypeApply(
+            // still need to do .asInstanceOf[ZIO[?, ?, t]] otherwise various tests will fail because .asExprOf is used everywhere
+            Select.unique(monadExpr, "map"),
+            List(Inferred(anyToNothing))
+          ),
+          List(applyLambda)
         ),
-        List(applyLambda)
-      ),
-      List(Expr.summon[zio.Trace].get.asTerm)
-    )
+        List(Expr.summon[zio.Trace].get.asTerm)
+      )
+    println(s"---------------- HERE: ${monadExpr.show} ------------------")
+    out
   }
 
   private def applyCatchSome(monadExpr: Term, partialFunctionLambda: Term) = {
@@ -101,7 +104,29 @@ trait WithReconstructTree {
               '{ ${ partialFunctionLambda.asExpr }.asInstanceOf[t] }.asTerm
         })
       ),
-      List(Expr.summon[zio.Trace].get.asTerm)
+      List('{ zio.CanFail }.asTerm, Expr.summon[zio.Trace].get.asTerm)
+    )
+  }
+
+  def makeLambda(outputType: TypeRepr)(body: Term, prevValSymbolOpt: Option[Symbol]) = {
+    val prevValSymbolType =
+      prevValSymbolOpt match {
+        case Some(oldSymbol) => oldSymbol.termRef.widenTermRefByName
+        case None            => TypeRepr.of[Any]
+      }
+
+    val mtpe = MethodType(List("sm"))(_ => List(prevValSymbolType), _ => outputType)
+    println(s"lambda-type:  => ${outputType.show}") // ${inputType.show}
+
+    Lambda(
+      Symbol.spliceOwner,
+      mtpe,
+      {
+        case (methSym, List(sm: Term)) =>
+          replaceSymbolInBodyMaybe(using macroQuotes)(body)(prevValSymbolOpt, sm).changeOwner(methSym)
+        case _ =>
+          report.errorAndAbort("Not a possible state")
+      }
     )
   }
 
@@ -113,14 +138,14 @@ trait WithReconstructTree {
     implicit val instructionsInst: Instructions = instructions
     def fromIR(ir: IR) = apply(ir, true)
 
-    private def computeSymbolType(valSymbol: Option[Symbol], alternativeSource: Term) =
-      valSymbol match
-        // TODO Add a verification here that the alternativeSource [a] symbol has has the same type as valSymbol?
-        case Some(oldSymbol) =>
-          oldSymbol.termRef.widenTermRefByName.asType
-        case None =>
-          alternativeSource.tpe.asType match
-            case '[ZIO[r, e, a]] => Type.of[a]
+    // private def computeSymbolType(valSymbol: Option[Symbol], alternativeSource: Term) =
+    //   valSymbol match
+    //     // TODO Add a verification here that the alternativeSource [a] symbol has has the same type as valSymbol?
+    //     case Some(oldSymbol) =>
+    //       oldSymbol.termRef.widenTermRefByName
+    //     case None =>
+    //       alternativeSource.tpe.asType match
+    //         case '[ZIO[r, e, a]] => TypeRepr.of[a]
 
     private def compressBlock(accum: List[Statement] = List(), block: IR.Block): (List[Statement], Term) =
       block.tail match
@@ -141,38 +166,28 @@ trait WithReconstructTree {
         // Pull out the value from IR.Pure and use it directly in the mapping
         case IR.Map(monad, valSymbol, IR.Pure(body)) =>
           val monadExpr = apply(monad)
-          def symbolType = computeSymbolType(valSymbol, monadExpr)
-          symbolType match
-            // Check that 'a' is the same as 't' here in computeSymbolType
-            case '[t] =>
-              val applyLambda =
-                '{
-                  (
-                      (v: t) =>
-                        ${ replaceSymbolInBodyMaybe(using macroQuotes)(body.changeOwner('v.asTerm.symbol))(valSymbol, ('v).asTerm).asExpr }
-                  )
-                    // make the lambda accept anything because the symbol-type computations for what `t` is are not always correct for what `t` is are not always
-                    // maybe something like this is needed for the flatMap case too?
-                    .asInstanceOf[Any => ?]
-                }.asTerm
-              applyMap(monadExpr, applyLambda)
+          val applyLambda =
+            '{
+              // make the lambda accept anything because the symbol-type computations for what `t` is are not always correct for what `t` is are not always
+              // maybe something like this is needed for the flatMap case too?
+              ${ makeLambda(TypeRepr.of[Any])(body, valSymbol).asExpr }.asInstanceOf[Any => ?]
+            }.asTerm
+          applyMap(monadExpr, applyLambda)
 
         case IR.FlatMap(monad, valSymbol, body) => {
           val monadExpr = apply(monad)
           val bodyExpr = apply(body)
-          def symbolType = computeSymbolType(valSymbol, monadExpr)
           // Symbol type needs to be the same as the A-parameter of the ZIO, if not it's an error
           // should possibly introduce an asserition for that
           // Also:
           // TODO synthesize + eta-expand the lambda manually so it's ame is based on the previous symbol name
-
-          symbolType match
-            case '[t] =>
-              val applyLambda =
-                '{ (v: t) =>
-                  ${ replaceSymbolInBodyMaybe(using macroQuotes)(bodyExpr.changeOwner('v.asTerm.symbol))(valSymbol, ('v).asTerm).asExprOf[ZIO[?, ?, ?]] }
-                }.asTerm
-              applyFlatMap(monadExpr, applyLambda)
+          val applyLambda =
+            '{
+              // make the lambda accept anything because the symbol-type computations for what `t` is are not always correct for what `t` is are not always
+              // maybe something like this is needed for the flatMap case too?
+              ${ makeLambda(TypeRepr.of[ZIO[?, ?, ?]])(bodyExpr, valSymbol).asExpr }.asInstanceOf[Any => ZIO[?, ?, ?]]
+            }.asTerm
+          applyFlatMap(monadExpr, applyLambda)
         }
 
         case IR.ValDef(origStmt, symbol, assignment, bodyUsingVal) =>
