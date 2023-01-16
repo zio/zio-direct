@@ -8,7 +8,6 @@ import zio.ZIO
 import scala.tools.nsc.PipelineMain.Pipeline
 import zio.direct.core.util.Unsupported
 import zio.direct.core.util.Messages
-import zio.direct.core.util.WithFormat
 import zio.direct.core.metaprog.Extractors.BlockN
 
 trait WithIR {

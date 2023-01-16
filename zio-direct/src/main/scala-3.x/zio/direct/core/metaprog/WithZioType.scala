@@ -20,6 +20,13 @@ trait WithZioType {
     def transformA(f: TypeRepr => TypeRepr) =
       ZioType(r, e, f(a))
 
+    def value = a
+    def monad = toZioType
+
+    def valueType = value.asType
+    def monadType = monad.asType
+    def monadAndValueTypes = (valueType, monadType)
+
     def asTypeTuple = (r.asType, e.asType, a.asType)
 
     def toZioType: TypeRepr =

@@ -20,7 +20,7 @@ import zio.direct.Internal.ignore
 import zio.direct.core.util.Unsupported
 
 trait WithDecomposeTree {
-  self: WithIR =>
+  self: WithIR with WithZioType =>
 
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._

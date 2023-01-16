@@ -32,41 +32,16 @@ trait WithResolver {
   }
 
   object Resolver {
-    def applyFlatMap(monadExpr: Term, applyLambda: Term) = {
-      val flatMapSig = Select.unique(monadExpr, "flatMap")
-      // val firstParam = flatMapMethod.symbol.paramSymss(0)(0)
-      // val firstParamType = TypeTree.ref(firstParam).tpe
-      val flatMapMethod =
-        TypeApply(
-          // still need to do .asInstanceOf[ZIO[?, ?, t]] otherwise various tests will fail because .asExprOf is used everywhere
-          flatMapSig,
-          List(CommonTypes.inf, CommonTypes.inf, CommonTypes.inf)
-          // List(Inferred(TypeRepr.of[AnyKind]), Inferred(TypeRepr.of[AnyKind]), Inferred(TypeRepr.of[AnyKind]))
-          // List(TypeTree.ref(Wildcard().symbol), TypeTree.ref(Wildcard().symbol), TypeTree.ref(Wildcard().symbol))
-        )
+    def applyFlatMap(monadExprType: ZioType)(monadExpr: Term, applyLambda: Term): Term =
+      monadExprType.valueType match
+        case '[t] =>
+          '{
+            ${ monadExpr.asExpr }.asInstanceOf[ZIO[?, ?, t]].flatMap((v: t) =>
+              ${ applyLambda.asExprOf[ZIO[?, ?, ?]] }
+            )
+          }.asTerm
 
-      val flatMapMethodApply = flatMapMethod.etaExpand(Symbol.spliceOwner)
-      val valDef =
-        flatMapMethodApply match
-          case Lambda(List(valDef), term) => valDef
-          case _                          => report.errorAndAbort("Eta-expanded flatMap is not of correct form")
-
-      val firstParamType = valDef.tpt.tpe
-      Apply(
-        Apply(
-          flatMapMethod,
-          List({
-            // whatever the type of the flatMap is supposed to be cast it to that
-            firstParamType.asType match
-              case '[t] =>
-                '{ ${ applyLambda.asExpr }.asInstanceOf[t] }.asTerm
-          })
-        ),
-        List(Expr.summon[zio.Trace].get.asTerm)
-      )
-    }
-
-    def applyFlatMapWithBody(monadExpr: Term, valSymbol: Option[Symbol], bodyExpr: Term) = {
+    def applyFlatMapWithBody(monadExprType: ZioType)(monadExpr: Term, valSymbol: Option[Symbol], bodyExpr: Term): Term = {
       val applyLambda =
         '{
           // make the lambda accept anything because the symbol-type computations for what `t` is are not always correct for what `t` is are not always
@@ -74,27 +49,19 @@ trait WithResolver {
           ${ makeLambda(TypeRepr.of[ZIO[?, ?, ?]])(bodyExpr, valSymbol).asExpr }.asInstanceOf[Any => ZIO[?, ?, ?]]
         }.asTerm
 
-      applyFlatMap(monadExpr, applyLambda)
+      applyFlatMap(monadExprType)(monadExpr, applyLambda)
     }
 
-    def applyMap(monadExpr: Term, applyLambda: Term) = {
-      val out =
-        Apply(
-          Apply(
-            TypeApply(
-              // still need to do .asInstanceOf[ZIO[?, ?, t]] otherwise various tests will fail because .asExprOf is used everywhere
-              Select.unique(monadExpr, "map"),
-              List(CommonTypes.inf)
-            ),
-            List(applyLambda)
-          ),
-          List(Expr.summon[zio.Trace].get.asTerm)
-        )
-      println(s"---------------- HERE: ${monadExpr.show} ------------------")
-      out
-    }
+    def applyMap(monadExprType: ZioType)(monadExpr: Term, applyLambda: Term): Term =
+      monadExprType.valueType match
+        case '[t] =>
+          '{
+            ${ monadExpr.asExpr }.asInstanceOf[ZIO[?, ?, t]].map((v: t) =>
+              ${ applyLambda.asExpr }
+            )
+          }.asTerm
 
-    def applyMapWithBody(monadExpr: Term, valSymbol: Option[Symbol], bodyTerm: Term) = {
+    def applyMapWithBody(monadExprType: ZioType)(monadExpr: Term, valSymbol: Option[Symbol], bodyTerm: Term): Term = {
       val applyLambda =
         '{
           // make the lambda accept anything because the symbol-type computations for what `t` is are not always correct for what `t` is are not always
@@ -102,38 +69,22 @@ trait WithResolver {
           ${ makeLambda(TypeRepr.of[Any])(bodyTerm, valSymbol).asExpr }.asInstanceOf[Any => ?]
         }.asTerm
 
-      applyMap(monadExpr, applyLambda)
+      applyMap(monadExprType)(monadExpr, applyLambda)
     }
 
-    def applyCatchSome(monadExpr: Term, partialFunctionLambda: Term) = {
-      // val anyToNothing = TypeBounds(TypeRepr.of[Nothing], TypeRepr.of[Any])
-      // val catchSomeMethod =
-      //   TypeApply(
-      //     Select.unique(monadExpr, "catchSome"),
-      //     List(Inferred(anyToNothing), Inferred(anyToNothing), Inferred(anyToNothing))
-      //   )
+    def applyCatchSome(tryTermType: ZioType, resultType: ZioType)(tryTerm: Term, functionBlock: Term): Term =
+      (tryTermType.asTypeTuple, resultType.asTypeTuple) match
+        case (('[rr], '[er], '[ar]), ('[r], '[e], '[b])) =>
+          '{
+            ${ tryTerm.asExpr }.asInstanceOf[ZIO[rr, er, ar]]
+              .catchSome { ${ functionBlock.asExpr }.asInstanceOf[PartialFunction[er, ZIO[r, e, b]]] }
+          }.asTerm
+        case ((_, _, _), (_, _, _)) =>
+          report.errorAndAbort("Invalid match case, this shuold not be possible")
 
-      // val catchSomeMethodApply = catchSomeMethod.etaExpand(Symbol.spliceOwner)
-      // val valDef =
-      //   catchSomeMethodApply match
-      //     case Lambda(List(valDef), term) => valDef
-      //     case _                          => report.errorAndAbort("Eta-expanded catchSome is not of correct form")
-
-      // val firstParamType = valDef.tpt.tpe
-      // println(s"===== First ValDef Param type: ${valDef.tpt.tpe.show}")
-      // Apply(
-      //   Apply(
-      //     catchSomeMethod,
-      //     List({
-      //       // whatever the type of the flatMap is supposed to be cast it to that
-      //       firstParamType.asType match
-      //         case '[t] =>
-      //       '{ ${ partialFunctionLambda.asExpr }.asInstanceOf[PFT] }.asTerm
-      //     })
-      //   ),
-      //   List('{ zio.CanFail }.asTerm, Expr.summon[zio.Trace].get.asTerm)
-      // )
-    }
+    def applyFlatten(resultType: ZioType)(block: Term): Term =
+      // when generalizing to non-zio check there result-type and change ZIO[?, ?, ?] representation to the appropriate one for the given type
+      '{ ZIO.succeed(${ block.asExprOf[ZIO[?, ?, ?]] }).flatten }.asTerm
 
     def makeLambda(outputType: TypeRepr)(body: Term, prevValSymbolOpt: Option[Symbol]) = {
       val prevValSymbolType =
