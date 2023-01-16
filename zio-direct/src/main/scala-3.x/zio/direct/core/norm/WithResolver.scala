@@ -36,8 +36,8 @@ trait WithResolver {
       monadExprType.valueType match
         case '[t] =>
           '{
-            ${ monadExpr.asExpr }.asInstanceOf[ZIO[?, ?, t]].flatMap((v: t) =>
-              ${ applyLambda.asExprOf[ZIO[?, ?, ?]] }
+            ${ monadExpr.asExpr }.asInstanceOf[ZIO[?, ?, t]].flatMap(
+              ${ applyLambda.asExprOf[t => ZIO[?, ?, ?]] }
             )
           }.asTerm
 
@@ -56,8 +56,8 @@ trait WithResolver {
       monadExprType.valueType match
         case '[t] =>
           '{
-            ${ monadExpr.asExpr }.asInstanceOf[ZIO[?, ?, t]].map((v: t) =>
-              ${ applyLambda.asExpr }
+            ${ monadExpr.asExpr }.asInstanceOf[ZIO[?, ?, t]].map(
+              ${ applyLambda.asExprOf[t => ?] }
             )
           }.asTerm
 
@@ -81,6 +81,12 @@ trait WithResolver {
           }.asTerm
         case ((_, _, _), (_, _, _)) =>
           report.errorAndAbort("Invalid match case, this shuold not be possible")
+
+    def applyEnsuring(monadTermType: ZioType)(monadTerm: Term, finallyTerm: Term): Term =
+      monadTermType.asTypeTuple match
+        case ('[r], '[e], '[a]) =>
+          // when generalizing to non-zio check there result-type and change ZIO[?, ?, ?] representation to the appropriate one for the given type
+          '{ ${ monadTerm.asExpr }.asInstanceOf[ZIO[r, e, a]].ensuring(ZioUtil.wrapWithThrowable(${ finallyTerm.asExprOf[ZIO[?, ?, ?]] }).orDie).asInstanceOf[ZIO[r, e, a]] }.asTerm
 
     def applyFlatten(resultType: ZioType)(block: Term): Term =
       // when generalizing to non-zio check there result-type and change ZIO[?, ?, ?] representation to the appropriate one for the given type

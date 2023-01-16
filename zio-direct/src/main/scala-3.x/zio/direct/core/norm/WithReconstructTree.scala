@@ -239,60 +239,56 @@ trait WithReconstructTree {
           val tryTerm = apply(tryBlock)
 
           (tryBlockType.toZioType.asType, tryBlockType.e.asType, resultType.toZioType.asType) match
-            case ('[zioRET], '[er], '[zioREB]) =>
+            case ('[zioTry], '[zioTry_E], '[zioOut]) =>
               println(s"========== IR.Try try block type: ${tryBlockType.toZioType.show} =====")
-              {
-                println(s"========== IR.Try result block type: ${resultType.toZioType.show} =====")
 
-                // A normal lambda looks something like:
-                //   Block(List(
-                //     DefDef(newMethodSymbol, terms:List[List[Tree]] => Option(body))
-                //     Closure(Ref(newMethodSymbol), None)
-                //   ))
-                // A PartialFunction lambda looks looks something like:
-                //   Block(List(
-                //     DefDef(newMethodSymbol, terms:List[List[Tree]] => Option(body))
-                //     Closure(Ref(newMethodSymbol), TypeRepr.of[PartialFunction[input, output]])
-                //   ))
-                // So basically the only difference is in the typing of the closure
+              println(s"========== IR.Try result block type: ${resultType.toZioType.show} =====")
 
-                // Make the new symbol and method types. (Note the `e` parameter extracted from the ZIO above)
-                // Should look something like:
-                //   def tryLamParam(tryLam: e0): ZIO[r, e, a] = ...
-                // Note:
-                //   The `e` type can change because you can specify a ZIO in the response to the try
-                //   e.g: (x:ZIO[Any, Throwable, A]).catchSome { case io: IOException => y:ZIO[Any, OtherExcpetion, A] }
-                val methodType = MethodType(List("tryLamParam"))(_ => List(TypeRepr.of[er]), _ => TypeRepr.of[zioRET])
+              // A normal lambda looks something like:
+              //   Block(List(
+              //     DefDef(newMethodSymbol, terms:List[List[Tree]] => Option(body))
+              //     Closure(Ref(newMethodSymbol), None)
+              //   ))
+              // A PartialFunction lambda looks looks something like:
+              //   Block(List(
+              //     DefDef(newMethodSymbol, terms:List[List[Tree]] => Option(body))
+              //     Closure(Ref(newMethodSymbol), TypeRepr.of[PartialFunction[input, output]])
+              //   ))
+              // So basically the only difference is in the typing of the closure
 
-                println(s"           Method input=>output: ${methodType.show} =====")
+              // Make the new symbol and method types. (Note the `e` parameter extracted from the ZIO above)
+              // Should look something like:
+              //   def tryLamParam(tryLam: e0): ZIO[r, e, a] = ...
+              // Note:
+              //   The `e` type can change because you can specify a ZIO in the response to the try
+              //   e.g: (x:ZIO[Any, Throwable, A]).catchSome { case io: IOException => y:ZIO[Any, OtherExcpetion, A] }
+              val methodType = MethodType(List("tryLamParam"))(_ => List(TypeRepr.of[zioTry_E]), _ => TypeRepr.of[zioOut])
 
-                val methSym = Symbol.newMethod(Symbol.spliceOwner, "tryLam", methodType)
+              println(s"           Method input=>output: ${methodType.show} =====")
 
-                // Now we actually make the method with the body:
-                //   def tryLamParam(tryLam: e) = { case ...exception => ... }
-                val method = DefDef(methSym, sm => Some(Match(sm(0)(0).asInstanceOf[Term], newCaseDefs.map(_.changeOwner(methSym)))))
-                // NOTE: Be sure that error here is the same one as used to define tryLamParam. Otherwise, AbstractMethodError errors
-                // saying that .isDefinedAt is abstract will happen.
-                val pfTree = TypeRepr.of[PartialFunction[er, zioREB]]
+              val methSym = Symbol.newMethod(Symbol.spliceOwner, "tryLam", methodType)
 
-                // Assemble the peices together into a closure
-                val closure = Closure(Ref(methSym), Some(pfTree))
-                val functionBlock = '{ ${ Block(List(method), closure).asExpr }.asInstanceOf[PartialFunction[er, zioREB]] }
-                val tryExpr = '{ ${ tryTerm.asExpr }.asInstanceOf[zioRET] }
-                // val monadExpr = '{ ${ tryTerm.asExpr }.asInstanceOf[zioRET].catchSome { ${ functionBlock } } }
-                val monadExpr = Resolver.applyCatchSome(tryBlockType, resultType)(tryExpr.asTerm, functionBlock.asTerm)
+              // Now we actually make the method with the body:
+              //   def tryLamParam(tryLam: e) = { case ...exception => ... }
+              val method = DefDef(methSym, sm => Some(Match(sm(0)(0).asInstanceOf[Term], newCaseDefs.map(_.changeOwner(methSym)))))
+              // NOTE: Be sure that error here is the same one as used to define tryLamParam. Otherwise, AbstractMethodError errors
+              // saying that .isDefinedAt is abstract will happen.
+              val pfTree = TypeRepr.of[PartialFunction[zioTry_E, zioOut]]
 
-                // TODO finish this
-                // finallyBlock match {
-                //   case Some(ir) =>
-                //     val finallyExpr = apply(ir)
-                //     '{ $monadExpr.ensuring(ZioUtil.wrapWithThrowable(${ finallyExpr.asExprOf[ZIO[?, ?, ?]] }).orDie) }.asTerm
+              // Assemble the peices together into a closure
+              val closure = Closure(Ref(methSym), Some(pfTree))
+              val functionBlock = '{ ${ Block(List(method), closure).asExpr }.asInstanceOf[PartialFunction[zioTry_E, zioOut]] }
+              val tryExpr = '{ ${ tryTerm.asExpr }.asInstanceOf[zioTry] }
+              // val monadExpr = '{ ${ tryTerm.asExpr }.asInstanceOf[zioRET].catchSome { ${ functionBlock } } }
+              val monadTerm = Resolver.applyCatchSome(tryBlockType, resultType)(tryExpr.asTerm, functionBlock.asTerm)
 
-                //   case None =>
-                //     monadExpr.asTerm
-                // }
+              finallyBlock match {
+                case Some(ir) =>
+                  val finallyTerm = apply(ir)
+                  Resolver.applyEnsuring(resultType)(monadTerm, finallyTerm)
 
-                monadExpr
+                case None =>
+                  monadTerm
               }
 
         case value: IR.Parallel =>
