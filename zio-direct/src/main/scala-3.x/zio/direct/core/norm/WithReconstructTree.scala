@@ -21,114 +21,10 @@ import zio.direct.core.metaprog.Collect.Parallel
 import java.lang.reflect.WildcardType
 
 trait WithReconstructTree {
-  self: WithIR with WithZioType with WithComputeType with WithPrintIR with WithInterpolator =>
+  self: WithIR with WithZioType with WithComputeType with WithPrintIR with WithInterpolator with WithResolver =>
 
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._
-
-  private def applyFlatMap(monadExpr: Term, applyLambda: Term) = {
-    val anyToNothing = TypeBounds(TypeRepr.of[Nothing], TypeRepr.of[Any])
-    val flatMapSig = Select.unique(monadExpr, "flatMap")
-    // val firstParam = flatMapMethod.symbol.paramSymss(0)(0)
-    // val firstParamType = TypeTree.ref(firstParam).tpe
-    val flatMapMethod =
-      TypeApply(
-        // still need to do .asInstanceOf[ZIO[?, ?, t]] otherwise various tests will fail because .asExprOf is used everywhere
-        flatMapSig,
-        List(Inferred(anyToNothing), Inferred(anyToNothing), Inferred(anyToNothing))
-        // List(Inferred(TypeRepr.of[AnyKind]), Inferred(TypeRepr.of[AnyKind]), Inferred(TypeRepr.of[AnyKind]))
-        // List(TypeTree.ref(Wildcard().symbol), TypeTree.ref(Wildcard().symbol), TypeTree.ref(Wildcard().symbol))
-      )
-
-    val flatMapMethodApply = flatMapMethod.etaExpand(Symbol.spliceOwner)
-    val valDef =
-      flatMapMethodApply match
-        case Lambda(List(valDef), term) => valDef
-        case _                          => report.errorAndAbort("Eta-expanded flatMap is not of correct form")
-
-    val firstParamType = valDef.tpt.tpe
-    Apply(
-      Apply(
-        flatMapMethod,
-        List({
-          // whatever the type of the flatMap is supposed to be cast it to that
-          firstParamType.asType match
-            case '[t] =>
-              '{ ${ applyLambda.asExpr }.asInstanceOf[t] }.asTerm
-        })
-      ),
-      List(Expr.summon[zio.Trace].get.asTerm)
-    )
-  }
-
-  private def applyMap(monadExpr: Term, applyLambda: Term) = {
-    val anyToNothing = TypeBounds(TypeRepr.of[Nothing], TypeRepr.of[Any])
-    val out =
-      Apply(
-        Apply(
-          TypeApply(
-            // still need to do .asInstanceOf[ZIO[?, ?, t]] otherwise various tests will fail because .asExprOf is used everywhere
-            Select.unique(monadExpr, "map"),
-            List(Inferred(anyToNothing))
-          ),
-          List(applyLambda)
-        ),
-        List(Expr.summon[zio.Trace].get.asTerm)
-      )
-    println(s"---------------- HERE: ${monadExpr.show} ------------------")
-    out
-  }
-
-  private def applyCatchSome(monadExpr: Term, partialFunctionLambda: Term) = {
-    val anyToNothing = TypeBounds(TypeRepr.of[Nothing], TypeRepr.of[Any])
-    val catchSomeMethod =
-      TypeApply(
-        Select.unique(monadExpr, "catchSome"),
-        List(Inferred(anyToNothing), Inferred(anyToNothing), Inferred(anyToNothing))
-      )
-
-    val catchSomeMethodApply = catchSomeMethod.etaExpand(Symbol.spliceOwner)
-    val valDef =
-      catchSomeMethodApply match
-        case Lambda(List(valDef), term) => valDef
-        case _                          => report.errorAndAbort("Eta-expanded catchSome is not of correct form")
-
-    val firstParamType = valDef.tpt.tpe
-    Apply(
-      Apply(
-        catchSomeMethod,
-        List({
-          // whatever the type of the flatMap is supposed to be cast it to that
-          firstParamType.asType match
-            case '[t] =>
-              '{ ${ partialFunctionLambda.asExpr }.asInstanceOf[t] }.asTerm
-        })
-      ),
-      List('{ zio.CanFail }.asTerm, Expr.summon[zio.Trace].get.asTerm)
-    )
-  }
-
-  def makeLambda(outputType: TypeRepr)(body: Term, prevValSymbolOpt: Option[Symbol]) = {
-    val prevValSymbolType =
-      prevValSymbolOpt match {
-        case Some(oldSymbol) => oldSymbol.termRef.widenTermRefByName
-        case None            => TypeRepr.of[Any]
-      }
-
-    val mtpe = MethodType(List("sm"))(_ => List(prevValSymbolType), _ => outputType)
-    println(s"lambda-type:  => ${outputType.show}") // ${inputType.show}
-
-    Lambda(
-      Symbol.spliceOwner,
-      mtpe,
-      {
-        case (methSym, List(sm: Term)) =>
-          replaceSymbolInBodyMaybe(using macroQuotes)(body)(prevValSymbolOpt, sm).changeOwner(methSym)
-        case _ =>
-          report.errorAndAbort("Not a possible state")
-      }
-    )
-  }
 
   protected object ReconstructTree {
     def apply(instructions: Instructions) =
@@ -164,30 +60,18 @@ trait WithReconstructTree {
           apply(body)
 
         // Pull out the value from IR.Pure and use it directly in the mapping
-        case IR.Map(monad, valSymbol, IR.Pure(body)) =>
+        case IR.Map(monad, valSymbol, IR.Pure(bodyTerm)) =>
           val monadExpr = apply(monad)
-          val applyLambda =
-            '{
-              // make the lambda accept anything because the symbol-type computations for what `t` is are not always correct for what `t` is are not always
-              // maybe something like this is needed for the flatMap case too?
-              ${ makeLambda(TypeRepr.of[Any])(body, valSymbol).asExpr }.asInstanceOf[Any => ?]
-            }.asTerm
-          applyMap(monadExpr, applyLambda)
+          Resolver.applyMapWithBody(monadExpr, valSymbol, bodyTerm)
 
         case IR.FlatMap(monad, valSymbol, body) => {
-          val monadExpr = apply(monad)
-          val bodyExpr = apply(body)
+          val monadTerm = apply(monad)
+          val bodyTerm = apply(body)
           // Symbol type needs to be the same as the A-parameter of the ZIO, if not it's an error
           // should possibly introduce an asserition for that
           // Also:
           // TODO synthesize + eta-expand the lambda manually so it's ame is based on the previous symbol name
-          val applyLambda =
-            '{
-              // make the lambda accept anything because the symbol-type computations for what `t` is are not always correct for what `t` is are not always
-              // maybe something like this is needed for the flatMap case too?
-              ${ makeLambda(TypeRepr.of[ZIO[?, ?, ?]])(bodyExpr, valSymbol).asExpr }.asInstanceOf[Any => ZIO[?, ?, ?]]
-            }.asTerm
-          applyFlatMap(monadExpr, applyLambda)
+          Resolver.applyFlatMapWithBody(monadTerm, valSymbol, bodyTerm)
         }
 
         case IR.ValDef(origStmt, symbol, assignment, bodyUsingVal) =>
@@ -252,7 +136,7 @@ trait WithReconstructTree {
                   val monad = apply(m)
                   monad.tpe.asType match
                     case '[t] =>
-                      applyFlatMap(monad, '{ (err: Any) => ZIO.fail(err) }.asTerm)
+                      Resolver.applyFlatMap(monad, '{ (err: Any) => ZIO.fail(err) }.asTerm)
           }
 
         case block: IR.Block =>
@@ -265,7 +149,7 @@ trait WithReconstructTree {
           if (isTopLevel)
             val zioModule = Symbol.requiredModule("zio.ZIO")
             val zioModuleUnit = Select.unique(Ref(zioModule), "unit")
-            applyFlatMap(zioModuleUnit, '{ (a: Any) => ${ blockExpr.asExpr } }.asTerm)
+            Resolver.applyFlatMap(zioModuleUnit, '{ (a: Any) => ${ blockExpr.asExpr } }.asTerm)
           else
             blockExpr
 
@@ -278,9 +162,9 @@ trait WithReconstructTree {
         case expr @ IR.And(left, right) =>
           (left, right) match {
             case (a: IR.Monadic, b: IR.Monadic) =>
-              applyFlatMap(apply(a), '{ (r: Any) => r match { case true => ${ apply(b).asExpr }; case false => ${ ZioApply.False.asExpr } } }.asTerm)
+              Resolver.applyFlatMap(apply(a), '{ (r: Any) => r match { case true => ${ apply(b).asExpr }; case false => ${ ZioApply.False.asExpr } } }.asTerm)
             case (a: IR.Monadic, IR.Pure(b)) =>
-              applyMap(apply(a), '{ (r: Any) => r match { case true => ${ b.asExpr }; case false => ${ ZioApply.False.asExpr } } }.asTerm)
+              Resolver.applyMap(apply(a), '{ (r: Any) => r match { case true => ${ b.asExpr }; case false => ${ ZioApply.False.asExpr } } }.asTerm)
             case (IR.Pure(a), b: IR.Monadic) =>
               '{
                 if (${ a.asExprOf[Boolean] }) ${ apply(b).asExpr }
@@ -295,9 +179,9 @@ trait WithReconstructTree {
         case expr @ IR.Or(left, right) =>
           (left, right) match {
             case (a: IR.Monadic, b: IR.Monadic) =>
-              applyFlatMap(apply(a), '{ (r: Any) => r match { case true => ${ ZioApply.True.asExpr }; case false => ${ apply(b).asExpr } } }.asTerm)
+              Resolver.applyFlatMap(apply(a), '{ (r: Any) => r match { case true => ${ ZioApply.True.asExpr }; case false => ${ apply(b).asExpr } } }.asTerm)
             case (a: IR.Monadic, IR.Pure(b)) =>
-              applyMap(apply(a), '{ (r: Any) => r match { case true => ${ ZioApply.True.asExpr }; case false => ${ b.asExpr } } }.asTerm)
+              Resolver.applyMap(apply(a), '{ (r: Any) => r match { case true => ${ ZioApply.True.asExpr }; case false => ${ b.asExpr } } }.asTerm)
             case (IR.Pure(a), b: IR.Monadic) =>
               '{
                 if (${ a.asExprOf[Boolean] }) ${ ZioApply.True.asExpr }
@@ -351,10 +235,12 @@ trait WithReconstructTree {
             case ('[zioRET], '[er]) =>
               println(s"========== IR.Try try block type: ${computedType.toZioType.show} =====")
               val newCaseDefs = reconstructCaseDefs(cases)
-              val resultType = ComputeType.fromIR(tryIR).toZioType
+              val resultType = ComputeType.fromIR(tryIR)
               val tryTerm = apply(tryBlock)
-              (tryTerm.tpe.asType, resultType.asType) match
+              (tryTerm.tpe.asType, resultType.toZioType.asType) match
                 case ('[ZIO[r0, e0, a0]], '[zioREB]) /* e.g. ZIO[r,e,b] */ => {
+                  println(s"========== IR.Try result block type: ${resultType.toZioType.show} =====")
+
                   // A normal lambda looks something like:
                   //   Block(List(
                   //     DefDef(newMethodSymbol, terms:List[List[Tree]] => Option(body))
@@ -388,10 +274,10 @@ trait WithReconstructTree {
 
                   // Assemble the peices together into a closure
                   val closure = Closure(Ref(methSym), Some(pfTree))
-                  val functionBlock = '{ ${ Block(List(method), closure).asExpr }.asInstanceOf[PartialFunction[er, zioRET]] }
+                  val functionBlock = '{ ${ Block(List(method), closure).asExpr }.asInstanceOf[PartialFunction[er, zioREB]] }
                   val tryExpr = '{ ${ tryTerm.asExpr }.asInstanceOf[zioRET] }
                   // val monadExpr = '{ ${ tryTerm.asExpr }.asInstanceOf[zioRET].catchSome { ${ functionBlock } } }
-                  val monadExpr = applyCatchSome(tryExpr.asTerm, functionBlock.asTerm)
+                  val monadExpr = Resolver.applyCatchSome[zioRET](tryExpr.asTerm, functionBlock.asTerm)
 
                   // TODO finish this
                   // finallyBlock match {
@@ -544,7 +430,7 @@ trait WithReconstructTree {
                       val castMonadExpr = '{ ${ monadExpr.asExpr }.asInstanceOf[ZIO[?, ?, Any]] }
                       // println(s"=========== monad expr type (map): ${castMonadExpr.asTerm.tpe.show}")
 
-                      val output = apply(IR.Monad(applyMap(monadExpr, lam.asTerm)))
+                      val output = apply(IR.Monad(Resolver.applyMap(monadExpr, lam.asTerm)))
                       // println(s"output type (map): ${output.tpe.show}")
                       println(s"========== output ZIO Type (map): ${output.tpe.show}")
                       output
@@ -558,7 +444,7 @@ trait WithReconstructTree {
                       val lamRaw = wrapWithLambda(monadType.a, newTree.tpe)(newTree, oldSymbol)
                       val lam = '{ ${ lamRaw.asExpr }.asInstanceOf[Any => zr] }
 
-                      apply(IR.Monad(applyFlatMap(monadExpr, lam.asTerm)))
+                      apply(IR.Monad(Resolver.applyFlatMap(monadExpr, lam.asTerm)))
                     // could also work like this?
                     // apply(IR.Monad('{ ${monadExpr.asExprOf[ZIO[Any, Nothing, t]]}.flatMap[Any, Nothing, r](${lam.asExprOf[t => ZIO[Any, Nothing, r]]}) }.asTerm))
                     // apply(IR.Monad('{ ${ monadExpr.asExprOf[ZIO[?, ?, t]] }.flatMap(${ lam.asExprOf[t => zr] }) }.asTerm))

@@ -16,6 +16,7 @@ import zio.direct.core.metaprog.Embedder._
 import zio.direct.core.norm.WithComputeType
 import zio.direct.core.norm.WithReconstructTree
 import zio.direct.core.norm.WithDecomposeTree
+import zio.direct.core.norm.WithResolver
 import zio.direct.core.util.ShowDetails
 import zio.direct.Internal.deferred
 import zio.direct.core.util.Announce
@@ -27,7 +28,8 @@ class Transformer(inputQuotes: Quotes)
     with WithReconstructTree
     with WithDecomposeTree
     with WithInterpolator
-    with WithZioType {
+    with WithZioType
+    with WithResolver {
 
   implicit val macroQuotes = inputQuotes
   import quotes.reflect._
