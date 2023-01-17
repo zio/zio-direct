@@ -32,65 +32,65 @@ trait WithResolver {
   }
 
   object Resolver {
-    def applyFlatMap(monadExprType: ZioType)(monadExpr: Term, applyLambda: Term): Term =
-      monadExprType.valueType match
+    def applyFlatMap(monad: ZioValue, applyLambda: ZioValue): Term =
+      monad.zpe.valueType match
         case '[t] =>
           '{
-            ${ monadExpr.asExpr }.asInstanceOf[ZIO[?, ?, t]].flatMap(
-              ${ applyLambda.asExprOf[t => ZIO[?, ?, ?]] }
+            ${ monad.term.asExpr }.asInstanceOf[ZIO[?, ?, t]].flatMap(
+              ${ applyLambda.term.asExprOf[t => ZIO[?, ?, ?]] }
             )
           }.asTerm
 
-    def applyFlatMapWithBody(monadExprType: ZioType)(monadExpr: Term, valSymbol: Option[Symbol], bodyExpr: Term): Term = {
-      val applyLambda =
+    def applyFlatMapWithBody(monad: ZioValue, valSymbol: Option[Symbol], body: ZioValue): Term = {
+      val applyLambdaTerm =
         '{
           // make the lambda accept anything because the symbol-type computations for what `t` is are not always correct for what `t` is are not always
           // maybe something like this is needed for the flatMap case too?
-          ${ makeLambda(TypeRepr.of[ZIO[?, ?, ?]])(bodyExpr, valSymbol).asExpr }.asInstanceOf[Any => ZIO[?, ?, ?]]
+          ${ makeLambda(TypeRepr.of[ZIO[?, ?, ?]])(body.term, valSymbol).asExpr }.asInstanceOf[Any => ZIO[?, ?, ?]]
         }.asTerm
 
-      applyFlatMap(monadExprType)(monadExpr, applyLambda)
+      applyFlatMap(monad, ZioValue(applyLambdaTerm, body.zpe))
     }
 
-    def applyMap(monadExprType: ZioType)(monadExpr: Term, applyLambda: Term): Term =
-      monadExprType.valueType match
+    def applyMap(monad: ZioValue, applyLambdaTerm: Term): Term =
+      monad.zpe.valueType match
         case '[t] =>
           '{
-            ${ monadExpr.asExpr }.asInstanceOf[ZIO[?, ?, t]].map(
-              ${ applyLambda.asExprOf[t => ?] }
+            ${ monad.term.asExpr }.asInstanceOf[ZIO[?, ?, t]].map(
+              ${ applyLambdaTerm.asExprOf[t => ?] }
             )
           }.asTerm
 
-    def applyMapWithBody(monadExprType: ZioType)(monadExpr: Term, valSymbol: Option[Symbol], bodyTerm: Term): Term = {
-      val applyLambda =
+    def applyMapWithBody(monad: ZioValue, valSymbol: Option[Symbol], bodyTerm: Term): Term = {
+      val applyLambdaTerm =
         '{
           // make the lambda accept anything because the symbol-type computations for what `t` is are not always correct for what `t` is are not always
           // maybe something like this is needed for the flatMap case too?
           ${ makeLambda(TypeRepr.of[Any])(bodyTerm, valSymbol).asExpr }.asInstanceOf[Any => ?]
         }.asTerm
 
-      applyMap(monadExprType)(monadExpr, applyLambda)
+      applyMap(monad, applyLambdaTerm)
     }
 
-    def applyCatchSome(tryTermType: ZioType, resultType: ZioType)(tryTerm: Term, functionBlock: Term): Term =
-      (tryTermType.asTypeTuple, resultType.asTypeTuple) match
+    def applyCatchSome(resultType: ZioType)(tryClause: ZioValue, body: ZioValue): Term =
+      (tryClause.zpe.asTypeTuple, resultType.asTypeTuple) match
         case (('[rr], '[er], '[ar]), ('[r], '[e], '[b])) =>
           '{
-            ${ tryTerm.asExpr }.asInstanceOf[ZIO[rr, er, ar]]
-              .catchSome { ${ functionBlock.asExpr }.asInstanceOf[PartialFunction[er, ZIO[r, e, b]]] }
+            ${ tryClause.term.asExpr }.asInstanceOf[ZIO[rr, er, ar]]
+              .catchSome { ${ body.term.asExpr }.asInstanceOf[PartialFunction[er, ZIO[r, e, b]]] }
           }.asTerm
         case ((_, _, _), (_, _, _)) =>
           report.errorAndAbort("Invalid match case, this shuold not be possible")
 
-    def applyEnsuring(monadTermType: ZioType)(monadTerm: Term, finallyTerm: Term): Term =
-      monadTermType.asTypeTuple match
+    def applyEnsuring(monad: ZioValue, finalizer: ZioValue): Term =
+      monad.zpe.asTypeTuple match
         case ('[r], '[e], '[a]) =>
           // when generalizing to non-zio check there result-type and change ZIO[?, ?, ?] representation to the appropriate one for the given type
-          '{ ${ monadTerm.asExpr }.asInstanceOf[ZIO[r, e, a]].ensuring(ZioUtil.wrapWithThrowable(${ finallyTerm.asExprOf[ZIO[?, ?, ?]] }).orDie).asInstanceOf[ZIO[r, e, a]] }.asTerm
+          '{ ${ monad.term.asExpr }.asInstanceOf[ZIO[r, e, a]].ensuring(ZioUtil.wrapWithThrowable(${ finalizer.term.asExprOf[ZIO[?, ?, ?]] }).orDie).asInstanceOf[ZIO[r, e, a]] }.asTerm
 
-    def applyFlatten(resultType: ZioType)(block: Term): Term =
+    def applyFlatten(block: ZioValue): Term =
       // when generalizing to non-zio check there result-type and change ZIO[?, ?, ?] representation to the appropriate one for the given type
-      '{ ZIO.succeed(${ block.asExprOf[ZIO[?, ?, ?]] }).flatten }.asTerm
+      '{ ZIO.succeed(${ block.term.asExprOf[ZIO[?, ?, ?]] }).flatten }.asTerm
 
     def makeLambda(outputType: TypeRepr)(body: Term, prevValSymbolOpt: Option[Symbol]) = {
       val prevValSymbolType =

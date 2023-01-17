@@ -16,36 +16,6 @@ trait WithIR {
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._
 
-  // object Foo {
-
-  //   protected sealed trait IRT
-  //   protected object IRT {
-  //     sealed trait Monadic extends IRT
-  //     sealed trait Leaf extends IRT
-
-  //     case class Monad(ir: IR.Monad) extends Monadic with Leaf
-  //     case class Pure(ir: IR.Pure) extends IRT with Leaf
-  //     case class Fail(ir: IR.Fail) extends Monadic
-
-  //     case class While(ir: IR.While)(cond: IRT, body: IRT) extends Monadic
-  //     case class ValDef(ir: IR.ValDef)(assignment: IRT, bodyUsingVal: IRT) extends Monadic
-  //     case class Unsafe(ir: IR.Unsafe)(body: IRT) extends Monadic
-  //     case class Try(ir: IR.Try)(tryBlock: IRT, cases: List[IRT.Match.CaseDef], resultType: TypeRepr, finallyBlock: Option[IRT]) extends Monadic
-  //     case class Foreach(ir: IR.Foreach)(list: IRT, listType: TypeRepr, elementSymbol: Symbol, body: IRT) extends Monadic
-  //     case class FlatMap(ir: IR.FlatMap)(monad: Monadic, valSymbol: Option[Symbol], body: IRT.Monadic) extends Monadic
-  //     case class Map(ir: IR.Map)(monad: Monadic, valSymbol: Option[Symbol], body: IRT.Pure) extends Monadic
-  //     case class Block(ir: IR.Block)(head: Statement, tail: Monadic) extends Monadic
-  //     case class Match(ir: IR.Match)(scrutinee: IRT, caseDefs: List[IRT.Match.CaseDef]) extends Monadic
-  //     case class If(ir: IR.If)(cond: IRT, ifTrue: IRT, ifFalse: IRT) extends Monadic
-  //     case class And(ir: IR.And)(left: IRT, right: IRT) extends Monadic
-  //     case class Or(ir: IR.Or)(left: IRT, right: IRT) extends Monadic
-  //     case class Parallel(ir: IR.Parallel)(originalExpr: Term, monads: List[(IRT.Monadic, Symbol)], body: IRT.Leaf) extends Monadic
-  //     object Match {
-  //       case class CaseDef(ir: IR.Match.CaseDef)(rhs: Monadic)
-  //     }
-  //   }
-  // }
-
   protected sealed trait IR
   protected object IR {
     sealed trait Monadic extends IR

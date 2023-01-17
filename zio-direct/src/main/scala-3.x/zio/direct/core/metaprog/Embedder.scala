@@ -25,27 +25,6 @@ object Embedder {
     // a |dotty.tools.dotc.core.CyclicReference error.
     findOwner(Symbol.spliceOwner, sym => sym.name == "macro")
 
-  object ZioApply {
-    // wrap the value in a ZIO.succeed. Note that widening here could have some serious consequences
-    // and make statements not many any sense of the term passed in represents a singleton-type
-    // e.g. Zio.Apply('{ 1 }) or a union of singleton types e.g. Zio.Apply('{ if (blah) 1 else 2 })
-    // (the latter is typed as `1 | 2`)
-    def succeed(using Quotes)(term: quotes.reflect.Term) =
-      // TODO widenByTermRef just in case?
-      import quotes.reflect._
-      term.tpe.asType match
-        case '[t] =>
-          '{ zio.ZIO.succeed[t](${ term.asExprOf[t] }) }.asTerm // .asInstanceOf[ZIO[Any, Nothing, t]]
-
-    def True(using Quotes) =
-      import quotes.reflect._
-      succeed(Expr(true).asTerm)
-
-    def False(using Quotes) =
-      import quotes.reflect._
-      succeed(Expr(false).asTerm)
-  }
-
   private def findOwner(using Quotes)(owner: quotes.reflect.Symbol, skipSymbol: quotes.reflect.Symbol => Boolean): quotes.reflect.Symbol =
     var topOwner = owner
     while (skipSymbol(topOwner)) topOwner = topOwner.owner
