@@ -6,7 +6,7 @@ import zio.direct.core.metaprog.WithZioType
 import zio.direct.core.norm.WithComputeType
 
 trait WithInterpolator extends WithInterpolatorBase {
-  self: WithIR with WithZioType with WithPrintIR with WithComputeType =>
+  self: WithIR with WithZioType with WithPrintIR =>
 
   override def printAny(any: Any): String = PrintAny(any)
 }

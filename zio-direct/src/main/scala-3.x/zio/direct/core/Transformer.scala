@@ -65,7 +65,7 @@ class Transformer(inputQuotes: Quotes)
         Announce.section("Monadified Tries (No Changes)", "", fileShow)
     }
 
-    val irt = IRT.Compute(transformed)(using instructions.typeUnion)
+    val irt = ComputeIRT(transformed)(using instructions.typeUnion)
     val output = ReconstructTree(instructions).fromIR(irt)
     if (instructions.info.showReconstructed)
       val showDetailsMode =

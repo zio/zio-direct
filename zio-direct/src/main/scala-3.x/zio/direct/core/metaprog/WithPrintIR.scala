@@ -8,7 +8,7 @@ import zio.direct.core.norm.WithComputeType
 import zio.direct.core.util.WithInterpolator
 
 trait WithPrintIR {
-  self: WithIR with WithZioType with WithComputeType with WithInterpolator =>
+  self: WithIR with WithZioType =>
 
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect

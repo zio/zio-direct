@@ -21,7 +21,7 @@ import zio.direct.core.metaprog.Collect.Parallel
 import java.lang.reflect.WildcardType
 
 trait WithResolver {
-  self: WithIR with WithZioType with WithComputeType with WithPrintIR with WithInterpolator =>
+  self: WithIR with WithZioType =>
 
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._

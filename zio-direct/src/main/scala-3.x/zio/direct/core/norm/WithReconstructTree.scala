@@ -257,7 +257,7 @@ trait WithReconstructTree {
         case irt @ IRT.Try(tryBlock, cases, _, finallyBlock) =>
           val tryBlockType = tryBlock.zpe
           val newCaseDefs = reconstructCaseDefs(cases)
-          val caseDefsType = IRT.Compute.applyCaseDefs(cases)
+          val caseDefsType = ComputeIRT.applyCaseDefs(cases)
           val tryTerm = apply(tryBlock)
 
           (tryBlockType.toZioType.asType, tryBlockType.e.asType, irt.zpe.toZioType.asType) match
@@ -330,7 +330,7 @@ trait WithReconstructTree {
 
           // TODO should introduce IR/IRT.CaseDefs as a separate module that can hold a type
           //      so that this doesn't need to be recomputed
-          val caseDefType = IRT.Compute.applyCaseDefs(caseDefs)
+          val caseDefType = ComputeIRT.applyCaseDefs(caseDefs)
 
           // Possible exploration: if the content of the match is pure we lifted it into a monad. If we want to optimize we
           // change the IRT.CaseDef.rhs to be IRT.Pure as well as IRT.Monadic and handle both cases

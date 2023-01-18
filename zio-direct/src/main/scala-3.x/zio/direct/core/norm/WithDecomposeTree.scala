@@ -21,7 +21,7 @@ import zio.direct.core.util.Unsupported
 import zio.direct.core.util.WithInterpolator
 
 trait WithDecomposeTree {
-  self: WithIR with WithZioType with WithComputeType with WithInterpolator with WithPrintIR =>
+  self: WithIR with WithZioType =>
 
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._
