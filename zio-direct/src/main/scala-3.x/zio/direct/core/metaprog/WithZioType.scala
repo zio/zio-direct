@@ -10,9 +10,14 @@ trait WithZioType {
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._
 
-  case class ZioValue(term: Term, zpe: ZioType)
+  class ZioValue(val term: Term, val zpe: ZioType) {
+    def expr: Expr[_] = term.asExpr
+  }
+
   // TODO when we support non-zio values, will need to have one of these for each supported type
   object ZioValue {
+    def apply(term: Term, zpe: ZioType) = new ZioValue(term, zpe)
+    def apply(expr: Expr[_], zpe: ZioType) = new ZioValue(expr.asTerm, zpe)
 
     def apply(zpe: ZioType) = new ZioValueMaker(zpe)
 

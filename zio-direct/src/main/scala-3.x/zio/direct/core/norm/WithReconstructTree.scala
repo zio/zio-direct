@@ -115,7 +115,7 @@ trait WithReconstructTree {
               instructions.collect match
                 case Sequence =>
                   '{
-                    ${ monadExpr.term.asExpr }.asInstanceOf[ZIO[?, ?, l]].flatMap((list: l) =>
+                    ${ monadExpr.expr }.asInstanceOf[ZIO[?, ?, l]].flatMap((list: l) =>
                       ZIO.foreach(list.asInstanceOf[Iterable[e]])((v: e) =>
                         ${ replaceSymbolInBodyMaybe(using macroQuotes)(bodyMonad.term.changeOwner(('v).asTerm.symbol))(Some(elementSymbol), ('v).asTerm).asExprOf[ZIO[?, ?, ?]] }
                       ).map(_ => ())
@@ -123,7 +123,7 @@ trait WithReconstructTree {
                   }.asTerm.toZioValue(irt.zpe)
                 case Parallel =>
                   '{
-                    ${ monadExpr.term.asExpr }.asInstanceOf[ZIO[?, ?, l]].flatMap((list: l) =>
+                    ${ monadExpr.expr }.asInstanceOf[ZIO[?, ?, l]].flatMap((list: l) =>
                       ZIO.foreachPar(list.asInstanceOf[Iterable[e]])((v: e) =>
                         ${ replaceSymbolInBodyMaybe(using macroQuotes)(bodyMonad.term.changeOwner(('v).asTerm.symbol))(Some(elementSymbol), ('v).asTerm).asExprOf[ZIO[?, ?, ?]] }
                       ).map(_ => ())
@@ -175,15 +175,15 @@ trait WithReconstructTree {
           val leftType = left.zpe
           (left, right) match {
             case (a: IRT.Monadic, b: IRT.Monadic) =>
-              val rightExpr = '{ (r: Any) => r match { case true => ${ apply(b).term.asExpr }; case false => ${ ZioValue(left.zpe).False.term.asExpr } } }
+              val rightExpr = '{ (r: Any) => r match { case true => ${ apply(b).expr }; case false => ${ ZioValue(left.zpe).False.expr } } }
               Resolver.applyFlatMap(apply(a), rightExpr.asTerm.toZioValue(b.zpe)).toZioValue(irt.zpe)
             case (a: IRT.Monadic, IRT.Pure(b)) =>
-              val rightExpr = '{ (r: Any) => r match { case true => ${ b.asExpr }; case false => ${ ZioValue(left.zpe).False.term.asExpr } } }
+              val rightExpr = '{ (r: Any) => r match { case true => ${ b.asExpr }; case false => ${ ZioValue(left.zpe).False.expr } } }
               Resolver.applyMap(apply(a), rightExpr.asTerm).toZioValue(irt.zpe)
             case (IRT.Pure(a), b: IRT.Monadic) =>
               '{
-                if (${ a.asExprOf[Boolean] }) ${ apply(b).term.asExpr }
-                else ${ ZioValue(b.zpe).False.term.asExpr }
+                if (${ a.asExprOf[Boolean] }) ${ apply(b).expr }
+                else ${ ZioValue(b.zpe).False.expr }
               }.asTerm.toZioValue(irt.zpe)
             // case Pure/Pure is taken care by in the transformer on a higher-level via the PureTree case. Still, handle them just in case
             case (IRT.Pure(a), IRT.Pure(b)) =>
@@ -196,13 +196,13 @@ trait WithReconstructTree {
           val leftType = left.zpe
           (left, right) match {
             case (a: IRT.Monadic, b: IRT.Monadic) =>
-              Resolver.applyFlatMap(apply(a), '{ (r: Any) => r match { case true => ${ ZioValue(right.zpe).True.term.asExpr }; case false => ${ apply(b).term.asExpr } } }.asTerm.toZioValue(right.zpe)).toZioValue(irt.zpe)
+              Resolver.applyFlatMap(apply(a), '{ (r: Any) => r match { case true => ${ ZioValue(right.zpe).True.expr }; case false => ${ apply(b).expr } } }.asTerm.toZioValue(right.zpe)).toZioValue(irt.zpe)
             case (a: IRT.Monadic, IRT.Pure(b)) =>
-              Resolver.applyMap(apply(a), '{ (r: Any) => r match { case true => ${ ZioValue(right.zpe).True.term.asExpr }; case false => ${ b.asExpr } } }.asTerm).toZioValue(irt.zpe)
+              Resolver.applyMap(apply(a), '{ (r: Any) => r match { case true => ${ ZioValue(right.zpe).True.expr }; case false => ${ b.asExpr } } }.asTerm).toZioValue(irt.zpe)
             case (IRT.Pure(a), b: IRT.Monadic) =>
               '{
-                if (${ a.asExprOf[Boolean] }) ${ ZioValue(b.zpe).True.term.asExpr }
-                else ${ apply(b).term.asExpr }
+                if (${ a.asExprOf[Boolean] }) ${ ZioValue(b.zpe).True.expr }
+                else ${ apply(b).expr }
               }.asTerm.toZioValue(irt.zpe)
             // case Pure/Pure is taken care by in the transformer on a higher-level via the PureTree case. Still, handle them just in case
             case (IRT.Pure(a), IRT.Pure(b)) =>
@@ -243,7 +243,7 @@ trait WithReconstructTree {
             methOutputTpe.asType match
               case '[t] =>
                 val newMethodBodyTerm = apply(newMethodBody)
-                '{ ${ newMethodBodyTerm.term.asExpr }.asInstanceOf[t] }.asTerm
+                '{ ${ newMethodBodyTerm.expr }.asInstanceOf[t] }.asTerm
 
           val newMethod = DefDef(methSym, sm => Some(newMethodBodyExpr))
           // Block(List(newMethod), Apply(Ref(methSym), Nil)).asExprOf[ZIO[?, ?, ?]]
@@ -296,7 +296,7 @@ trait WithReconstructTree {
               // Assemble the peices together into a closure
               val closure = Closure(Ref(methSym), Some(pfTree))
               val functionBlock = '{ ${ Block(List(method), closure).asExpr }.asInstanceOf[PartialFunction[zioTry_E, zioOut]] }
-              val tryExpr = '{ ${ tryTerm.term.asExpr }.asInstanceOf[zioTry] }
+              val tryExpr = '{ ${ tryTerm.expr }.asInstanceOf[zioTry] }
               // val monadExpr = '{ ${ tryTerm.asExpr }.asInstanceOf[zioRET].catchSome { ${ functionBlock } } }
               val monadTerm = Resolver.applyCatchSome(tryExpr.asTerm.toZioValue(tryBlock.zpe), functionBlock.asTerm.toZioValue(caseDefsType))
               val monadZioValue = monadTerm.toZioValue(tryBlock.zpe.flatMappedWith(caseDefsType))
@@ -459,7 +459,7 @@ trait WithReconstructTree {
                       // Often the Scala compiler doesn't know what the the real output type of the castMonadExpr which is the input type of `lam`
                       // so we cast it to an existential type here
                       val lam = '{ ${ lamRaw.asExpr }.asInstanceOf[Any => r] }.asTerm
-                      val castMonadExpr = '{ ${ monadVal.term.asExpr }.asInstanceOf[ZIO[?, ?, Any]] }
+                      val castMonadExpr = '{ ${ monadVal.expr }.asInstanceOf[ZIO[?, ?, Any]] }
 
                       val output = Resolver.applyMap(monadVal, lam)
                       // println(s"========== output ZIO Type (map): ${output.tpe.show}")
