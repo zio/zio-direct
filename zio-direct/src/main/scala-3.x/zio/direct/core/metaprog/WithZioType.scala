@@ -14,6 +14,13 @@ trait WithZioType {
     def expr: Expr[_] = term.asExpr
   }
 
+  implicit class TermOps(term: Term) {
+    def toZioValue(zpe: ZioType) = ZioValue(term, zpe)
+  }
+  implicit class ExprOps(expr: Expr[_]) {
+    def toZioValue(zpe: ZioType) = ZioValue(expr, zpe)
+  }
+
   // TODO when we support non-zio values, will need to have one of these for each supported type
   object ZioValue {
     def apply(term: Term, zpe: ZioType) = new ZioValue(term, zpe)
