@@ -135,13 +135,13 @@ trait WithReconstructTree {
         case irt @ IRT.Fail(error) =>
           error match {
             case IRT.Pure(value) =>
-              irt.zpe.a.widen.asType match
+              error.zpe.a.widen.asType match
                 case '[a] =>
                   '{ ZIO.fail[a](${ value.asExpr }.asInstanceOf[a]) }.asTerm.toZioValue(irt.zpe)
 
             // TODO test the case where error is constructed via an run
             case m: IRT.Monadic =>
-              irt.zpe.asTypeTuple match
+              error.zpe.asTypeTuple match
                 case ('[r], '[e], '[a]) =>
                   val monad = apply(m)
                   // TODO use monad.zpe instead since that is the actual correct type
@@ -222,23 +222,18 @@ trait WithReconstructTree {
 
           val methSym = Symbol.newMethod(Symbol.spliceOwner, "whileFunc", methodType)
 
-          val newMethodBodyTerm =
-            If(
-              apply(whileCond).term,
-              Resolver.applyFlatMapWithBody(apply(whileBody), None, Apply(Ref(methSym), Nil).toZioValue(whileBody.zpe)),
-              '{ () }.asTerm
-            )
+          // if-statement properly knows what to do if the condition is pure/monadic so use that
+          val newMethodBody =
+            IRT.If(
+              whileCond,
+              IRT.FlatMap(
+                IRT.Monad.fromZioValue(apply(whileBody)), // apply().asTerm.changeOwner(methSym),
+                None,
+                IRT.Monad(Apply(Ref(methSym), Nil), IR.Monad.Source.Pipeline)(methOutputComputed)
+              )(methOutputComputed),
+              IRT.Pure.fromTerm('{ () }.asTerm)
+            )(irWhile.zpe)
 
-          // val newMethodBody =
-          //   IRT.If(
-          //     whileCond,
-          //     IRT.FlatMap(
-          //       IRT.Monad.fromZioValue(apply(whileBody)), // apply().asTerm.changeOwner(methSym),
-          //       None,
-          //       IRT.Monad(Apply(Ref(methSym), Nil), IRT.Monad.Source.Pipeline)(methOutputComputed)
-          //     )(methOutputComputed),
-          //     IRT.Pure.fromTerm('{ () }.asTerm)
-          //   )(irWhile.zpe)
           // val newMethodBodyExpr =
           //   methOutputComputed.asTypeTuple match
           //     case ('[r], '[e], '[a]) =>
@@ -247,7 +242,8 @@ trait WithReconstructTree {
           val newMethodBodyExpr =
             methOutputTpe.asType match
               case '[t] =>
-                '{ ${ newMethodBodyTerm.asExpr }.asInstanceOf[t] }.asTerm
+                val newMethodBodyTerm = apply(newMethodBody)
+                '{ ${ newMethodBodyTerm.term.asExpr }.asInstanceOf[t] }.asTerm
 
           val newMethod = DefDef(methSym, sm => Some(newMethodBodyExpr))
           // Block(List(newMethod), Apply(Ref(methSym), Nil)).asExprOf[ZIO[?, ?, ?]]
