@@ -37,6 +37,9 @@ trait WithReconstructTree {
     // so that we can do IRT.Compute
     implicit val typeUnion: TypeUnion = instructions.typeUnion
 
+    // TODO define a type for all invocations of ZioValue(implicit here).succeed, .True, .False, etc...
+    // implicit val baseType: BaseZioType =
+
     def fromIR(irt: IRT) = apply(irt, true).term
 
     // private def computeSymbolType(valSymbol: Option[Symbol], alternativeSource: Term) =
@@ -116,7 +119,7 @@ trait WithReconstructTree {
                         ${ replaceSymbolInBodyMaybe(using macroQuotes)(bodyMonad.term.changeOwner(('v).asTerm.symbol))(Some(elementSymbol), ('v).asTerm).asExprOf[ZIO[?, ?, ?]] }
                       ).map(_ => ())
                     )
-                  }.asTerm.toZioValue(irt.zpe)
+                  }.toZioValue(irt.zpe)
                 case Parallel =>
                   '{
                     ${ monadExpr.expr }.asInstanceOf[ZIO[?, ?, l]].flatMap((list: l) =>
@@ -124,7 +127,7 @@ trait WithReconstructTree {
                         ${ replaceSymbolInBodyMaybe(using macroQuotes)(bodyMonad.term.changeOwner(('v).asTerm.symbol))(Some(elementSymbol), ('v).asTerm).asExprOf[ZIO[?, ?, ?]] }
                       ).map(_ => ())
                     )
-                  }.asTerm.toZioValue(irt.zpe)
+                  }.toZioValue(irt.zpe)
 
         case irt @ IRT.Monad(code, _) => code.toZioValue(irt.zpe)
 
@@ -137,15 +140,13 @@ trait WithReconstructTree {
 
             // TODO test the case where error is constructed via an run
             case m: IRT.Monadic =>
-              error.zpe.asTypeTuple match
-                case ('[r], '[e], '[a]) =>
-                  val monad = apply(m)
-                  // TODO use monad.zpe instead since that is the actual correct type
-                  monad.term.tpe.asType match
-                    case '[t] =>
-                      // normally irt.tpe is the value of the total expression as opposed to the head/body operations
-                      // (e.g. in a flatMap(head, body)) but in this case it is the same for both
-                      Resolver(irt.zpe).applyFlatMap(monad, '{ (err: Any) => ZIO.fail(err) }.toZioValue(irt.zpe))
+              val monad = apply(m)
+              // TODO use monad.zpe instead since that is the actual correct type
+              monad.term.tpe.asType match
+                case '[t] =>
+                  // normally irt.tpe is the value of the total expression as opposed to the head/body operations
+                  // (e.g. in a flatMap(head, body)) but in this case it is the same for both
+                  Resolver(irt.zpe).applyFlatMap(monad, '{ (err: Any) => ZIO.fail(err) }.toZioValue(irt.zpe))
           }
 
         case block: IRT.Block =>
@@ -436,44 +437,34 @@ trait WithReconstructTree {
             )
           }
 
-          println(s"Inside IRT (map): ${PrintIR(monad)}")
-
           val monadVal = apply(monad)
           val monadType = monadVal.zpe
 
-          // TODO Use monadVal.zpe instead to check what the t ype is
-          (monadVal.term.tpe.asType) match {
-            case '[ZIO[x, y, t]] =>
-              println(s"Monad Expr Type: ${monadVal.term.tpe.show} output type: ${TypeRepr.of[ZIO[x, y, t]].show}")
+          // TODO Use monadVal.zpe instead to check what the type is
+          newTree match {
+            case IRT.Pure(newTree) =>
+              newTree.tpe.widenTermRefByName.asType match {
+                case '[r] =>
+                  val lamRaw = wrapWithLambda(monadType.a, TypeRepr.of[r])(newTree, oldSymbol)
+                  // Often the Scala compiler doesn't know what the the real output type of the castMonadExpr which is the input type of `lam`
+                  // so we cast it to an existential type here
+                  val lam = '{ ${ lamRaw.asExpr }.asInstanceOf[Any => r] }.asTerm
+                  val castMonadExpr = '{ ${ monadVal.expr }.asInstanceOf[ZIO[?, ?, Any]] }
 
-              newTree match {
-                case IRT.Pure(newTree) =>
-                  newTree.tpe.widenTermRefByName.asType match {
-                    case '[r] =>
-                      // println(s"expected lambda (map): ${TypeRepr.of[t].show} => ${TypeRepr.of[r].show}")
-                      val lamRaw = wrapWithLambda(monadType.a, TypeRepr.of[r])(newTree, oldSymbol)
-                      // Often the Scala compiler doesn't know what the the real output type of the castMonadExpr which is the input type of `lam`
-                      // so we cast it to an existential type here
-                      val lam = '{ ${ lamRaw.asExpr }.asInstanceOf[Any => r] }.asTerm
-                      val castMonadExpr = '{ ${ monadVal.expr }.asInstanceOf[ZIO[?, ?, Any]] }
-
-                      Resolver(irt.zpe).applyMap(monadVal, lam)
-                  }
-                case mon @ IRT.Monad(newTree, _) =>
-                  newTree.tpe.widenTermRefByName.asType match {
-                    case '[zr] =>
-                      // newTree.tpe.asType match {
-                      // case '[ZIO[x1, y1, r]] =>
-
-                      val lamRaw = wrapWithLambda(monadType.a, newTree.tpe)(newTree, oldSymbol)
-                      val lam = '{ ${ lamRaw.asExpr }.asInstanceOf[Any => zr] }.asTerm
-                      Resolver(irt.zpe).applyFlatMap(monadVal, lam.toZioValue(mon.zpe))
-                    // could also work like this?
-                    // apply(IRT.Monad('{ ${monadExpr.asExprOf[ZIO[Any, Nothing, t]]}.flatMap[Any, Nothing, r](${lam.asExprOf[t => ZIO[Any, Nothing, r]]}) }.asTerm))
-                    // apply(IRT.Monad('{ ${ monadExpr.asExprOf[ZIO[?, ?, t]] }.flatMap(${ lam.asExprOf[t => zr] }) }.asTerm))
-                  }
+                  Resolver(irt.zpe).applyMap(monadVal, lam)
+              }
+            case mon @ IRT.Monad(newTree, _) =>
+              newTree.tpe.widenTermRefByName.asType match {
+                case '[zr] =>
+                  val lamRaw = wrapWithLambda(monadType.a, newTree.tpe)(newTree, oldSymbol)
+                  val lam = '{ ${ lamRaw.asExpr }.asInstanceOf[Any => zr] }.asTerm
+                  Resolver(irt.zpe).applyFlatMap(monadVal, lam.toZioValue(mon.zpe))
+                // could also work like this?
+                // apply(IRT.Monad('{ ${monadExpr.asExprOf[ZIO[Any, Nothing, t]]}.flatMap[Any, Nothing, r](${lam.asExprOf[t => ZIO[Any, Nothing, r]]}) }.asTerm))
+                // apply(IRT.Monad('{ ${ monadExpr.asExprOf[ZIO[?, ?, t]] }.flatMap(${ lam.asExprOf[t => zr] }) }.asTerm))
               }
           }
+
         }
         case unlifts =>
           val unliftTriples =
