@@ -65,7 +65,8 @@ class Transformer(inputQuotes: Quotes)
         Announce.section("Monadified Tries (No Changes)", "", fileShow)
     }
 
-    val output = ReconstructTree(instructions).fromIR(transformed)
+    val irt = IRT.Compute(transformed)(using instructions.typeUnion)
+    val output = ReconstructTree(instructions).fromIR(irt)
     if (instructions.info.showReconstructed)
       val showDetailsMode =
         instructions.info match {
@@ -78,8 +79,7 @@ class Transformer(inputQuotes: Quotes)
     if (instructions.info.showReconstructedTree)
       Announce.section("Reconstituted Code Raw", Format(Printer.TreeStructure.show(output)), fileShow)
 
-    val computedType = ComputeType.fromIR(transformed)(using instructions)
-
+    val computedType = irt.zpe
     val zioType = computedType.toZioType
 
     if (instructions.info.showComputedTypeDetail)

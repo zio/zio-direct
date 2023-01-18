@@ -21,7 +21,6 @@ trait WithComputeType {
 
   protected sealed trait IRT {
     def zpe: ZioType
-    def ir: IR
   }
   protected object IRT {
     sealed trait Monadic extends IRT
@@ -57,7 +56,7 @@ trait WithComputeType {
     object Compute {
       private def applyCaseDef(ir: IR.Match.CaseDef)(implicit typeUnion: TypeUnion): IRT.Match.CaseDef =
         val rhsIRT = apply(ir.rhs)
-        IRT.Match.CaseDef(ir.pattern, ir.guard, rhsIRT)(rhsIRT.tpe)
+        IRT.Match.CaseDef(ir.pattern, ir.guard, rhsIRT)(rhsIRT.zpe)
 
       // TODO should introduce IR/IRT.CaseDefs as a separate module that can hold a type
       //      so that this doesn't need to be recomputed
@@ -104,7 +103,7 @@ trait WithComputeType {
             // The error type often is a single expression e.g. someFunctionThatThrowsError()
             // so we need to widen it into the underlying type
             val bodyError = apply(error)
-            val tpe = ZioType(bodyError.tpe.r, bodyError.tpe.a.widenTermRefByName, TypeRepr.of[Nothing])
+            val tpe = ZioType(bodyError.zpe.r, bodyError.zpe.a.widenTermRefByName, TypeRepr.of[Nothing])
             IRT.Fail(bodyError)(tpe)
 
       def apply(ir: IR.While)(implicit typeUnion: TypeUnion): IRT.While =
@@ -112,8 +111,8 @@ trait WithComputeType {
           case IR.While(cond, body) =>
             val condIRT = apply(cond)
             val bodyIRT = apply(body)
-            val tpe = condIRT.tpe.flatMappedWith(bodyIRT.tpe).mappedWithType(TypeRepr.of[Unit])
-            IRT.While(condIRT, bodyIRT)(tpe)
+            val zpe = condIRT.zpe.flatMappedWith(bodyIRT.zpe).mappedWithType(TypeRepr.of[Unit])
+            IRT.While(condIRT, bodyIRT)(zpe)
 
       def apply(ir: IR.ValDef)(implicit typeUnion: TypeUnion): IRT.ValDef =
         ir match
@@ -130,8 +129,8 @@ trait WithComputeType {
             // of flatMap and the bodyUsingVal is the body-equivalent.
             val assignmentIRT = apply(assignment)
             val bodyIRT = apply(bodyUsingVal)
-            val tpe = assignmentIRT.tpe.flatMappedWith(bodyIRT.tpe)
-            IRT.ValDef(ir.originalStmt, ir.symbol, assignmentIRT, bodyIRT)(tpe)
+            val zpe = assignmentIRT.zpe.flatMappedWith(bodyIRT.zpe)
+            IRT.ValDef(ir.originalStmt, ir.symbol, assignmentIRT, bodyIRT)(zpe)
 
       def apply(ir: IR.Unsafe)(implicit typeUnion: TypeUnion): IRT.Unsafe =
         ir match
@@ -140,8 +139,8 @@ trait WithComputeType {
             // which will make their lower-bound Throwable in the MonadifyTries phase.
             // Do not need to do that manually here with the `e` type though.
             val unsafeIRT = apply(body)
-            val tpe = unsafeIRT.tpe
-            IRT.Unsafe(unsafeIRT)(tpe)
+            val zpe = unsafeIRT.zpe
+            IRT.Unsafe(unsafeIRT)(zpe)
 
       def apply(ir: IR.Try)(implicit typeUnion: TypeUnion): IRT.Try =
         ir match
@@ -163,7 +162,7 @@ trait WithComputeType {
             //   outputType.asType match
             //     case '[ZIO[r, e, a]] => ZioType(TypeRepr.of[r].widen, TypeRepr.of[e].widen, TypeRepr.of[a].widen)
             //     case '[t]            => ZioType(TypeRepr.of[Any].widen, TypeRepr.of[Throwable].widen, TypeRepr.of[t].widen)
-            val tpe = tryBlockIRT.tpe.flatMappedWith(caseDefType)
+            val tpe = tryBlockIRT.zpe.flatMappedWith(caseDefType)
             val finallyBlockIRT = finallyBlock.map(apply(_))
             IRT.Try(tryBlockIRT, caseDefIRTs, ir.resultType, finallyBlockIRT)(tpe)
 
@@ -172,34 +171,34 @@ trait WithComputeType {
           case IR.Foreach(monad, _, _, body) =>
             val monadIRT = apply(monad)
             val bodyIRT = apply(body)
-            val tpe =
+            val zpe =
               ZioType.fromMulti(
-                List(bodyIRT.tpe.r, monadIRT.tpe.r),
-                List(bodyIRT.tpe.e, monadIRT.tpe.e),
+                List(bodyIRT.zpe.r, monadIRT.zpe.r),
+                List(bodyIRT.zpe.e, monadIRT.zpe.e),
                 List(TypeRepr.of[Unit])
               )
-            IRT.Foreach(monadIRT, ir.listType, ir.elementSymbol, bodyIRT)(tpe)
+            IRT.Foreach(monadIRT, ir.listType, ir.elementSymbol, bodyIRT)(zpe)
 
       def apply(ir: IR.FlatMap)(implicit typeUnion: TypeUnion): IRT.FlatMap =
         ir match
           case IR.FlatMap(monad, valSymbol, body) =>
             val monadIRT = apply(monad)
             val bodyIRT = apply(body)
-            val tpe = monadIRT.tpe.flatMappedWith(bodyIRT.tpe)
-            IRT.FlatMap(monadIRT, ir.valSymbol, bodyIRT)(tpe)
+            val zpe = monadIRT.zpe.flatMappedWith(bodyIRT.zpe)
+            IRT.FlatMap(monadIRT, ir.valSymbol, bodyIRT)(zpe)
 
       def apply(ir: IR.Map)(implicit typeUnion: TypeUnion): IRT.Map =
         ir match
           case IR.Map(monad, valSymbol, body @ IR.Pure(term)) =>
             val monadIRT = apply(monad)
-            val tpe = monadIRT.tpe.mappedWith(term)
-            IRT.Map(monadIRT, ir.valSymbol, IRT.Pure.fromTerm(term))(tpe)
+            val zpe = monadIRT.zpe.mappedWith(term)
+            IRT.Map(monadIRT, ir.valSymbol, IRT.Pure.fromTerm(term))(zpe)
 
       def apply(ir: IR.Block)(implicit typeUnion: TypeUnion): IRT.Block =
         ir match
           case IR.Block(head, tail) =>
             val tailIRT = apply(tail)
-            IRT.Block(head, tailIRT)(tailIRT.tpe)
+            IRT.Block(head, tailIRT)(tailIRT.zpe)
 
       def apply(ir: IR.Match)(implicit typeUnion: TypeUnion): IRT.Match =
         ir match
@@ -211,8 +210,8 @@ trait WithComputeType {
             // then use that to figure out what the type should be
             val caseDefIRTs = caseDefs.map(applyCaseDef(_))
             val caseDefType = ZioType.composeN(caseDefIRTs.map(_.zpe)).transformA(_.widen)
-            val tpe = scrutineeIRT.tpe.flatMappedWith(caseDefType)
-            IRT.Match(scrutineeIRT, caseDefIRTs)(tpe)
+            val zpe = scrutineeIRT.zpe.flatMappedWith(caseDefType)
+            IRT.Match(scrutineeIRT, caseDefIRTs)(zpe)
 
       def apply(ir: IR.Parallel)(implicit typeUnion: TypeUnion): IRT.Parallel =
         ir match
@@ -231,14 +230,14 @@ trait WithComputeType {
             //   R-Parameter: ConfA & ConfB, E-Parameter: ExA | ExB, A-Parameter: (A, B)
             // In some cases the above function will be a flatMap and wrapped into a ZIO.attempt or ZIO.succeed
             //   so we include the body-type error and environment just in case
-            val tpe =
+            val zpe =
               ZioType.fromMulti(
-                bodyIRT.tpe.r +: monadicsIRTs.map { (mon, _) => mon.tpe.r },
-                bodyIRT.tpe.e +: monadicsIRTs.map { (mon, _) => mon.tpe.e },
-                List(bodyIRT.tpe.a)
+                bodyIRT.zpe.r +: monadicsIRTs.map { (mon, _) => mon.zpe.r },
+                bodyIRT.zpe.e +: monadicsIRTs.map { (mon, _) => mon.zpe.e },
+                List(bodyIRT.zpe.a)
               )
 
-            IRT.Parallel(ir.originalExpr, monadicsIRTs, bodyIRT)(tpe)
+            IRT.Parallel(ir.originalExpr, monadicsIRTs, bodyIRT)(zpe)
 
       def apply(ir: IR.If)(implicit typeUnion: TypeUnion): IRT.If =
         ir match
@@ -249,27 +248,27 @@ trait WithComputeType {
             // Something like this: if (a) then b else c
             // Becomes something like this: a.flatMap(av => if (av) b.flatMap(...) else c.flatMap(...))
             // So the output type is the a.flatMappedWith(b compose c)
-            val tpe =
-              condIRT.tpe.flatMappedWith(
-                ZioType.compose(ifTrueIRT.tpe, ifFalseIRT.tpe)
+            val zpe =
+              condIRT.zpe.flatMappedWith(
+                ZioType.compose(ifTrueIRT.zpe, ifFalseIRT.zpe)
               )
-            IRT.If(condIRT, ifTrueIRT, ifFalseIRT)(tpe)
+            IRT.If(condIRT, ifTrueIRT, ifFalseIRT)(zpe)
 
       def apply(ir: IR.And)(implicit typeUnion: TypeUnion): IRT.And =
         ir match
           case IR.And(left, right) =>
             val leftIRT = apply(left)
             val rightIRT = apply(right)
-            val tpe = ZioType.compose(leftIRT.tpe, rightIRT.tpe)
-            IRT.And(leftIRT, rightIRT)(tpe)
+            val zpe = ZioType.compose(leftIRT.zpe, rightIRT.zpe)
+            IRT.And(leftIRT, rightIRT)(zpe)
 
       def apply(ir: IR.Or)(implicit typeUnion: TypeUnion): IRT.Or =
         ir match
           case IR.Or(left, right) =>
             val leftIRT = apply(left)
             val rightIRT = apply(right)
-            val tpe = ZioType.compose(leftIRT.tpe, rightIRT.tpe)
-            IRT.Or(leftIRT, rightIRT)(tpe)
+            val zpe = ZioType.compose(leftIRT.zpe, rightIRT.zpe)
+            IRT.Or(leftIRT, rightIRT)(zpe)
     }
   }
 }

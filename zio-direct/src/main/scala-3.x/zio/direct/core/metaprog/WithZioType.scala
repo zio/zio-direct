@@ -78,6 +78,8 @@ trait WithZioType {
         ZioType.orN(as)
       )
 
+    def Unit = fromPure('{ () }.asTerm)
+
     def fromZIO(zio: Term) =
       zio.tpe.asType match
         case '[ZIO[r, e, a]] =>

@@ -72,8 +72,8 @@ trait WithResolver {
       applyMap(monad, applyLambdaTerm)
     }
 
-    def applyCatchSome(resultType: ZioType)(tryClause: ZioValue, body: ZioValue): Term =
-      (tryClause.zpe.asTypeTuple, resultType.asTypeTuple) match
+    def applyCatchSome(tryClause: ZioValue, body: ZioValue): Term =
+      (tryClause.zpe.asTypeTuple, body.zpe.asTypeTuple) match
         case (('[rr], '[er], '[ar]), ('[r], '[e], '[b])) =>
           '{
             ${ tryClause.term.asExpr }.asInstanceOf[ZIO[rr, er, ar]]
