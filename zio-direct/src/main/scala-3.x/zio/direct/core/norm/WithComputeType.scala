@@ -20,7 +20,7 @@ trait WithComputeType {
   import macroQuotes.reflect._
 
   protected sealed trait IRT {
-    def tpe: ZioType
+    def zpe: ZioType
     def ir: IR
   }
   protected object IRT {
@@ -35,6 +35,11 @@ trait WithComputeType {
     case class FlatMap(monad: Monadic, valSymbol: Option[Symbol], body: IRT.Monadic)(val zpe: ZioType) extends Monadic
     case class Map(monad: Monadic, valSymbol: Option[Symbol], body: IRT.Pure)(val zpe: ZioType) extends Monadic
     case class Monad(code: Term, source: IR.Monad.Source)(val zpe: ZioType) extends Monadic with Leaf
+    object Monad {
+      def fromZioValue(zv: ZioValue) =
+        apply(zv.term, IR.Monad.Source.Pipeline)(zv.zpe)
+    }
+
     case class Block(head: Statement, tail: Monadic)(val zpe: ZioType) extends Monadic
     case class Match(scrutinee: IRT, caseDefs: List[IRT.Match.CaseDef])(val zpe: ZioType) extends Monadic
     case class If(cond: IRT, ifTrue: IRT, ifFalse: IRT)(val zpe: ZioType) extends Monadic

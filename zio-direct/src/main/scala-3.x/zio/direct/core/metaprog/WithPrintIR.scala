@@ -4,9 +4,10 @@ import scala.quoted._
 import pprint._
 import fansi.Str
 import zio.direct.core.util.Format
+import zio.direct.core.norm.WithComputeType
 
 trait WithPrintIR {
-  self: WithIR with WithZioType =>
+  self: WithIR with WithZioType with WithComputeType =>
 
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect
@@ -15,6 +16,9 @@ trait WithPrintIR {
     Format(new PrintIR().apply(model).plainText)
 
   def PrintIR(model: IR) =
+    Format(new PrintIR().apply(model).plainText)
+
+  def PrintIR(model: IRT) =
     Format(new PrintIR().apply(model).plainText)
 
   private class PrintIR extends pprint.Walker {
@@ -51,20 +55,25 @@ trait WithPrintIR {
             Tree.Apply("SCALA_SYM", Iterator(Tree.Literal(s"/*${sym}*/")))
 
         // special handling for the IR.Monad case because it's not a case class (since it has "trivia properties")
-        case m: IR.Monad =>
-          Tree.Apply("IR.Monad", Iterator(treeify(m.code), treeify(m.source)))
+        case m: IR.Monad  => Tree.Apply("IR.Monad", Iterator(treeify(m.code), treeify(m.source)))
+        case m: IRT.Monad => Tree.Apply("IRT.Monad", Iterator(treeify(m.code), treeify(m.source)))
 
-        case v: IR.Parallel =>
-          Tree.Apply("IR.Parallel", Iterator(treeify(v.monads), treeify(v.body)))
+        case v: IR.Parallel  => Tree.Apply("IR.Parallel", Iterator(treeify(v.monads), treeify(v.body)))
+        case v: IRT.Parallel => Tree.Apply("IRT.Parallel", Iterator(treeify(v.monads), treeify(v.body)))
 
         // Need to ignore the 'orig' code element of ValDef since it would add too much info to the tree
-        case v: IR.ValDef =>
-          Tree.Apply("IR.ValDef", Iterator(treeify(v.symbol), treeify(v.assignment), treeify(v.bodyUsingVal)))
+        case v: IR.ValDef  => Tree.Apply("IR.ValDef", Iterator(treeify(v.symbol), treeify(v.assignment), treeify(v.bodyUsingVal)))
+        case v: IRT.ValDef => Tree.Apply("IRT.ValDef", Iterator(treeify(v.symbol), treeify(v.assignment), treeify(v.bodyUsingVal)))
 
         // append "IR." to all IR-members
         case m: IR =>
           super.treeify(m) match {
             case Tree.Apply(prefix, body) => Tree.Apply(s"IR.${prefix}", body)
+            case other                    => other
+          }
+        case m: IRT =>
+          super.treeify(m) match {
+            case Tree.Apply(prefix, body) => Tree.Apply(s"IRT.${prefix}", body)
             case other                    => other
           }
 
