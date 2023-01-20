@@ -26,6 +26,8 @@ trait WithResolver {
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._
 
+  case class ParallelBlockExtract(monadExpr: ZioValue, monadSymbol: Symbol, tpe: TypeRepr)
+
   private object CommonTypes {
     val anyToNothing = TypeBounds(TypeRepr.of[Nothing], TypeRepr.of[Any])
     val inf = Inferred(anyToNothing)
@@ -91,6 +93,47 @@ trait WithResolver {
     def applyFlatten(block: ZioValue): ZioValue =
       // when generalizing to non-zio check there result-type and change ZIO[?, ?, ?] representation to the appropriate one for the given type
       '{ ZIO.succeed(${ block.term.asExprOf[ZIO[?, ?, ?]] }).flatten }.toZioValue(zpe)
+
+    def applyExtractedUnlifts(aliasedTree: IRT.Leaf, unlifts: List[ParallelBlockExtract], collectStrategy: Collect) = {
+      val unliftTriples = unlifts.map(Tuple.fromProductTyped(_))
+      val (terms, names, types) = unliftTriples.unzip3
+      val termsExpr = Expr.ofList(terms.map(_.term.asExprOf[ZIO[?, ?, ?]]))
+      val collect =
+        collectStrategy match
+          case Collect.Sequence =>
+            '{ ZIO.collectAll(Chunk.from($termsExpr)) }
+          case Collect.Parallel =>
+            '{ ZIO.collectAllPar(Chunk.from($termsExpr)) }
+
+      def makeVariables(iterator: Expr[Iterator[?]]) =
+        unliftTriples.map((monad, symbol, tpe) =>
+          tpe.asType match {
+            case '[t] =>
+              ValDef(symbol, Some('{ $iterator.next().asInstanceOf[t] }.asTerm))
+          }
+        )
+
+      val output =
+        aliasedTree.zpe.transformA(_.widen).asTypeTuple match
+          case ('[r], '[e], '[t]) =>
+            aliasedTree match
+              case IRT.Pure(code) =>
+                '{
+                  $collect.map(terms => {
+                    val iter = terms.iterator
+                    ${ Block(makeVariables('iter), code).asExpr }.asInstanceOf[t]
+                  }).asInstanceOf[ZIO[?, ?, t]]
+                }
+              case IRT.Monad(code, _) =>
+                '{
+                  $collect.flatMap(terms => {
+                    val iter = terms.iterator
+                    ${ Block(makeVariables('iter), code).asExpr }.asInstanceOf[ZIO[?, ?, t]]
+                  }).asInstanceOf[ZIO[?, ?, t]]
+                }
+
+      output.asTerm.toZioValue(zpe)
+    }
 
     def makeLambda(outputType: TypeRepr)(body: Term, prevValSymbolOpt: Option[Symbol]) = {
       val prevValSymbolType =

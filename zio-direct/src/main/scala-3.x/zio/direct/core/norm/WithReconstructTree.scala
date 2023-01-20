@@ -255,10 +255,6 @@ trait WithReconstructTree {
 
           (tryBlockType.toZioType.asType, tryBlockType.e.asType, irt.zpe.toZioType.asType) match
             case ('[zioTry], '[zioTry_E], '[zioOut]) =>
-              println(s"========== IRT.Try try block type: ${tryBlockType.toZioType.show} =====")
-
-              println(s"========== IRT.Try result block type: ${irt.zpe.toZioType.show} =====")
-
               // A normal lambda looks something like:
               //   Block(List(
               //     DefDef(newMethodSymbol, terms:List[List[Tree]] => Option(body))
@@ -424,7 +420,6 @@ trait WithReconstructTree {
             // would become:
             //   ZIO.succeed(bar:Bar).run.map(v:VVV => (foo: Foo, v:VVV)) so the type of VVV is Bar
             val mtpe = MethodType(List("sm"))(_ => List(inputType), _ => outputType)
-            println(s"lambda-type: ${mtpe.show}")
             Lambda(
               Symbol.spliceOwner,
               mtpe,
@@ -466,50 +461,14 @@ trait WithReconstructTree {
           }
 
         }
-        case unlifts =>
-          val unliftTriples =
-            unlifts.map((monad, monadSymbol) => {
+        case monadsAndSymbols =>
+          val unlifts: List[ParallelBlockExtract] =
+            monadsAndSymbols.map((monad, monadSymbol) => {
               val monadExpr = apply(monad)
               val tpe = monadSymbol.termRef.widenTermRefByName
-              (monadExpr, monadSymbol, tpe)
+              ParallelBlockExtract(monadExpr, monadSymbol, tpe)
             })
-          val (terms, names, types) = unliftTriples.unzip3
-          val termsExpr = Expr.ofList(terms.map(_.term.asExprOf[ZIO[?, ?, ?]]))
-          val collect =
-            instructions.collect match
-              case Collect.Sequence =>
-                '{ ZIO.collectAll(Chunk.from($termsExpr)) }
-              case Collect.Parallel =>
-                '{ ZIO.collectAllPar(Chunk.from($termsExpr)) }
-
-          def makeVariables(iterator: Expr[Iterator[?]]) =
-            unliftTriples.map((monad, symbol, tpe) =>
-              tpe.asType match {
-                case '[t] =>
-                  ValDef(symbol, Some('{ $iterator.next().asInstanceOf[t] }.asTerm))
-              }
-            )
-
-          val output =
-            newTree.zpe.transformA(_.widen).asTypeTuple match
-              case ('[r], '[e], '[t]) =>
-                newTree match
-                  case IRT.Pure(code) =>
-                    '{
-                      $collect.map(terms => {
-                        val iter = terms.iterator
-                        ${ Block(makeVariables('iter), code).asExpr }.asInstanceOf[t]
-                      }).asInstanceOf[ZIO[?, ?, t]]
-                    }
-                  case IRT.Monad(code, _) =>
-                    '{
-                      $collect.flatMap(terms => {
-                        val iter = terms.iterator
-                        ${ Block(makeVariables('iter), code).asExpr }.asInstanceOf[ZIO[?, ?, t]]
-                      }).asInstanceOf[ZIO[?, ?, t]]
-                    }
-
-          output.asTerm.toZioValue(irt.zpe)
+          Resolver(irt.zpe).applyExtractedUnlifts(newTree, unlifts, instructions.collect)
       }
 
   }
