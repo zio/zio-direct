@@ -16,6 +16,7 @@ import zio.direct.core.metaprog.Embedder._
 import zio.direct.core.norm.WithComputeType
 import zio.direct.core.norm.WithReconstructTree
 import zio.direct.core.norm.WithDecomposeTree
+import zio.direct.core.norm.WithResolver
 import zio.direct.core.util.ShowDetails
 import zio.direct.Internal.deferred
 import zio.direct.core.util.Announce
@@ -27,7 +28,8 @@ class Transformer(inputQuotes: Quotes)
     with WithReconstructTree
     with WithDecomposeTree
     with WithInterpolator
-    with WithZioType {
+    with WithZioType
+    with WithResolver {
 
   implicit val macroQuotes = inputQuotes
   import quotes.reflect._
@@ -63,7 +65,8 @@ class Transformer(inputQuotes: Quotes)
         Announce.section("Monadified Tries (No Changes)", "", fileShow)
     }
 
-    val output = ReconstructTree(instructions).fromIR(transformed)
+    val irt = ComputeIRT(transformed)(using instructions.typeUnion)
+    val output = ReconstructTree(instructions).fromIR(irt)
     if (instructions.info.showReconstructed)
       val showDetailsMode =
         instructions.info match {
@@ -71,21 +74,20 @@ class Transformer(inputQuotes: Quotes)
           case InfoBehavior.Verbose     => ShowDetails.Standard
           case _                        => ShowDetails.Compact
         }
-      Announce.section("Reconstituted Code", Format.Expr(output, Format.Mode.DottyColor(showDetailsMode)), fileShow)
+      Announce.section("Reconstituted Code", Format.Term(output, Format.Mode.DottyColor(showDetailsMode)), fileShow)
 
     if (instructions.info.showReconstructedTree)
-      Announce.section("Reconstituted Code Raw", Format(Printer.TreeStructure.show(output.asTerm)), fileShow)
+      Announce.section("Reconstituted Code Raw", Format(Printer.TreeStructure.show(output)), fileShow)
 
-    val computedType = ComputeType.fromIR(transformed)(using instructions)
-
+    val computedType = irt.zpe
     val zioType = computedType.toZioType
 
     if (instructions.info.showComputedTypeDetail)
       println(
         s"""-------------
         |Computed-Type: ${Format.TypeRepr(zioType)}
-        |Discovered-Type: ${Format.TypeRepr(output.asTerm.tpe)}
-        |Is Subtype: ${zioType <:< output.asTerm.tpe}
+        |Discovered-Type: ${Format.TypeRepr(output.tpe)}
+        |Is Subtype: ${zioType <:< output.tpe}
         |""".stripMargin
       )
 
@@ -94,7 +96,7 @@ class Transformer(inputQuotes: Quotes)
 
     // If there are any remaining run-calls in the tree then fail
     // TODO need to figure out a way to test this
-    Allowed.finalValidtyCheck(output, instructions)
+    Allowed.finalValidtyCheck(output.asExprOf[ZIO[?, ?, ?]], instructions)
 
     computedType.asTypeTuple match {
       case ('[r], '[e], '[a]) =>
@@ -107,7 +109,7 @@ class Transformer(inputQuotes: Quotes)
             case None =>
               report.info(computedTypeMsg)
           }
-        '{ deferred($output.asInstanceOf[ZIO[r, e, a]]) }
+        '{ deferred(${ output.asExpr }.asInstanceOf[ZIO[r, e, a]]) }
     }
   }
 }

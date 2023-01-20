@@ -10,6 +10,46 @@ trait WithZioType {
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._
 
+  class ZioValue(val term: Term, val zpe: ZioType) {
+    def expr: Expr[_] = term.asExpr
+  }
+
+  implicit class TermOps(term: Term) {
+    def toZioValue(zpe: ZioType) = ZioValue(term, zpe)
+  }
+  implicit class ExprOps(expr: Expr[_]) {
+    def toZioValue(zpe: ZioType) = ZioValue(expr, zpe)
+  }
+
+  // TODO when we support non-zio values, will need to have one of these for each supported type
+  object ZioValue {
+    def apply(term: Term, zpe: ZioType) = new ZioValue(term, zpe)
+    def apply(expr: Expr[_], zpe: ZioType) = new ZioValue(expr.asTerm, zpe)
+
+    def apply(zpe: ZioType) = new ZioValueMaker(zpe)
+
+    class ZioValueMaker private[ZioValue] (zpe: ZioType) {
+      // wrap the value in a ZIO.succeed. Note that widening here could have some serious consequences
+      // and make statements not many any sense of the term passed in represents a singleton-type
+      // e.g. Zio.Apply('{ 1 }) or a union of singleton types e.g. Zio.Apply('{ if (blah) 1 else 2 })
+      // (the latter is typed as `1 | 2`)
+      def succeed(term: quotes.reflect.Term) =
+        // TODO widenByTermRef just in case?
+        import quotes.reflect._
+        term.tpe.asType match
+          case '[t] =>
+            ZioValue('{ zio.ZIO.succeed[t](${ term.asExprOf[t] }) }.asTerm, zpe) // .asInstanceOf[ZIO[Any, Nothing, t]]
+
+      def True =
+        import quotes.reflect._
+        succeed(Expr(true).asTerm)
+
+      def False =
+        import quotes.reflect._
+        succeed(Expr(false).asTerm)
+    }
+  }
+
   protected case class ZioType private (r: TypeRepr, e: TypeRepr, a: TypeRepr) {
     def show = s"ZioType(${Format.TypeRepr(r)}, ${Format.TypeRepr(e)}, ${Format.TypeRepr(a)})"
 
@@ -19,6 +59,12 @@ trait WithZioType {
       ZioType(r, f(e), a)
     def transformA(f: TypeRepr => TypeRepr) =
       ZioType(r, e, f(a))
+
+    def value = a
+    def monad = toZioType
+    def valueType = value.asType
+    def monadType = monad.asType
+    def monadAndValueTypes = (valueType, monadType)
 
     def asTypeTuple = (r.asType, e.asType, a.asType)
 
@@ -43,6 +89,8 @@ trait WithZioType {
         ZioType.orN(es)(typeUnion),
         ZioType.orN(as)
       )
+
+    def Unit = fromPure('{ () }.asTerm)
 
     def fromZIO(zio: Term) =
       zio.tpe.asType match

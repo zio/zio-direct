@@ -11,9 +11,12 @@ import zio.direct.core.util.Messages
 import zio.direct.core.metaprog.Extractors.BlockN
 
 trait WithIR {
+  self: WithZioType =>
+
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._
 
+  /* =============================================== IR =============================================== */
   protected sealed trait IR
   protected object IR {
     sealed trait Monadic extends IR
@@ -24,17 +27,11 @@ trait WithIR {
     // TODO It's possible to do `throw run(function)` so need to support IR
     // being passed into a throw.
     case class Fail(error: IR) extends Monadic
-
     case class While(cond: IR, body: IR) extends Monadic
-
     case class ValDef(originalStmt: macroQuotes.reflect.Block, symbol: Symbol, assignment: IR, bodyUsingVal: IR) extends Monadic
-
     case class Unsafe(body: IR) extends Monadic
-
     case class Try(tryBlock: IR, cases: List[IR.Match.CaseDef], resultType: TypeRepr, finallyBlock: Option[IR]) extends Monadic
-
     case class Foreach(list: IR, listType: TypeRepr, elementSymbol: Symbol, body: IR) extends Monadic
-
     case class FlatMap(monad: Monadic, valSymbol: Option[Symbol], body: IR.Monadic) extends Monadic
     object FlatMap {
       def apply(monad: IR.Monadic, valSymbol: Symbol, body: IR.Monadic) =
@@ -45,7 +42,6 @@ trait WithIR {
       def apply(monad: Monadic, valSymbol: Symbol, body: IR.Pure) =
         new Map(monad, Some(valSymbol), body)
     }
-
     class Monad private (val code: Term, val source: Monad.Source) extends Monadic with Leaf {
       private val id = Monad.Id(code)
       override def equals(other: Any): Boolean =
@@ -55,12 +51,8 @@ trait WithIR {
         }
     }
     object Monad {
-      def apply(code: Term, source: Monad.Source = Monad.Source.Pipeline) =
-        new Monad(code, source)
-
-      def unapply(value: Monad) =
-        Some(value.code)
-
+      def apply(code: Term, source: Monad.Source = Monad.Source.Pipeline) = new Monad(code, source)
+      def unapply(value: Monad) = Some(value.code)
       sealed trait Source
       case object Source {
         case object Pipeline extends Source
@@ -68,34 +60,60 @@ trait WithIR {
         case object PrevDefer extends Source
         case object IgnoreCall extends Source
       }
-
       private case class Id(code: Term)
     }
-
-    // TODO Function to collapse inner blocks into one block because you can have Block(term, Block(term, Block(monad)))
     case class Block(head: Statement, tail: Monadic) extends Monadic
-
-    // TODO scrutinee can be monadic or Match output can be monadic, how about both?
-    // scrutinee can be Monadic or Pure. Not using union type so that perhaps can backward-compat with Scala 2
     case class Match(scrutinee: IR, caseDefs: List[IR.Match.CaseDef]) extends Monadic
     object Match {
       case class CaseDef(pattern: Tree, guard: Option[Term], rhs: Monadic)
     }
-
-    // Since we ultimately transform If statements into Task[Boolean] segments, they are monadic
-    // TODO during transformation, decided cases based on if ifTrue/ifFalse is monadic or not
     case class If(cond: IR, ifTrue: IR, ifFalse: IR) extends Monadic
     case class Pure(code: Term) extends IR with Leaf
-
     // Note that And/Or expressions ultimately need to have both of their sides lifted,
     // if one either side is not actually a monad we need to lift it. Therefore
     // we can treat And/Or as monadic (i.e. return the from the main Transform)
     case class And(left: IR, right: IR) extends Monadic
     case class Or(left: IR, right: IR) extends Monadic
-
     case class Parallel(originalExpr: Term, monads: List[(IR.Monadic, Symbol)], body: IR.Leaf) extends Monadic
   }
 
+  /* =============================================== Typed IR (IRT) =============================================== */
+  protected sealed trait IRT {
+    def zpe: ZioType
+  }
+  protected object IRT {
+    sealed trait Monadic extends IRT
+    sealed trait Leaf extends IRT
+    case class Fail(error: IRT)(val zpe: ZioType) extends Monadic
+    case class While(cond: IRT, body: IRT)(val zpe: ZioType) extends Monadic
+    case class ValDef(originalStmt: macroQuotes.reflect.Block, symbol: Symbol, assignment: IRT, bodyUsingVal: IRT)(val zpe: ZioType) extends Monadic
+    case class Unsafe(body: IRT)(val zpe: ZioType) extends Monadic
+    case class Try(tryBlock: IRT, cases: List[IRT.Match.CaseDef], resultType: TypeRepr, finallyBlock: Option[IRT])(val zpe: ZioType) extends Monadic
+    case class Foreach(list: IRT, listType: TypeRepr, elementSymbol: Symbol, body: IRT)(val zpe: ZioType) extends Monadic
+    case class FlatMap(monad: Monadic, valSymbol: Option[Symbol], body: IRT.Monadic)(val zpe: ZioType) extends Monadic
+    case class Map(monad: Monadic, valSymbol: Option[Symbol], body: IRT.Pure)(val zpe: ZioType) extends Monadic
+    case class Monad(code: Term, source: IR.Monad.Source)(val zpe: ZioType) extends Monadic with Leaf
+    object Monad {
+      def fromZioValue(zv: ZioValue) =
+        apply(zv.term, IR.Monad.Source.Pipeline)(zv.zpe)
+    }
+
+    case class Block(head: Statement, tail: Monadic)(val zpe: ZioType) extends Monadic
+    case class Match(scrutinee: IRT, caseDefs: List[IRT.Match.CaseDef])(val zpe: ZioType) extends Monadic
+    case class If(cond: IRT, ifTrue: IRT, ifFalse: IRT)(val zpe: ZioType) extends Monadic
+    case class Pure(code: Term)(val zpe: ZioType) extends IRT with Leaf
+    object Pure {
+      def fromTerm(term: Term) = Pure(term)(ZioType.fromPure(term))
+    }
+    case class And(left: IRT, right: IRT)(val zpe: ZioType) extends Monadic
+    case class Or(left: IRT, right: IRT)(val zpe: ZioType) extends Monadic
+    case class Parallel(originalExpr: Term, monads: List[(IRT.Monadic, Symbol)], body: IRT.Leaf)(val zpe: ZioType) extends Monadic
+    object Match {
+      case class CaseDef(pattern: Tree, guard: Option[Term], rhs: Monadic)(val zpe: ZioType)
+    }
+  }
+
+  /* =============================================== Various Transforms =============================================== */
   /**
    * Wrap the IR.Pures/IR.Maps in the body of IR.Unsafe elements with ZIO.attempt.
    * This is largely for the sake of tries working as expected, for example.

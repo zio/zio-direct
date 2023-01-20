@@ -18,9 +18,10 @@ import zio.direct.core.util.ShowDetails
 import zio.direct.Internal.deferred
 import zio.direct.Internal.ignore
 import zio.direct.core.util.Unsupported
+import zio.direct.core.util.WithInterpolator
 
 trait WithDecomposeTree {
-  self: WithIR =>
+  self: WithIR with WithZioType =>
 
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._
@@ -147,6 +148,7 @@ trait WithDecomposeTree {
 
                 case originalTerm @ DecomposeSingleTermConstruct(monad) =>
                   val tpe = originalTerm.tpe
+                  println(s"************* Original Term: ${originalTerm.show}. Type: ${originalTerm.tpe.show}")
                   val sym = Symbol.newVal(Symbol.spliceOwner, "singleVal", tpe, Flags.EmptyFlags, Symbol.noSymbol)
                   unlifts += ((monad, sym))
                   Ref(sym)
@@ -266,7 +268,7 @@ trait WithDecomposeTree {
               case '[ZIO[r, e, a]] =>
                 Some(IR.Monad(code.asTerm, IR.Monad.Source.IgnoreCall))
               case _ =>
-                Some(IR.Monad(ZioApply.succeed(code.asTerm).asTerm))
+                Some(IR.Monad(ZioValue(ZioType.Unit).succeed(code.asTerm).term))
             }
 
           case tryTerm @ Try(tryBlock, caseDefs, finallyBlock) =>
@@ -291,7 +293,7 @@ trait WithDecomposeTree {
           case CaseDef(pattern, cond, DecomposeTree(body)) =>
             IR.Match.CaseDef(pattern, cond, body)
           case CaseDef(pattern, cond, body) =>
-            IR.Match.CaseDef(pattern, cond, IR.Monad(ZioApply.succeed(body).asTerm))
+            IR.Match.CaseDef(pattern, cond, IR.Monad(ZioValue(ZioType.Unit).succeed(body).term))
         }
 
       def unapply(cases: List[CaseDef]) =
