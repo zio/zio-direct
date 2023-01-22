@@ -3,20 +3,167 @@ package zio.direct.core.metaprog
 import scala.quoted._
 import scala.quoted.Varargs
 import zio.direct.core.util.Format
-import zio.ZIO
+import zio.Chunk
 
 object Extractors {
   import zio.direct._
 
-  object RunCall {
-    def unapply(using Quotes)(tree: quotes.reflect.Tree): Option[Expr[ZIO[?, ?, ?]]] =
+  // class RunCallExtractor[F[_, _, _]: Type] {
+  //   // TODO need to refactor API here. Maybe match whatever function is annotated in a certain way?
+  //   //      possibly need to detect extensions methods on a tree-level.
+  //   //      Or maybe just make the `run` call just be generic F[a, b, c] => c ? Need to discuss.
+  //   def unapply(using Quotes)(tree: quotes.reflect.Tree): Option[Expr[_]] =
+  //     import quotes.reflect._
+  //     tree match
+  //       case Seal('{ run[r, e, a]($task) }) =>
+  //         Some(task.asExprOf[F[r, e, a]])
+  //       case Seal('{ ($task: ZIO[r, e, a]).run }) =>
+  //         Some(task.asExprOf[F[r, e, a]])
+  //       case Seal('{ ($task: ZStream[r, e, a]).run }) =>
+  //         Some(task.asExprOf[F[r, e, a]])
+  //       case _ => None
+  // }
+
+  // class HasAnnotation(name: String) {
+  //   object Term {
+  //     def apply(using Quotes)(term: quotes.reflect.Term) = {
+  //       import quotes.reflect._
+  //       val termUntyped = Untype(term)
+  //       AnnotationsOf.Symbol(termUntyped.tpe.termSymbol)
+  //     }
+  //   }
+
+  //   object Symbol {
+  //     def apply(using Quotes)(symbol: quotes.reflect.Symbol) = {
+  //       import quotes.reflect._
+  //       symbol.annotations.collect {
+  //         case UnApplys(UntypeApply(Select(New(id: TypeIdent), "<init>")), argss) =>
+  //           (id.tpe.typeSymbol.fullName, argss)
+  //       }
+  //     }
+  //   }
+  // }
+
+  /**
+   * Agnostic to Apply(Apply(Apply(term, args1), args2), args3). If there are apply nodes,
+   * it will return Some((term, Some(List(args1, args2, args3)))) otherwise it will return
+   * Some((term, None))
+   */
+  object UnApplys {
+    private def recurse(using Quotes)(term: quotes.reflect.Term, accum: List[List[quotes.reflect.Term]]): (quotes.reflect.Term, List[List[quotes.reflect.Term]]) = {
       import quotes.reflect._
+      term match {
+        // prepend every args list instead of append, then reverse at the end
+        case Apply(inner, args) => recurse(inner, args +: accum)
+        case _                  => (term, accum.reverse)
+      }
+    }
+
+    def unapply(using Quotes)(term: quotes.reflect.Term): Option[(quotes.reflect.Term, Option[List[List[quotes.reflect.Term]]])] = {
+      import quotes.reflect._
+      term match {
+        case Apply(inner, args) =>
+          val (root, allArgs) = recurse(inner, List(args))
+          Some(root, Some(allArgs))
+        case _ =>
+          Some((term, None))
+      }
+    }
+  }
+
+  object UntypeApply {
+    private def recurse(using Quotes)(term: quotes.reflect.Term): quotes.reflect.Term = {
+      import quotes.reflect._
+      term match {
+        case TypeApply(terms, typeArgs) => recurse(terms)
+        case other                      => other
+      }
+    }
+    def unapply(using Quotes)(term: quotes.reflect.Term) = Some(recurse(term))
+  }
+
+  object AnyRunCall {
+    def unapply(using Quotes)(tree: quotes.reflect.Tree): Option[Expr[_]] = {
       tree match
-        case Seal('{ run[r, e, a]($task) }) =>
-          Some(task)
-        case Seal('{ ($task: ZIO[r, e, a]).run }) =>
-          Some(task)
-        case _ => None
+        case DottyExtensionCall(invocation @ DirectRunCallAnnotated.Term(), effect) =>
+          Some(effect.asExpr)
+        case _ =>
+          None
+    }
+
+    object TypedAs {
+      def unapply(using Quotes)(tree: quotes.reflect.Tree): Option[quotes.reflect.TypeRepr] = {
+        tree match
+          case DottyExtensionCall(invocation @ DirectRunCallAnnotated.Term(), effect) =>
+            Some(effect.tpe)
+          case _ =>
+            None
+      }
+    }
+  }
+
+  /* Completely specific therefore maximally efficient match of directRunCall */
+  object DirectRunCallAnnotated {
+    object Term {
+      def unapply(using Quotes)(term: quotes.reflect.Term): Boolean = {
+        import quotes.reflect._
+        // early-exist if it's the wrong effect-type
+        val termUntyped = Untype(term)
+        DirectRunCallAnnotated.Symbol.unapply(termUntyped.tpe.termSymbol)
+      }
+    }
+
+    object Symbol {
+      def unapply(using Quotes)(symbol: quotes.reflect.Symbol): Boolean = {
+        import quotes.reflect._
+        symbol.annotations.exists { annot =>
+          annot match {
+            case v @ Apply(Select(New(typeId), "<init>"), argss) if (typeId.symbol.name == "directRunCall") =>
+              true
+            case _ =>
+              false
+          }
+        }
+      }
+    }
+  }
+
+  object DottyExtensionCall {
+    private object SelectOrIdent {
+      def unapply(using Quotes)(term: quotes.reflect.Term): Boolean =
+        import quotes.reflect._
+        term match
+          case _: Select => true
+          case _: Ident  => true
+          case _         => false
+    }
+
+    def unapply(using Quotes)(term: quotes.reflect.Term) =
+      import quotes.reflect._
+      term match
+        case Apply(
+              UntypeApply(invocation @ SelectOrIdent()),
+              List(arg)
+            ) if (invocation.tpe.termSymbol.flags.is(Flags.ExtensionMethod)) =>
+          Some((invocation, arg))
+        case _ =>
+          None
+  }
+
+  object NotBlock {
+    object Term {
+      def unapply(using Quotes)(term: quotes.reflect.Term) =
+        import quotes.reflect._
+        term match {
+          case _: Block                   => None
+          case other: quotes.reflect.Term => Some(other)
+        }
+    }
+  }
+
+  object Dealiased {
+    def unapply(using Quotes)(repr: quotes.reflect.TypeRepr): Option[quotes.reflect.TypeRepr] =
+      Some(repr.widenTermRefByName.dealias)
   }
 
   def firstParamList(using Quotes)(applyNode: quotes.reflect.Apply) =

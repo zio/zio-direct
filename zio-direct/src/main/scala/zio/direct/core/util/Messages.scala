@@ -14,9 +14,9 @@ val ImplicitsNotAllowed =
 Implicits are not allowed inside defer clauses (they are allowed inside of `run(...)` blocks.
 """.trimLeft
 
-val MutableCollectionDetected =
-"""
-Detected the use of a mutable collection inside a defer clause.
+def MutableCollectionDetected(name: String) =
+s"""
+Detected the use of a mutable collection inside a defer clause (called: ${name}).
 Mutable collections can cause many potential issues as a result of defer-clause
 rewrites so they are not allowed (Unless it is inside of a run-call).
 """.trimLeft
@@ -65,9 +65,20 @@ at https://github.com/zio/zio-direct.
 
 val UnsafeNotAllowedParallel =
 """
-Statements that mix `run(...)` calls with other expressions in the same line are not allowed in
-`unsafe { ... }` blocks. Only code that does either a run, or a simple statement is allowed
-on each line here. This enhanced restriction is made for the sake of correctness.
+Statements that mix `run(...)` calls with other expressions in the same line
+are not allowed in `unsafe { ... }` blocks.
+""".trimLeft + parallelExplanation
+
+val LinearNotAllowedParallel =
+"""
+Statements that mix `run(...)` calls with other expressions in the same line
+are not allowed in Linear-mode defer blocks i.e. `defer.linear { ... }`.
+""".trimLeft + parallelExplanation
+
+val parallelExplanation =
+"""
+Only code that does either a run, or a simple statement is allowed on each line here.
+This enhanced restriction is made for the sake of correctness.
 For Example:
 // Not allowed:
 val x = 123 + ZIO.succeed(456).run + 789

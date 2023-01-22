@@ -9,7 +9,7 @@ import zio.direct.core.util.Messages
 import scala.annotation.nowarn
 
 @nowarn
-object VariaSpec extends DeferRunSpec {
+object VariaSpec extends DeferRunSpec { //
   case class Config1(value: Int)
   case class Config2(value: Int)
   case class Config3(value: Int)
@@ -135,7 +135,7 @@ object VariaSpec extends DeferRunSpec {
       test("disallow mutable collection use") {
         import scala.collection.mutable.ArrayBuffer
         val v = new ArrayBuffer[Int](4)
-        runLiftFailMsg(Messages.MutableCollectionDetected) {
+        runLiftFailMsg(Messages.MutableCollectionDetected("ArrayBuffer")) {
           """
           v += 4
           """
@@ -143,7 +143,7 @@ object VariaSpec extends DeferRunSpec {
       },
       test("disallow mutable collection use - declare but not use") {
         import scala.collection.mutable.ArrayBuffer
-        runLiftFailMsg(Messages.MutableCollectionDetected) {
+        runLiftFailMsg(Messages.MutableCollectionDetected("ArrayBuffer")) {
           """
           val v = new ArrayBuffer[Int](4)
           ZIO.succeed(123).run

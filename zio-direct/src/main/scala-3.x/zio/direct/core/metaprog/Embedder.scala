@@ -2,10 +2,66 @@ package zio.direct.core.metaprog
 
 import scala.quoted._
 import zio.direct.core.metaprog.Extractors._
+import zio.direct.core.metaprog.TypeUnion
 import zio.direct.core.util.Format
 import zio.ZIO
 
 object Embedder {
+
+  object Compose {
+    def andN(using Quotes)(types: List[quotes.reflect.TypeRepr]) =
+      import quotes.reflect._
+      if (types.length == 1)
+        types.head
+      else if (types.length > 1)
+        types.reduce(and(_, _))
+      else
+        TypeRepr.of[Any]
+
+    def orN(using Quotes)(types: List[quotes.reflect.TypeRepr])(implicit typeUnion: TypeUnion) = {
+      import quotes.reflect._
+      if (types.length == 1)
+        types.head
+      else if (types.length > 1)
+        types.reduce(or(_, _)(typeUnion))
+      else
+        TypeRepr.of[Nothing]
+    }
+
+    def or(using Quotes)(a: quotes.reflect.TypeRepr, b: quotes.reflect.TypeRepr)(implicit typeUnion: TypeUnion) = {
+      import quotes.reflect._
+      typeUnion match {
+        case TypeUnion.OrType =>
+          if (a =:= TypeRepr.of[Nothing] && b =:= TypeRepr.of[Nothing]) TypeRepr.of[Nothing]
+          else if (a =:= TypeRepr.of[Nothing]) b
+          else if (b =:= TypeRepr.of[Nothing]) a
+          else
+            // only widen if you absolutely need to
+            (a.widen.asType, b.widen.asType) match
+              case ('[at], '[bt]) =>
+                TypeRepr.of[at | bt]
+        case TypeUnion.LeastUpper =>
+          Embedder.computeCommonBaseClass(a.widen, b.widen)
+      }
+    }
+
+    def and(using Quotes)(a: quotes.reflect.TypeRepr, b: quotes.reflect.TypeRepr) =
+      // if either type is Any, specialize to the thing that is narrower
+      import quotes.reflect._
+      val out =
+        if (a =:= TypeRepr.of[Any] && b =:= TypeRepr.of[Any])
+          TypeRepr.of[Any]
+        else if (a =:= TypeRepr.of[Any])
+          b
+        else if (b =:= TypeRepr.of[Any])
+          a
+        else
+          // only widen if you absolutely need to
+          (a.widen.asType, b.widen.asType) match
+            case ('[at], '[bt]) =>
+              TypeRepr.of[at with bt]
+      out
+  }
 
   def computeCommonBaseClass(using Quotes)(a: quotes.reflect.TypeRepr, b: quotes.reflect.TypeRepr): quotes.reflect.TypeRepr =
     import quotes.reflect._
