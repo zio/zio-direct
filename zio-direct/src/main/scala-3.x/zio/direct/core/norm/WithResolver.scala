@@ -39,19 +39,19 @@ trait WithResolver {
   object SummonCapability {
     def Success[F[_, _, _]: Type]: Expr[MonadSuccess[F]] =
       Expr.summon[MonadSuccess[F]].getOrElse {
-        report.errorAndAbort(s"Cannot perform map/flatMap/succeed on the type: ${TypeRepr.of[F].show}. MonadSuccess typeclass was not found.")
+        report.errorAndAbort(s"Cannot perform map/flatMap/succeed on the type: ${TypeRepr.of[F].show}. A MonadSuccess typeclass was not found for it.")
       }
     def Failure[F[_, _, _]: Type]: Expr[MonadFallible[F]] =
       Expr.summon[MonadFallible[F]].getOrElse {
-        report.errorAndAbort(s"Cannot find an implementation of type typeclass MonadFallible for: ${TypeRepr.of[F].show}")
+        report.errorAndAbort(s"Cannot perform catchSome/ensuring/mapError/die on the type: ${TypeRepr.of[F].show}. A MonadFallible typeclass was not found for it.")
       }
     def Sequence[F[_, _, _]: Type]: Expr[MonadSequence[F]] =
       Expr.summon[MonadSequence[F]].getOrElse {
-        report.errorAndAbort(s"Cannot find an implementation of type typeclass MonadSequence for: ${TypeRepr.of[F].show}")
+        report.errorAndAbort(s"Cannot perform collect/foreach on the type: ${TypeRepr.of[F].show}. A SequencePar typeclass was not found for it.")
       }
     def SequencePar[F[_, _, _]: Type]: Expr[MonadSequenceParallel[F]] =
       Expr.summon[MonadSequenceParallel[F]].getOrElse {
-        report.errorAndAbort(s"Cannot find an implementation of type typeclass MonadSequence for: ${TypeRepr.of[F].show}")
+        report.errorAndAbort(s"Cannot perform collectPar/foreachPar on the type: ${TypeRepr.of[F].show}. A SequencePar typeclass was not found for it.")
       }
   }
 
@@ -148,6 +148,39 @@ trait WithResolver {
               )
             ).asInstanceOf[ZIO[r, e, a]]
           }.toZioValue(zpe)
+
+    def applyForeach(monadExpr: ZioValue, elementSymbol: Symbol, bodyMonad: ZioValue)(implicit collectStrategy: Collect) =
+      val elementType = elementSymbol.termRef.widenTermRefByName.asType
+      val MonadSuccess = SummonCapability.Success[F]
+      (zpe.asTypeTuple, elementType, bodyMonad.zpe.asTypeTuple) match
+        case (('[or], '[oe], '[oa]), '[e], ('[br], '[be], '[b])) =>
+          collectStrategy match
+            case Sequence =>
+              val MonadSequence = SummonCapability.Sequence[F]
+              '{
+                $MonadSuccess.map[or, oe, Iterable[b], Unit](
+                  $MonadSuccess.flatMap[or, oe, Iterable[e], Iterable[b]](${ monadExpr.expr }.asInstanceOf[F[or, oe, Iterable[e]]])((list: Iterable[e]) =>
+                    $MonadSequence.foreach(list.asInstanceOf[Iterable[e]])(
+                      ${ makeLambda(TypeRepr.of[F[or, oe, b]])(bodyMonad.term, Some(elementSymbol)).asExpr }.asInstanceOf[e => F[or, oe, b]]
+                      // ${ replaceSymbolInBodyMaybe(using macroQuotes)(bodyMonad.term.changeOwner(('v).asTerm.symbol))(Some(elementSymbol), ('v).asTerm).asExprOf[ZIO[?, ?, ?]] }
+                    )
+                  )
+                )(_ => ())
+              }.toZioValue(zpe)
+            case Parallel =>
+              val MonadSequencePar = SummonCapability.SequencePar[F]
+              '{
+                $MonadSuccess.map[or, oe, Iterable[b], Unit](
+                  $MonadSuccess.flatMap[or, oe, Iterable[e], Iterable[b]](${ monadExpr.expr }.asInstanceOf[F[or, oe, Iterable[e]]])((list: Iterable[e]) =>
+                    $MonadSequencePar.foreachPar(list.asInstanceOf[Iterable[e]])(
+                      ${ makeLambda(TypeRepr.of[F[or, oe, b]])(bodyMonad.term, Some(elementSymbol)).asExpr }.asInstanceOf[e => F[or, oe, b]]
+                      // ${ replaceSymbolInBodyMaybe(using macroQuotes)(bodyMonad.term.changeOwner(('v).asTerm.symbol))(Some(elementSymbol), ('v).asTerm).asExprOf[ZIO[?, ?, ?]] }
+                    )
+                  )
+                )(_ => ())
+              }.toZioValue(zpe)
+        case _ =>
+          notPossible()
 
     def applyFlatten(block: ZioValue): ZioValue =
       /*

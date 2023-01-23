@@ -108,26 +108,7 @@ trait WithReconstructTree {
           //   ZIO.succeed(list).map { (l:Iterable[E] => ZIO.foreach(l)(body) }
           val monadExpr = apply(listIR)
           val bodyMonad = apply(body)
-          val elementType = elementSymbol.termRef.widenTermRefByName.asType
-          (listType.widen.asType, elementType) match
-            case ('[l], '[e]) =>
-              instructions.collect match
-                case Sequence =>
-                  '{
-                    ${ monadExpr.expr }.asInstanceOf[ZIO[?, ?, l]].flatMap((list: l) =>
-                      ZIO.foreach(list.asInstanceOf[Iterable[e]])((v: e) =>
-                        ${ replaceSymbolInBodyMaybe(using macroQuotes)(bodyMonad.term.changeOwner(('v).asTerm.symbol))(Some(elementSymbol), ('v).asTerm).asExprOf[ZIO[?, ?, ?]] }
-                      ).map(_ => ())
-                    )
-                  }.toZioValue(irt.zpe)
-                case Parallel =>
-                  '{
-                    ${ monadExpr.expr }.asInstanceOf[ZIO[?, ?, l]].flatMap((list: l) =>
-                      ZIO.foreachPar(list.asInstanceOf[Iterable[e]])((v: e) =>
-                        ${ replaceSymbolInBodyMaybe(using macroQuotes)(bodyMonad.term.changeOwner(('v).asTerm.symbol))(Some(elementSymbol), ('v).asTerm).asExprOf[ZIO[?, ?, ?]] }
-                      ).map(_ => ())
-                    )
-                  }.toZioValue(irt.zpe)
+          Resolver[ZIO](irt.zpe).applyForeach(monadExpr, elementSymbol, bodyMonad)(instructions.collect)
 
         case irt @ IRT.Monad(code, _) => code.toZioValue(irt.zpe)
 
