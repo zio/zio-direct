@@ -1,15 +1,12 @@
 package zio.direct.core.norm
 
-import zio.direct.core.metaprog.WithIR
 import scala.quoted._
+import zio.direct.core.metaprog.WithIR
 import zio.direct.core.metaprog.Embedder._
-import zio.ZIO
 import zio.direct.core.metaprog.WithPrintIR
 import zio.Chunk
 import zio.direct.core.util.Format
 import zio.direct.core.util.WithInterpolator
-import zio.Exit.Success
-import zio.Exit.Failure
 import zio.direct.core.metaprog.Instructions
 import zio.direct.core.metaprog.Collect
 import zio.direct.core.metaprog.WithZioType
@@ -18,7 +15,6 @@ import zio.direct.core.util.Unsupported
 import org.scalafmt.util.LogLevel.info
 import zio.direct.core.metaprog.Collect.Sequence
 import zio.direct.core.metaprog.Collect.Parallel
-import java.lang.reflect.WildcardType
 import zio.direct.MonadSuccess
 import zio.direct.MonadFallible
 import zio.direct.MonadSequence
@@ -125,11 +121,12 @@ trait WithResolver {
 
     def applyCatchSome(tryClause: ZioValue, body: ZioValue): ZioValue = {
       val MonadFailure = SummonCapability.Failure[F]
-      (tryClause.zpe.asTypeTuple, body.zpe.asTypeTuple) match
-        case (('[rr], '[er], '[ar]), ('[r], '[e], '[b])) =>
+      (zpe.asTypeTuple) match
+        case ('[or], '[oe], '[oa]) =>
           '{
-            ${ tryClause.term.asExpr }.asInstanceOf[ZIO[rr, er, ar]]
-              .catchSome { ${ body.term.asExpr }.asInstanceOf[PartialFunction[er, ZIO[r, e, b]]] }
+            $MonadFailure.catchSome[or, oe, oa](${ tryClause.term.asExpr }.asInstanceOf[F[or, oe, oa]])(
+              ${ body.term.asExpr }.asInstanceOf[PartialFunction[oe, F[or, oe, oa]]]
+            )
           }.toZioValue(zpe)
         case _ =>
           notPossible()
@@ -146,7 +143,7 @@ trait WithResolver {
               $MonadFailure.orDie(
                 F3Util.wrapWithThrowable[F, r, Nothing, Any](${ finalizer.term.asExprOf[F[r, Nothing, Any]] })($MonadFailure)
               )
-            ).asInstanceOf[ZIO[r, e, a]]
+            ).asInstanceOf[F[r, e, a]]
           }.toZioValue(zpe)
 
     def applyForeach(monadExpr: ZioValue, elementSymbol: Symbol, bodyMonad: ZioValue)(implicit collectStrategy: Collect) =
@@ -250,7 +247,7 @@ trait WithResolver {
                       $MonadSuccess.map($collect)(terms => {
                         val iter = terms.iterator
                         ${ Block(makeVariables('iter), code).asExpr }.asInstanceOf[t]
-                      }).asInstanceOf[ZIO[r, e, t]]
+                      }).asInstanceOf[F[r, e, t]]
                     }
                   case IRT.Monad(code, _) =>
                     '{
@@ -272,8 +269,6 @@ trait WithResolver {
         }
 
       val mtpe = MethodType(List("sm"))(_ => List(prevValSymbolType), _ => outputType)
-      println(s"lambda-type:  => ${outputType.show}") // ${inputType.show}
-
       Lambda(
         Symbol.spliceOwner,
         mtpe,

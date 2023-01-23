@@ -255,9 +255,6 @@ trait WithReconstructTree {
               //   The `e` type can change because you can specify a ZIO in the response to the try
               //   e.g: (x:ZIO[Any, Throwable, A]).catchSome { case io: IOException => y:ZIO[Any, OtherExcpetion, A] }
               val methodType = MethodType(List("tryLamParam"))(_ => List(TypeRepr.of[zioTry_E]), _ => TypeRepr.of[zioOut])
-
-              println(s"           Method input=>output: ${methodType.show} =====")
-
               val methSym = Symbol.newMethod(Symbol.spliceOwner, "tryLam", methodType)
 
               // Now we actually make the method with the body:
