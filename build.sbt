@@ -29,21 +29,12 @@ addCommandAlias(
   ";zio-direct/test"
 )
 
-lazy val modules =
-  Seq[sbt.ClasspathDep[sbt.ProjectReference]](
-    `zio-direct`,
-    `zio-direct-test`
-  ) ++ {
-    if (isScala3) Seq[sbt.ClasspathDep[sbt.ProjectReference]](docs) else Seq[sbt.ClasspathDep[sbt.ProjectReference]]()
-  }
-
-lazy val root = (project in file("."))
-  .aggregate(modules.map(_.project): _*)
+lazy val root = project.in(file("."))
   .settings(
-    scalaVersion := `zd.scala.version`,
-    crossScalaVersions := Nil,
-    publish / skip := true
+    publish / skip := true,
+    scalaVersion := `zd.scala.version`
   )
+  .aggregate(`zio-direct`, `zio-direct-test`, docs)
 
 lazy val `zio-direct` = project
   .in(file("zio-direct"))
@@ -88,7 +79,7 @@ lazy val `zio-direct-test` = project
   .settings(stdSettings("zio-direct-test"))
   .settings(crossProjectSettings)
   .settings(dottySettings)
-  .settings(buildInfoSettings("zio.direct"))
+  .settings(buildInfoSettings("zio.direct.test"))
   .enablePlugins(BuildInfoPlugin)
   .settings(
     crossScalaVersions := Seq(Scala212, Scala213, ScalaDotty),
@@ -128,19 +119,15 @@ lazy val docs = project
       ("com.geirsson" % "metaconfig-typesafe-config_2.13"),
       ("org.typelevel" % "paiges-core_2.13")
     ),
-    crossScalaVersions := Seq(ScalaDotty),
+    crossScalaVersions := Seq(Scala212, Scala213, ScalaDotty),
     scalaVersion := ScalaDotty,
-    publish / skip := true,
     moduleName := "zio-direct-docs",
     scalacOptions -= "-Yno-imports",
     scalacOptions -= "-Xfatal-warnings",
     projectName := "ZIO Direct Style",
-    badgeInfo := Some(
-      BadgeInfo(
-        artifact = "zio-direct_3",
-        projectStage = ProjectStage.Development
-      )
-    ),
+    mainModuleName := (`zio-direct` / moduleName).value,
+    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(`zio-direct`),
+    projectStage := ProjectStage.Development,
     docsPublishBranch := "main"
   )
   .dependsOn(`zio-direct`)
