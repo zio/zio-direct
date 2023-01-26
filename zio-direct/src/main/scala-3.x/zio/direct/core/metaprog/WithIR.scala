@@ -9,6 +9,7 @@ import scala.tools.nsc.PipelineMain.Pipeline
 import zio.direct.core.util.Unsupported
 import zio.direct.core.util.Messages
 import zio.direct.core.metaprog.Extractors.BlockN
+import zio.NonEmptyChunk
 
 trait WithIR {
   self: WithZioType =>
@@ -30,7 +31,9 @@ trait WithIR {
     case class While(cond: IR, body: IR) extends Monadic
     case class ValDef(originalStmt: macroQuotes.reflect.Block, symbol: Symbol, assignment: IR, bodyUsingVal: IR) extends Monadic
     case class Unsafe(body: IR) extends Monadic
-    case class Try(tryBlock: IR, cases: List[IR.Match.CaseDef], resultType: TypeRepr, finallyBlock: Option[IR]) extends Monadic
+    // Use IR.Match.CaseDefs instead of an empty IR.CaseDef list to model a situation with
+    // no catch-clause because if it exists, there must be at least one case
+    case class Try(tryBlock: IR, catchBlock: Option[IR.Match.CaseDefs], resultType: TypeRepr, finallyBlock: Option[IR]) extends Monadic
     case class Foreach(list: IR, listType: TypeRepr, elementSymbol: Symbol, body: IR) extends Monadic
     case class FlatMap(monad: Monadic, valSymbol: Option[Symbol], body: IR.Monadic) extends Monadic
     object FlatMap {
@@ -63,8 +66,9 @@ trait WithIR {
       private case class Id(code: Term)
     }
     case class Block(head: Statement, tail: Monadic) extends Monadic
-    case class Match(scrutinee: IR, caseDefs: List[IR.Match.CaseDef]) extends Monadic
+    case class Match(scrutinee: IR, caseDefs: IR.Match.CaseDefs) extends Monadic
     object Match {
+      case class CaseDefs(cases: NonEmptyChunk[IR.Match.CaseDef])
       case class CaseDef(pattern: Tree, guard: Option[Term], rhs: Monadic)
     }
     case class If(cond: IR, ifTrue: IR, ifFalse: IR) extends Monadic
@@ -88,7 +92,7 @@ trait WithIR {
     case class While(cond: IRT, body: IRT)(val zpe: ZioType) extends Monadic
     case class ValDef(originalStmt: macroQuotes.reflect.Block, symbol: Symbol, assignment: IRT, bodyUsingVal: IRT)(val zpe: ZioType) extends Monadic
     case class Unsafe(body: IRT)(val zpe: ZioType) extends Monadic
-    case class Try(tryBlock: IRT, cases: List[IRT.Match.CaseDef], resultType: TypeRepr, finallyBlock: Option[IRT])(val zpe: ZioType) extends Monadic
+    case class Try(tryBlock: IRT, caseDefs: Option[IRT.Match.CaseDefs], resultType: TypeRepr, finallyBlock: Option[IRT])(val zpe: ZioType) extends Monadic
     case class Foreach(list: IRT, listType: TypeRepr, elementSymbol: Symbol, body: IRT)(val zpe: ZioType) extends Monadic
     case class FlatMap(monad: Monadic, valSymbol: Option[Symbol], body: IRT.Monadic)(val zpe: ZioType) extends Monadic
     case class Map(monad: Monadic, valSymbol: Option[Symbol], body: IRT.Pure)(val zpe: ZioType) extends Monadic
@@ -99,7 +103,7 @@ trait WithIR {
     }
 
     case class Block(head: Statement, tail: Monadic)(val zpe: ZioType) extends Monadic
-    case class Match(scrutinee: IRT, caseDefs: List[IRT.Match.CaseDef])(val zpe: ZioType) extends Monadic
+    case class Match(scrutinee: IRT, caseDefs: IRT.Match.CaseDefs)(val zpe: ZioType) extends Monadic
     case class If(cond: IRT, ifTrue: IRT, ifFalse: IRT)(val zpe: ZioType) extends Monadic
     case class Pure(code: Term)(val zpe: ZioType) extends IRT with Leaf
     object Pure {
@@ -109,6 +113,7 @@ trait WithIR {
     case class Or(left: IRT, right: IRT)(val zpe: ZioType) extends Monadic
     case class Parallel(originalExpr: Term, monads: List[(IRT.Monadic, Symbol)], body: IRT.Leaf)(val zpe: ZioType) extends Monadic
     object Match {
+      case class CaseDefs(cases: NonEmptyChunk[IRT.Match.CaseDef])(val zpe: ZioType)
       case class CaseDef(pattern: Tree, guard: Option[Term], rhs: Monadic)(val zpe: ZioType)
     }
   }
@@ -204,8 +209,8 @@ trait WithIR {
       ir match
         case IR.While(cond, body) =>
           IR.While(apply(cond), apply(body))
-        case IR.Try(tryBlock, cases, resultType, finallyBlock) =>
-          val newCases = cases.map(apply(_))
+        case IR.Try(tryBlock, casesOpt, resultType, finallyBlock) =>
+          val newCases = casesOpt.map(apply(_))
           val newFinallyBlock = finallyBlock.map(apply(_))
           IR.Try(apply(tryBlock), newCases, resultType, newFinallyBlock)
         case IR.ValDef(orig, symbol, assignment, bodyUsingVal) =>
@@ -221,8 +226,7 @@ trait WithIR {
         case IR.Block(head, tail) =>
           IR.Block(head, apply(tail))
         case IR.Match(scrutinee, caseDefs) =>
-          val newCaseDefs = caseDefs.map(apply(_))
-          IR.Match(scrutinee, newCaseDefs)
+          IR.Match(scrutinee, apply(caseDefs))
         case IR.If(cond, ifTrue, ifFalse) => IR.If(cond, apply(ifTrue), apply(ifFalse))
         case IR.And(left, right)          => IR.And(apply(left), apply(right))
         case IR.Or(left, right)           => IR.Or(apply(left), apply(right))
@@ -236,5 +240,8 @@ trait WithIR {
     def apply(caseDef: IR.Match.CaseDef): IR.Match.CaseDef =
       val newRhs = apply(caseDef.rhs)
       caseDef.copy(rhs = newRhs)
+
+    def apply(caseDefs: IR.Match.CaseDefs): IR.Match.CaseDefs =
+      caseDefs.copy(cases = caseDefs.cases.map(apply(_)))
   }
 }

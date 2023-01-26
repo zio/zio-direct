@@ -8,6 +8,7 @@ import zio.direct.Internal.Marker
 import zio.direct.core.metaprog.Extractors.Dealiased
 import zio.NonEmptyChunk
 import zio.direct.core.util.ThrowableOps
+import zio.Chunk
 
 trait WithZioType {
   implicit val macroQuotes: Quotes
@@ -156,37 +157,33 @@ trait WithZioType {
       new ZioType(effectType)(r.widenTermRefByName, e.widenTermRefByName, a.widenTermRefByName)
 
     def fromPrimaryWithOthers(primary: ZioType)(others: ZioType*)(implicit typeUnion: TypeUnion) = {
-      fromMultiTypes(validateSameEffect(others, "N+primary composition"))(
-        primary.r +: others.map(_.r).toList,
-        primary.e +: others.map(_.e).toList,
-        List(primary.a)
+      fromMultiTypes(validateSameEffect(NonEmptyChunk(primary, others: _*), "N+primary composition"))(
+        NonEmptyChunk(primary.r, others.map(_.r): _*),
+        NonEmptyChunk(primary.e, others.map(_.e): _*),
+        NonEmptyChunk(primary.a)
       )(typeUnion)
     }
 
-    def fromUnitWithOthers(others: ZioType*)(implicit typeUnion: TypeUnion) = {
+    def fromUnitWithOthers(others: NonEmptyChunk[ZioType])(implicit typeUnion: TypeUnion) = {
       fromMultiTypes(validateSameEffect(others, "N+unit composition"))(
-        others.map(_.r).toList,
-        others.map(_.e).toList,
-        List(TypeRepr.of[Unit])
+        others.map(_.r),
+        others.map(_.e),
+        NonEmptyChunk(TypeRepr.of[Unit])
       )(typeUnion)
     }
 
-    private def fromMultiTypes(effectType: ZioEffectType)(rs: List[TypeRepr], es: List[TypeRepr], as: List[TypeRepr])(implicit typeUnion: TypeUnion) =
+    private def fromMultiTypes(effectType: ZioEffectType)(rs: NonEmptyChunk[TypeRepr], es: NonEmptyChunk[TypeRepr], as: NonEmptyChunk[TypeRepr])(implicit typeUnion: TypeUnion) =
       ZioType(effectType)(
         ZioType.andN(rs),
         ZioType.orN(es)(typeUnion),
         ZioType.orN(as)
       )
 
-    def composeN(zioTypes: List[ZioType])(implicit typeUnion: TypeUnion): ZioType =
+    def composeN(zioTypes: NonEmptyChunk[ZioType])(implicit typeUnion: TypeUnion): ZioType =
       val (rs, es, as) = zioTypes.map(zt => (zt.r, zt.e, zt.a)).unzip3
       ZioType(validateSameEffect(zioTypes, "N-composition"))(andN(rs), orN(es), andN(as))
 
-    private def validateSameEffect(types: Seq[ZioType], label: String): ZioEffectType = {
-      if (types.isEmpty)
-        report.errorAndAbort(s"Invalid empty types list encountered from: ${label}.\n " +
-          s"=========== Trace: ===========\n" +
-          ThrowableOps.printStackTrace)
+    private def validateSameEffect(types: NonEmptyChunk[ZioType], label: String): ZioEffectType = {
       types.map(_.effectType).reduce((a, b) => {
         if (a != b)
           report.errorAndAbort(s"Different effect types encountered: ${a.tpe.show} and ${b.tpe.show}")
@@ -195,7 +192,7 @@ trait WithZioType {
       })
     }
 
-    private def andN(types: List[TypeRepr]) =
+    private def andN(types: Chunk[TypeRepr]) =
       if (types.length == 1)
         types.head
       else if (types.length > 1)
@@ -203,7 +200,7 @@ trait WithZioType {
       else
         TypeRepr.of[Any]
 
-    private def orN(types: List[TypeRepr])(implicit typeUnion: TypeUnion) =
+    private def orN(types: Chunk[TypeRepr])(implicit typeUnion: TypeUnion) =
       if (types.length == 1)
         types.head
       else if (types.length > 1)
@@ -212,7 +209,7 @@ trait WithZioType {
         TypeRepr.of[Nothing]
 
     def compose(a: ZioType, b: ZioType)(implicit typeUnion: TypeUnion): ZioType =
-      ZioType(validateSameEffect(Seq(a, b), "a/b composition"))(and(a.r, b.r), or(a.e, b.e), or(a.a, b.a))
+      ZioType(validateSameEffect(NonEmptyChunk(a, b), "a/b composition"))(and(a.r, b.r), or(a.e, b.e), or(a.a, b.a))
 
     private def or(a: TypeRepr, b: TypeRepr)(implicit typeUnion: TypeUnion) =
       typeUnion match {

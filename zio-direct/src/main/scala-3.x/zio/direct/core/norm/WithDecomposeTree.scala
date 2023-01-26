@@ -19,6 +19,7 @@ import zio.direct.Internal.deferred
 import zio.direct.Internal.ignore
 import zio.direct.core.util.Unsupported
 import zio.direct.core.util.WithInterpolator
+import zio.NonEmptyChunk
 
 trait WithDecomposeTree {
   self: WithIR with WithZioType =>
@@ -124,7 +125,13 @@ trait WithDecomposeTree {
             Some(out)
 
           case m @ Match(value, DecomposeCases(cases)) =>
-            Some(IR.Match(IR.Pure(value), cases))
+            val caseDefs =
+              NonEmptyChunk.fromIterableOption(cases) match {
+                case Some(value) => IR.Match.CaseDefs(value)
+                case None =>
+                  report.errorAndAbort(s"Invalid match statement with no cases:\n${Format.Term(m)}")
+              }
+            Some(IR.Match(IR.Pure(value), caseDefs))
 
           case RunCall(task) =>
             Some(IR.Monad(task.asTerm))
@@ -269,11 +276,16 @@ trait WithDecomposeTree {
               Some(IR.Monad(ZioValue(ZioType.Unit(et)).succeed(code.asTerm).term))
             }
 
-          case tryTerm @ Try(tryBlock, caseDefs, finallyBlock) =>
+          case tryTerm @ Try(tryBlock, cases, finallyBlock) =>
             // Don't need the above terms
             // val tryBlockIR = DecomposeTree.orPure(tryBlock)
             // val cases = DecomposeCases(caseDefs)
-            Some(IR.Try(DecomposeTree.orPure(tryBlock), DecomposeCases(caseDefs), tryTerm.tpe, finallyBlock.map(DecomposeTree.orPure(_))))
+            val casesOptIRTs =
+              NonEmptyChunk.fromIterableOption(
+                DecomposeCases(cases)
+              )
+            val caseDefsOpt = casesOptIRTs.map(IR.Match.CaseDefs(_))
+            Some(IR.Try(DecomposeTree.orPure(tryBlock), caseDefsOpt, tryTerm.tpe, finallyBlock.map(DecomposeTree.orPure(_))))
 
           case Seal('{ throw $e }) =>
             Some(IR.Fail(DecomposeTree.orPure(e.asTerm)))

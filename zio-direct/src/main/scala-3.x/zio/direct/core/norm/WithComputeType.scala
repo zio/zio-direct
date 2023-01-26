@@ -11,6 +11,7 @@ import zio.direct.core.metaprog.Instructions
 import zio.direct.core.metaprog.Embedder.topLevelOwner
 import zio.direct.core.metaprog.TypeUnion
 import zio.direct.core.metaprog.Embedder
+import zio.NonEmptyChunk
 
 trait WithComputeType {
   self: WithIR with WithZioType with WithInterpolator with WithPrintIR =>
@@ -26,8 +27,10 @@ trait WithComputeType {
       IRT.Match.CaseDef(ir.pattern, ir.guard, rhsIRT)(rhsIRT.zpe)
 
     // TODO add caseDefs-type to IRT.Match and get rid of this
-    def applyCaseDefs(caseDefs: List[IRT.Match.CaseDef]) =
-      ZioType.composeN(caseDefs.map(_.zpe)).transformA(_.widen)
+    def applyCaseDefs(caseDefs: IR.Match.CaseDefs): IRT.Match.CaseDefs =
+      val newCases = caseDefs.cases.map(applyCaseDef(_))
+      val zpe = ZioType.composeN(newCases.map(_.zpe)).transformA(_.widen)
+      IRT.Match.CaseDefs(newCases)(zpe)
 
     def apply(ir: IR.Monadic): IRT.Monadic =
       ir match
@@ -110,9 +113,8 @@ trait WithComputeType {
 
     def apply(ir: IR.Try): IRT.Try =
       ir match
-        case IR.Try(tryBlock, caseDefs, resultType, finallyBlock) =>
+        case IR.Try(tryBlock, caseDefsOpt, resultType, finallyBlock) =>
           val tryBlockIRT = apply(tryBlock)
-          val caseDefIRTs = caseDefs.map(applyCaseDef(_))
 
           // We get better results by doing into the case-defs and computing the union-type of them
           // than we do by getting the information from outputType because outputType is limited
@@ -121,23 +123,31 @@ trait WithComputeType {
           // (Note, widen the error type because even if it's a concrete int type
           // e.g. `catch { case e: Throwable => 111 }` we don't necessarily know
           // that this error will actually happen therefore it's not sensical to make it a singleton type)
-          val caseDefType = applyCaseDefs(caseDefIRTs)
+          val caseDefsOptIRT = caseDefsOpt.map(applyCaseDefs(_))
 
-          // Could also apply from outputType but this has worse results, see comment above.
-          // val caseDefType =
-          //   outputType.asType match
-          //     case '[ZIO[r, e, a]] => ZioType(TypeRepr.of[r].widen, TypeRepr.of[e].widen, TypeRepr.of[a].widen)
-          //     case '[t]            => ZioType(TypeRepr.of[Any].widen, TypeRepr.of[Throwable].widen, TypeRepr.of[t].widen)
-          val tpe = tryBlockIRT.zpe.flatMappedWith(caseDefType)
+          // If there is a catch clause we need to consider it's environment/error types. Otherwise just the try-clause
+          val tpe =
+            caseDefsOptIRT match {
+              case Some(caseDefsIRT) =>
+                // Could also apply from outputType but this has worse results, see comment above.
+                // val caseDefType =
+                //   outputType.asType match
+                //     case '[ZIO[r, e, a]] => ZioType(TypeRepr.of[r].widen, TypeRepr.of[e].widen, TypeRepr.of[a].widen)
+                //     case '[t]            => ZioType(TypeRepr.of[Any].widen, TypeRepr.of[Throwable].widen, TypeRepr.of[t].widen)
+                tryBlockIRT.zpe.flatMappedWith(caseDefsIRT.zpe)
+              case None =>
+                tryBlockIRT.zpe
+            }
+
           val finallyBlockIRT = finallyBlock.map(apply(_))
-          IRT.Try(tryBlockIRT, caseDefIRTs, ir.resultType, finallyBlockIRT)(tpe)
+          IRT.Try(tryBlockIRT, caseDefsOptIRT, ir.resultType, finallyBlockIRT)(tpe)
 
     def apply(ir: IR.Foreach): IRT.Foreach =
       ir match
         case IR.Foreach(monad, _, _, body) =>
           val monadIRT = apply(monad)
           val bodyIRT = apply(body)
-          val zpe = ZioType.fromUnitWithOthers(bodyIRT.zpe, monadIRT.zpe)
+          val zpe = ZioType.fromUnitWithOthers(NonEmptyChunk(bodyIRT.zpe, monadIRT.zpe))
           IRT.Foreach(monadIRT, ir.listType, ir.elementSymbol, bodyIRT)(zpe)
 
     def apply(ir: IR.FlatMap): IRT.FlatMap =
@@ -169,9 +179,8 @@ trait WithComputeType {
           val scrutineeIRT = apply(scrutinee)
           // NOTE: We can possibly do the same thing as IR.Try and pass through the Match result tpe, then
           // then use that to figure out what the type should be
-          val caseDefIRTs = caseDefs.map(applyCaseDef(_))
-          val caseDefType = ZioType.composeN(caseDefIRTs.map(_.zpe)).transformA(_.widen)
-          val zpe = scrutineeIRT.zpe.flatMappedWith(caseDefType)
+          val caseDefIRTs = applyCaseDefs(caseDefs)
+          val zpe = scrutineeIRT.zpe.flatMappedWith(caseDefIRTs.zpe)
           IRT.Match(scrutineeIRT, caseDefIRTs)(zpe)
 
     def apply(ir: IR.Parallel): IRT.Parallel =

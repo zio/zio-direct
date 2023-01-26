@@ -228,61 +228,70 @@ trait WithReconstructTree {
           // apply(IRT.Block(newMethod, IRT.Monad(Apply(Ref(methSym), Nil))))
           Block(List(newMethod), Apply(Ref(methSym), Nil)).toZioValue(irWhile.zpe)
 
-        case irt @ IRT.Try(tryBlock, cases, _, finallyBlock) =>
-          val tryBlockType = tryBlock.zpe
-          val newCaseDefs = reconstructCaseDefs(cases)
-          val caseDefsType = ComputeIRT(et, typeUnion).applyCaseDefs(cases)
-          val tryTerm = apply(tryBlock)
+        case irt @ IRT.Try(tryBlock, caseDefsOpt, _, finallyBlock) =>
+          // if there is actually a try-cases clause, the expand that and create a lambda for it, otherwise
+          // just embed the finally block (if it exists)
+          val (monadZioType, monadZioValue) =
+            caseDefsOpt match
+              case Some(caseDefs) =>
+                reconstructTryCases(irt.zpe, tryBlock, caseDefs)
+              case None =>
+                (tryBlock.zpe, apply(tryBlock))
 
-          (tryBlockType.toZioType.asType, tryBlockType.e.asType, irt.zpe.toZioType.asType) match
-            case ('[zioTry], '[zioTry_E], '[zioOut]) =>
-              // A normal lambda looks something like:
-              //   Block(List(
-              //     DefDef(newMethodSymbol, terms:List[List[Tree]] => Option(body))
-              //     Closure(Ref(newMethodSymbol), None)
-              //   ))
-              // A PartialFunction lambda looks looks something like:
-              //   Block(List(
-              //     DefDef(newMethodSymbol, terms:List[List[Tree]] => Option(body))
-              //     Closure(Ref(newMethodSymbol), TypeRepr.of[PartialFunction[input, output]])
-              //   ))
-              // So basically the only difference is in the typing of the closure
-
-              // Make the new symbol and method types. (Note the `e` parameter extracted from the ZIO above)
-              // Should look something like:
-              //   def tryLamParam(tryLam: e0): ZIO[r, e, a] = ...
-              // Note:
-              //   The `e` type can change because you can specify a ZIO in the response to the try
-              //   e.g: (x:ZIO[Any, Throwable, A]).catchSome { case io: IOException => y:ZIO[Any, OtherExcpetion, A] }
-              val methodType = MethodType(List("tryLamParam"))(_ => List(TypeRepr.of[zioTry_E]), _ => TypeRepr.of[zioOut])
-              val methSym = Symbol.newMethod(Symbol.spliceOwner, "tryLam", methodType)
-
-              // Now we actually make the method with the body:
-              //   def tryLamParam(tryLam: e) = { case ...exception => ... }
-              val method = DefDef(methSym, sm => Some(Match(sm(0)(0).asInstanceOf[Term], newCaseDefs.map(_.changeOwner(methSym)))))
-              // NOTE: Be sure that error here is the same one as used to define tryLamParam. Otherwise, AbstractMethodError errors
-              // saying that .isDefinedAt is abstract will happen.
-              val pfTree = TypeRepr.of[PartialFunction[zioTry_E, zioOut]]
-
-              // Assemble the peices together into a closure
-              val closure = Closure(Ref(methSym), Some(pfTree))
-              val functionBlock = '{ ${ Block(List(method), closure).asExpr }.asInstanceOf[PartialFunction[zioTry_E, zioOut]] }
-              val tryExpr = '{ ${ tryTerm.expr }.asInstanceOf[zioTry] }
-              // val monadExpr = '{ ${ tryTerm.asExpr }.asInstanceOf[zioRET].catchSome { ${ functionBlock } } }
-              val monadZioType = tryBlock.zpe.flatMappedWith(caseDefsType)
-              val monadZioValue = Resolver[ZIO](monadZioType).applyCatchSome(tryExpr.asTerm.toZioValue(tryBlock.zpe), functionBlock.toZioValue(caseDefsType))
-
-              finallyBlock match {
-                case Some(ir) =>
-                  val finallyTerm = apply(ir)
-                  Resolver[ZIO](irt.zpe).applyEnsuring(monadZioValue, finallyTerm)
-
-                case None =>
-                  monadZioValue
-              }
+          finallyBlock match {
+            case Some(ir) =>
+              val finallyTerm = apply(ir)
+              Resolver[ZIO](irt.zpe).applyEnsuring(monadZioValue, finallyTerm)
+            case None =>
+              monadZioValue
+          }
 
         case value: IRT.Parallel =>
           reconstructParallel(value)
+    }
+
+    def reconstructTryCases(wholeTryZpe: ZioType, tryBlock: IRT, caseDefs: IRT.Match.CaseDefs) = {
+      val tryBlockType = tryBlock.zpe
+      val tryTerm = apply(tryBlock)
+      val scalaCaseDefs = reconstructCaseDefs(caseDefs).toList
+      (tryBlockType.toZioType.asType, tryBlockType.e.asType, wholeTryZpe.toZioType.asType) match
+        case ('[zioTry], '[zioTry_E], '[zioOut]) =>
+          // A normal lambda looks something like:
+          //   Block(List(
+          //     DefDef(newMethodSymbol, terms:List[List[Tree]] => Option(body))
+          //     Closure(Ref(newMethodSymbol), None)
+          //   ))
+          // A PartialFunction lambda looks looks something like:
+          //   Block(List(
+          //     DefDef(newMethodSymbol, terms:List[List[Tree]] => Option(body))
+          //     Closure(Ref(newMethodSymbol), TypeRepr.of[PartialFunction[input, output]])
+          //   ))
+          // So basically the only difference is in the typing of the closure
+
+          // Make the new symbol and method types. (Note the `e` parameter extracted from the ZIO above)
+          // Should look something like:
+          //   def tryLamParam(tryLam: e0): ZIO[r, e, a] = ...
+          // Note:
+          //   The `e` type can change because you can specify a ZIO in the response to the try
+          //   e.g: (x:ZIO[Any, Throwable, A]).catchSome { case io: IOException => y:ZIO[Any, OtherExcpetion, A] }
+          val methodType = MethodType(List("tryLamParam"))(_ => List(TypeRepr.of[zioTry_E]), _ => TypeRepr.of[zioOut])
+          val methSym = Symbol.newMethod(Symbol.spliceOwner, "tryLam", methodType)
+
+          // Now we actually make the method with the body:
+          //   def tryLamParam(tryLam: e) = { case ...exception => ... }
+          val method = DefDef(methSym, sm => Some(Match(sm(0)(0).asInstanceOf[Term], scalaCaseDefs.map(_.changeOwner(methSym)))))
+          // NOTE: Be sure that error here is the same one as used to define tryLamParam. Otherwise, AbstractMethodError errors
+          // saying that .isDefinedAt is abstract will happen.
+          val pfTree = TypeRepr.of[PartialFunction[zioTry_E, zioOut]]
+
+          // Assemble the peices together into a closure
+          val closure = Closure(Ref(methSym), Some(pfTree))
+          val functionBlock = '{ ${ Block(List(method), closure).asExpr }.asInstanceOf[PartialFunction[zioTry_E, zioOut]] }
+          val tryExpr = '{ ${ tryTerm.expr }.asInstanceOf[zioTry] }
+          // val monadExpr = '{ ${ tryTerm.asExpr }.asInstanceOf[zioRET].catchSome { ${ functionBlock } } }
+          val monadZioType = tryBlock.zpe.flatMappedWith(caseDefs.zpe)
+          val monadZioValue = Resolver[ZIO](monadZioType).applyCatchSome(tryExpr.asTerm.toZioValue(tryBlock.zpe), functionBlock.toZioValue(caseDefs.zpe))
+          (monadZioType, monadZioValue)
     }
 
     def reconstructMatch(irt: IRT.Match): ZioValue =
@@ -295,27 +304,23 @@ trait WithReconstructTree {
           // (Note don't think you need to change ownership of caseDef.rhs to the new symbol but possible.)
           val matchSymbol = Symbol.newVal(Symbol.spliceOwner, "matchVar", monad.term.tpe, Flags.EmptyFlags, Symbol.noSymbol)
 
-          // TODO should introduce IR/IRT.CaseDefs as a separate module that can hold a type
-          //      so that this doesn't need to be recomputed
-          val caseDefType = ComputeIRT(et, typeUnion).applyCaseDefs(caseDefs)
-
           // Possible exploration: if the content of the match is pure we lifted it into a monad. If we want to optimize we
           // change the IRT.CaseDef.rhs to be IRT.Pure as well as IRT.Monadic and handle both cases
-          val newMatch = Match(Ref(matchSymbol), caseDefTerms).toZioValue(caseDefType)
+          val newMatch = Match(Ref(matchSymbol), caseDefTerms.toList).toZioValue(caseDefs.zpe)
 
           // We can synthesize the monadExpr.flatMap call from the monad at this point but I would rather pass it to the FlatMap case to take care of
           Resolver[ZIO](irt.zpe).applyFlatMapWithBody(monad, Some(matchSymbol), newMatch)
 
         case IRT.Pure(termValue) =>
           val newCaseDefs = reconstructCaseDefs(caseDefs)
-          val newMatch = Match(termValue, newCaseDefs)
+          val newMatch = Match(termValue, newCaseDefs.toList)
           // recall that the expressions in the case defs need all be ZIO instances (i.e. monadic) we we can
           // treat the whole thing as a ZIO (i.e. monadic) expression
           newMatch.toZioValue(irt.zpe)
     end reconstructMatch
 
-    private def reconstructCaseDefs(caseDefs: List[IRT.Match.CaseDef]) =
-      caseDefs.map { caseDef =>
+    private def reconstructCaseDefs(caseDefs: IRT.Match.CaseDefs) =
+      caseDefs.cases.map { caseDef =>
         val rhs = apply(caseDef.rhs)
         CaseDef(caseDef.pattern, caseDef.guard, rhs.term)
       }
