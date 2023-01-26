@@ -3,7 +3,6 @@ package zio.direct.core.norm
 import zio.direct.core.metaprog.WithIR
 import scala.quoted._
 import zio.direct.core.util.Format
-import zio.ZIO
 import zio.direct.core.metaprog.WithPrintIR
 import zio.direct.core.metaprog.WithZioType
 import zio.direct.core.util.WithInterpolator
@@ -19,17 +18,18 @@ trait WithComputeType {
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._
 
-  object ComputeIRT {
-    private def applyCaseDef(ir: IR.Match.CaseDef)(implicit typeUnion: TypeUnion): IRT.Match.CaseDef =
+  case class ComputeIRT(et: ZioEffectType, typeUnion: TypeUnion) {
+    implicit val tu: TypeUnion = this.typeUnion
+
+    private def applyCaseDef(ir: IR.Match.CaseDef): IRT.Match.CaseDef =
       val rhsIRT = apply(ir.rhs)
       IRT.Match.CaseDef(ir.pattern, ir.guard, rhsIRT)(rhsIRT.zpe)
 
-    // TODO should introduce IR/IRT.CaseDefs as a separate module that can hold a type
-    //      so that this doesn't need to be recomputed
-    def applyCaseDefs(caseDefs: List[IRT.Match.CaseDef])(implicit typeUnion: TypeUnion) =
+    // TODO add caseDefs-type to IRT.Match and get rid of this
+    def applyCaseDefs(caseDefs: List[IRT.Match.CaseDef]) =
       ZioType.composeN(caseDefs.map(_.zpe)).transformA(_.widen)
 
-    def apply(ir: IR.Monadic)(implicit typeUnion: TypeUnion): IRT.Monadic =
+    def apply(ir: IR.Monadic): IRT.Monadic =
       ir match
         case ir: IR.Fail     => apply(ir)
         case ir: IR.While    => apply(ir)
@@ -47,32 +47,32 @@ trait WithComputeType {
         case ir: IR.Or       => apply(ir)
         case ir: IR.Parallel => apply(ir)
 
-    def apply(ir: IR.Leaf)(implicit typeUnion: TypeUnion): IRT.Leaf =
+    def apply(ir: IR.Leaf): IRT.Leaf =
       ir match
         case ir: IR.Monad => apply(ir)
         case ir: IR.Pure  => apply(ir)
 
-    def apply(ir: IR)(implicit typeUnion: TypeUnion): IRT =
+    def apply(ir: IR): IRT =
       ir match
         case ir: IR.Monadic => apply(ir)
         case ir: IR.Leaf    => apply(ir)
 
-    def apply(ir: IR.Monad)(implicit typeUnion: TypeUnion): IRT.Monad =
-      IRT.Monad(ir.code, ir.source)(ZioType.fromZIO(ir.code))
+    def apply(ir: IR.Monad): IRT.Monad =
+      IRT.Monad(ir.code, ir.source)(ZioType.fromZIO(et)(ir.code))
 
-    def apply(ir: IR.Pure)(implicit typeUnion: TypeUnion): IRT.Pure =
-      IRT.Pure(ir.code)(ZioType.fromPure(ir.code))
+    def apply(ir: IR.Pure): IRT.Pure =
+      IRT.Pure(ir.code)(ZioType.fromPure(et)(ir.code))
 
-    def apply(ir: IR.Fail)(implicit typeUnion: TypeUnion): IRT.Fail =
+    def apply(ir: IR.Fail): IRT.Fail =
       ir match
         case IR.Fail(error) =>
           // The error type often is a single expression e.g. someFunctionThatThrowsError()
           // so we need to widen it into the underlying type
           val bodyError = apply(error)
-          val tpe = ZioType(bodyError.zpe.r, bodyError.zpe.a.widenTermRefByName, TypeRepr.of[Nothing])
+          val tpe = ZioType(et)(bodyError.zpe.r, bodyError.zpe.a.widenTermRefByName, TypeRepr.of[Nothing])
           IRT.Fail(bodyError)(tpe)
 
-    def apply(ir: IR.While)(implicit typeUnion: TypeUnion): IRT.While =
+    def apply(ir: IR.While): IRT.While =
       ir match
         case IR.While(cond, body) =>
           val condIRT = apply(cond)
@@ -80,7 +80,7 @@ trait WithComputeType {
           val zpe = condIRT.zpe.flatMappedWith(bodyIRT.zpe).mappedWithType(TypeRepr.of[Unit])
           IRT.While(condIRT, bodyIRT)(zpe)
 
-    def apply(ir: IR.ValDef)(implicit typeUnion: TypeUnion): IRT.ValDef =
+    def apply(ir: IR.ValDef): IRT.ValDef =
       ir match
         case IR.ValDef(originalStmt, symbol, assignment, bodyUsingVal) =>
           // Eventually a ValDef will be turned into a flatMap so if we still have one,
@@ -98,7 +98,7 @@ trait WithComputeType {
           val zpe = assignmentIRT.zpe.flatMappedWith(bodyIRT.zpe)
           IRT.ValDef(ir.originalStmt, ir.symbol, assignmentIRT, bodyIRT)(zpe)
 
-    def apply(ir: IR.Unsafe)(implicit typeUnion: TypeUnion): IRT.Unsafe =
+    def apply(ir: IR.Unsafe): IRT.Unsafe =
       ir match
         case IR.Unsafe(body) =>
           // Things inside Unsafe blocks that are not inside runs will be wrapepd into ZIO.attempt
@@ -108,7 +108,7 @@ trait WithComputeType {
           val zpe = unsafeIRT.zpe
           IRT.Unsafe(unsafeIRT)(zpe)
 
-    def apply(ir: IR.Try)(implicit typeUnion: TypeUnion): IRT.Try =
+    def apply(ir: IR.Try): IRT.Try =
       ir match
         case IR.Try(tryBlock, caseDefs, resultType, finallyBlock) =>
           val tryBlockIRT = apply(tryBlock)
@@ -132,7 +132,7 @@ trait WithComputeType {
           val finallyBlockIRT = finallyBlock.map(apply(_))
           IRT.Try(tryBlockIRT, caseDefIRTs, ir.resultType, finallyBlockIRT)(tpe)
 
-    def apply(ir: IR.Foreach)(implicit typeUnion: TypeUnion): IRT.Foreach =
+    def apply(ir: IR.Foreach): IRT.Foreach =
       ir match
         case IR.Foreach(monad, _, _, body) =>
           val monadIRT = apply(monad)
@@ -140,7 +140,7 @@ trait WithComputeType {
           val zpe = ZioType.fromUnitWithOthers(bodyIRT.zpe, monadIRT.zpe)
           IRT.Foreach(monadIRT, ir.listType, ir.elementSymbol, bodyIRT)(zpe)
 
-    def apply(ir: IR.FlatMap)(implicit typeUnion: TypeUnion): IRT.FlatMap =
+    def apply(ir: IR.FlatMap): IRT.FlatMap =
       ir match
         case IR.FlatMap(monad, valSymbol, body) =>
           val monadIRT = apply(monad)
@@ -148,20 +148,20 @@ trait WithComputeType {
           val zpe = monadIRT.zpe.flatMappedWith(bodyIRT.zpe)
           IRT.FlatMap(monadIRT, ir.valSymbol, bodyIRT)(zpe)
 
-    def apply(ir: IR.Map)(implicit typeUnion: TypeUnion): IRT.Map =
+    def apply(ir: IR.Map): IRT.Map =
       ir match
         case IR.Map(monad, valSymbol, body @ IR.Pure(term)) =>
           val monadIRT = apply(monad)
           val zpe = monadIRT.zpe.mappedWith(term)
-          IRT.Map(monadIRT, ir.valSymbol, IRT.Pure.fromTerm(term))(zpe)
+          IRT.Map(monadIRT, ir.valSymbol, IRT.Pure.fromTerm(et)(term))(zpe)
 
-    def apply(ir: IR.Block)(implicit typeUnion: TypeUnion): IRT.Block =
+    def apply(ir: IR.Block): IRT.Block =
       ir match
         case IR.Block(head, tail) =>
           val tailIRT = apply(tail)
           IRT.Block(head, tailIRT)(tailIRT.zpe)
 
-    def apply(ir: IR.Match)(implicit typeUnion: TypeUnion): IRT.Match =
+    def apply(ir: IR.Match): IRT.Match =
       ir match
         case IR.Match(scrutinee, caseDefs) =>
           // Ultimately the scrutinee will be used if it is pure or lifted, either way we can
@@ -174,7 +174,7 @@ trait WithComputeType {
           val zpe = scrutineeIRT.zpe.flatMappedWith(caseDefType)
           IRT.Match(scrutineeIRT, caseDefIRTs)(zpe)
 
-    def apply(ir: IR.Parallel)(implicit typeUnion: TypeUnion): IRT.Parallel =
+    def apply(ir: IR.Parallel): IRT.Parallel =
       ir match
         case IR.Parallel(_, monadics, body) =>
           val monadicsIRTs =
@@ -198,7 +198,7 @@ trait WithComputeType {
 
           IRT.Parallel(ir.originalExpr, monadicsIRTs, bodyIRT)(zpe)
 
-    def apply(ir: IR.If)(implicit typeUnion: TypeUnion): IRT.If =
+    def apply(ir: IR.If): IRT.If =
       ir match
         case IR.If(cond, ifTrue, ifFalse) =>
           val condIRT = apply(cond)
@@ -213,7 +213,7 @@ trait WithComputeType {
             )
           IRT.If(condIRT, ifTrueIRT, ifFalseIRT)(zpe)
 
-    def apply(ir: IR.And)(implicit typeUnion: TypeUnion): IRT.And =
+    def apply(ir: IR.And): IRT.And =
       ir match
         case IR.And(left, right) =>
           val leftIRT = apply(left)
@@ -221,7 +221,7 @@ trait WithComputeType {
           val zpe = ZioType.compose(leftIRT.zpe, rightIRT.zpe)
           IRT.And(leftIRT, rightIRT)(zpe)
 
-    def apply(ir: IR.Or)(implicit typeUnion: TypeUnion): IRT.Or =
+    def apply(ir: IR.Or): IRT.Or =
       ir match
         case IR.Or(left, right) =>
           val leftIRT = apply(left)

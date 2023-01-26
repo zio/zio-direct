@@ -103,7 +103,7 @@ trait WithIR {
     case class If(cond: IRT, ifTrue: IRT, ifFalse: IRT)(val zpe: ZioType) extends Monadic
     case class Pure(code: Term)(val zpe: ZioType) extends IRT with Leaf
     object Pure {
-      def fromTerm(term: Term) = Pure(term)(ZioType.fromPure(term))
+      def fromTerm(et: ZioEffectType)(term: Term) = Pure(term)(ZioType.fromPure(et)(term))
     }
     case class And(left: IRT, right: IRT)(val zpe: ZioType) extends Monadic
     case class Or(left: IRT, right: IRT)(val zpe: ZioType) extends Monadic

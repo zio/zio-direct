@@ -9,6 +9,9 @@ object Extractors {
   import zio.direct._
 
   object RunCall {
+    // TODO need to refactor API here. Maybe match whatever function is annotated in a certain way?
+    //      possibly need to detect extensions methods on a tree-level.
+    //      Or maybe just make the `run` call just be generic F[a, b, c] => c ? Need to discuss.
     def unapply(using Quotes)(tree: quotes.reflect.Tree): Option[Expr[ZIO[?, ?, ?]]] =
       import quotes.reflect._
       tree match
@@ -17,6 +20,11 @@ object Extractors {
         case Seal('{ ($task: ZIO[r, e, a]).run }) =>
           Some(task)
         case _ => None
+  }
+
+  object Dealiased {
+    def unapply(using Quotes)(repr: quotes.reflect.TypeRepr): Option[quotes.reflect.TypeRepr] =
+      Some(repr.widenTermRefByName.dealias)
   }
 
   def firstParamList(using Quotes)(applyNode: quotes.reflect.Apply) =

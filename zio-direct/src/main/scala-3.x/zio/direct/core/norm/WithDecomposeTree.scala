@@ -27,10 +27,10 @@ trait WithDecomposeTree {
   import macroQuotes.reflect._
 
   protected object Decompose:
-    def apply(instr: Instructions) =
-      new Decompose(instr)
+    def apply(effectType: ZioEffectType, instr: Instructions) =
+      new Decompose(effectType, instr)
 
-  protected class Decompose(instr: Instructions):
+  protected class Decompose(et: ZioEffectType, instr: Instructions):
     def apply(value: Term) = DecomposeTree.orPure(value)
 
     private object DecomposeTree {
@@ -263,11 +263,10 @@ trait WithDecomposeTree {
           // If we have a special user-defined "ignore" block, just splice the code. The `ignore` construct
           // is should ONLY be used to test code.
           case Seal('{ ignore($code) }) =>
-            code.asTerm.tpe.asType match {
-              case '[ZIO[r, e, a]] =>
-                Some(IR.Monad(code.asTerm, IR.Monad.Source.IgnoreCall))
-              case _ =>
-                Some(IR.Monad(ZioValue(ZioType.Unit).succeed(code.asTerm).term))
+            if (et.isEffectOf(code.asTerm.tpe)) {
+              Some(IR.Monad(code.asTerm, IR.Monad.Source.IgnoreCall))
+            } else {
+              Some(IR.Monad(ZioValue(ZioType.Unit(et)).succeed(code.asTerm).term))
             }
 
           case tryTerm @ Try(tryBlock, caseDefs, finallyBlock) =>
@@ -292,7 +291,7 @@ trait WithDecomposeTree {
           case CaseDef(pattern, cond, DecomposeTree(body)) =>
             IR.Match.CaseDef(pattern, cond, body)
           case CaseDef(pattern, cond, body) =>
-            IR.Match.CaseDef(pattern, cond, IR.Monad(ZioValue(ZioType.Unit).succeed(body).term))
+            IR.Match.CaseDef(pattern, cond, IR.Monad(ZioValue(ZioType.Unit(et)).succeed(body).term))
         }
 
       def unapply(cases: List[CaseDef]) =

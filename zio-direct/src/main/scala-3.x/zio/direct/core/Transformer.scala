@@ -41,12 +41,14 @@ class Transformer(inputQuotes: Quotes)
   def apply[T: Type](valueRaw: Expr[T], instructions: Instructions): Expr[ZIO[?, ?, ?]] = {
     val value = valueRaw.asTerm.underlyingArgument
 
+    val effectType = ZioEffectType.of[ZIO]
+
     // Do a top-level transform to check that there are no invalid constructs
     if (instructions.verify != Verify.None)
       Allowed.validateBlocksIn(value.asExpr, instructions)
 
     // // Do the main transformation
-    val transformedRaw = Decompose(instructions)(value)
+    val transformedRaw = Decompose(effectType, instructions)(value)
 
     def fileShow = Announce.FileShow.FullPath(posFileStr(valueRaw.asTerm.pos))
 
@@ -65,8 +67,8 @@ class Transformer(inputQuotes: Quotes)
         Announce.section("Monadified Tries (No Changes)", "", fileShow)
     }
 
-    val irt = ComputeIRT(transformed)(using instructions.typeUnion)
-    val output = ReconstructTree(instructions).fromIR(irt)
+    val irt = ComputeIRT(effectType, instructions.typeUnion)(transformed)
+    val output = ReconstructTree(effectType, instructions).fromIR(irt)
     if (instructions.info.showReconstructed)
       val showDetailsMode =
         instructions.info match {
