@@ -112,13 +112,9 @@ trait WithZioType {
     def mappedWithType(tpe: TypeRepr) =
       ZioType(r, e, tpe)
   }
+
+  /** ------------------------------------- ZioType Constructors ----------------------------------- */
   protected object ZioType {
-    def fromMulti(rs: List[TypeRepr], es: List[TypeRepr], as: List[TypeRepr])(implicit typeUnion: TypeUnion) =
-      ZioType(
-        ZioType.andN(rs),
-        ZioType.orN(es)(typeUnion),
-        ZioType.orN(as)
-      )
 
     def Unit = fromPure('{ () }.asTerm)
 
@@ -137,6 +133,29 @@ trait WithZioType {
 
     def apply(r: TypeRepr, e: TypeRepr, a: TypeRepr) =
       new ZioType(r.widenTermRefByName, e.widenTermRefByName, a.widenTermRefByName)
+
+    def fromPrimaryWithOthers(primary: ZioType)(others: ZioType*)(implicit typeUnion: TypeUnion) = {
+      fromMultiTypes(
+        primary.r +: others.map(_.r).toList,
+        primary.e +: others.map(_.e).toList,
+        List(primary.a)
+      )(typeUnion)
+    }
+
+    def fromUnitWithOthers(others: ZioType*)(implicit typeUnion: TypeUnion) = {
+      fromMultiTypes(
+        others.map(_.r).toList,
+        others.map(_.e).toList,
+        List(TypeRepr.of[Unit])
+      )(typeUnion)
+    }
+
+    private def fromMultiTypes(rs: List[TypeRepr], es: List[TypeRepr], as: List[TypeRepr])(implicit typeUnion: TypeUnion) =
+      ZioType(
+        ZioType.andN(rs),
+        ZioType.orN(es)(typeUnion),
+        ZioType.orN(as)
+      )
 
     def composeN(zioTypes: List[ZioType])(implicit typeUnion: TypeUnion): ZioType =
       val (rs, es, as) = zioTypes.map(zt => (zt.r, zt.e, zt.a)).unzip3

@@ -137,12 +137,7 @@ trait WithComputeType {
         case IR.Foreach(monad, _, _, body) =>
           val monadIRT = apply(monad)
           val bodyIRT = apply(body)
-          val zpe =
-            ZioType.fromMulti(
-              List(bodyIRT.zpe.r, monadIRT.zpe.r),
-              List(bodyIRT.zpe.e, monadIRT.zpe.e),
-              List(TypeRepr.of[Unit])
-            )
+          val zpe = ZioType.fromUnitWithOthers(bodyIRT.zpe, monadIRT.zpe)
           IRT.Foreach(monadIRT, ir.listType, ir.elementSymbol, bodyIRT)(zpe)
 
     def apply(ir: IR.FlatMap)(implicit typeUnion: TypeUnion): IRT.FlatMap =
@@ -197,10 +192,8 @@ trait WithComputeType {
           // In some cases the above function will be a flatMap and wrapped into a ZIO.attempt or ZIO.succeed
           //   so we include the body-type error and environment just in case
           val zpe =
-            ZioType.fromMulti(
-              bodyIRT.zpe.r +: monadicsIRTs.map { (mon, _) => mon.zpe.r },
-              bodyIRT.zpe.e +: monadicsIRTs.map { (mon, _) => mon.zpe.e },
-              List(bodyIRT.zpe.a)
+            ZioType.fromPrimaryWithOthers(bodyIRT.zpe)(
+              monadicsIRTs.map { case (mon, _) => mon.zpe }: _*
             )
 
           IRT.Parallel(ir.originalExpr, monadicsIRTs, bodyIRT)(zpe)
