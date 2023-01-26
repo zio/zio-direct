@@ -21,6 +21,7 @@ import zio.direct.MonadSequence
 import zio.direct.core.util.F3Util
 import zio.direct.MonadSequenceParallel
 import zio.direct.core.metaprog.TypeUnion
+import zio.NonEmptyChunk
 
 trait WithResolver {
   self: WithIR with WithZioType =>
@@ -207,7 +208,11 @@ trait WithResolver {
     def applyExtractedUnlifts(aliasedTree: IRT.Leaf, unlifts: List[ParallelBlockExtract], collectStrategy: Collect)(implicit tu: TypeUnion) = {
       val unliftTriples = unlifts.map(Tuple.fromProductTyped(_))
       val (terms, names, types) = unliftTriples.unzip3
-      val termsTotalType = ZioType.composeN(terms.map(_.zpe))
+      val termsTotalType =
+        // If the list of unlifts is non-empty then compose it to get the type, otherwise use the output-type of the full expression
+        NonEmptyChunk.fromIterableOption(terms.map(_.zpe)) match
+          case Some(v) => ZioType.composeN(v)
+          case None    => zpe
 
       val output =
         termsTotalType.asTypeTuple match
