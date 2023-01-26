@@ -25,7 +25,7 @@ object PrintMac {
 
     if (showDetail) {
       println("================= Detail =================")
-      println(Format(Printer.TreeStructure.show(any.asTerm)))
+      println(Format(Printer.TypeReprStructure.show(any.asTerm.tpe)))
     }
 
     // Trees.traverse(any.asTerm, Symbol.spliceOwner) {

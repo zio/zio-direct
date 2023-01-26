@@ -5,6 +5,7 @@ import pprint._
 import fansi.Str
 import zio.direct.core.util.Format
 import zio.ZIO
+import zio.direct.Internal.Marker
 
 trait WithZioType {
   implicit val macroQuotes: Quotes
@@ -50,6 +51,35 @@ trait WithZioType {
     }
   }
 
+  case class ZioEffectTypeContext(zet: ZioEffectType)
+
+  class ZioEffectType private (tpe: TypeRepr) {
+    // Compares erased values of the two effects
+    def isEffectOf(other: TypeRepr): Boolean =
+      other match {
+        case AppliedType(root, List(_, _, _)) =>
+          root == tpe
+        case _ =>
+          false
+      }
+    def reconstruct(r: TypeRepr, e: TypeRepr, a: TypeRepr) =
+      AppliedType(tpe, List(r, e, a))
+  }
+  object ZioEffectType {
+    def apply[F[_, _, _]: Type]: ZioEffectType = {
+      val stmt = '{ ???.asInstanceOf[F[Marker.A, Marker.B, Marker.C]] }
+      val tpe = stmt.asTerm.tpe
+      val rootType =
+        tpe match
+          case AppliedType(root, List(a, b, c)) =>
+            root
+          case _ =>
+            report.errorAndAbort(s"Could not identify the effect type of: ${tpe}")
+      new ZioEffectType(rootType)
+    }
+  }
+
+  // TODO Add the zio effect context to the ZIO type or in the toZioType exressor?
   protected case class ZioType private (r: TypeRepr, e: TypeRepr, a: TypeRepr) {
     def show = s"ZioType(${Format.TypeRepr(r)}, ${Format.TypeRepr(e)}, ${Format.TypeRepr(a)})"
 
