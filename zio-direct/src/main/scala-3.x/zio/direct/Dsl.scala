@@ -52,7 +52,7 @@ object Dsl {
     doTransform(value, instructions)
 
   def doTransform[T: Type](value: Expr[T], instructions: Instructions)(using q: Quotes): Expr[ZIO[?, ?, ?]] =
-    (new Transformer(q)).apply(value, instructions)
+    (new Transformer[ZIO, ZIO[?, ?, ?]](q)).apply(value, instructions)
 }
 
 object Internal {
@@ -67,7 +67,9 @@ object Internal {
   //  This is an important note to understand about metaprogramming in general,
   // you have to not be able to care about the structure of things transformed in other macros
   // in other parts of the application.)
-  def deferred[R, E, A](effect: ZIO[R, E, A]) = effect
+  // def deferred[F[_, _, _], A, B, C](effect: F[A, B, C]) = effect
+  // def deferred[A, B, C](effect: ZIO[A, B, C]) = effect
+  def deferred[T](effect: T): T = effect
 
   def ignore[T](code: T): T =
     throw new NotDeferredException(s"The construct `ignore` be used inside of a `defer { ... }` block and should only be used for testing purposes!")

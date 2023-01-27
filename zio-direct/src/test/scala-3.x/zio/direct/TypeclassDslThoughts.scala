@@ -4,6 +4,8 @@ import zio.ZIO
 
 import scala.annotation._
 
+case class ConfigInt(value: Int)
+
 object TypeclassDslThoughts {
 
   @implicitNotFound("This data type does not support success")

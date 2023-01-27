@@ -1,12 +1,10 @@
 package zio.direct.core.norm
 
 import scala.quoted._
-import zio.Task
 import zio.direct.core.metaprog.Extractors._
 import zio.direct.core.metaprog._
 import zio.direct._
 import zio.direct.core.util.Format
-import zio.ZIO
 import scala.collection.mutable
 import zio.Chunk
 import zio.direct.core.util.PureTree
@@ -22,16 +20,16 @@ import zio.direct.core.util.WithInterpolator
 import zio.NonEmptyChunk
 
 trait WithDecomposeTree {
-  self: WithIR with WithZioType =>
+  self: WithF with WithIR with WithZioType =>
 
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._
 
   protected object Decompose:
-    def apply(effectType: ZioEffectType, instr: Instructions) =
-      new Decompose(effectType, instr)
+    def apply[F[_, _, _]: Type](monad: DirectMonad[F], effectType: ZioEffectType, instr: Instructions) =
+      new Decompose(monad, effectType, instr)
 
-  protected class Decompose(et: ZioEffectType, instr: Instructions):
+  protected class Decompose[F[_, _, _]: Type](monad: DirectMonad[F], et: ZioEffectType, instr: Instructions):
     def apply(value: Term) = DecomposeTree.orPure(value)
 
     private object DecomposeTree {
@@ -48,7 +46,7 @@ trait WithDecomposeTree {
           // but as an optimization we can just roll up the thing into an IR.Monad
           // because we know it doesn't need to be transformed anymore
           case Seal('{ deferred($effect) }) =>
-            Some(IR.Monad(effect.asTerm, IR.Monad.Source.PrevDefer))
+            Some(IR.Monad('{ ${ monad.Failure }.attempt($effect) }.asTerm, IR.Monad.Source.PrevDefer))
 
           // Since ValDef needs to be decomposed even if it's not a tree, need to do this before PureTree
           case block @ Block(parts, lastPart) =>
@@ -273,7 +271,7 @@ trait WithDecomposeTree {
             if (et.isEffectOf(code.asTerm.tpe)) {
               Some(IR.Monad(code.asTerm, IR.Monad.Source.IgnoreCall))
             } else {
-              Some(IR.Monad(ZioValue(ZioType.Unit(et)).succeed(code.asTerm).term))
+              Some(IR.Monad(monad.Value.succeed(code.asTerm).asTerm, IR.Monad.Source.IgnoreCall))
             }
 
           case tryTerm @ Try(tryBlock, cases, finallyBlock) =>
@@ -303,7 +301,7 @@ trait WithDecomposeTree {
           case CaseDef(pattern, cond, DecomposeTree(body)) =>
             IR.Match.CaseDef(pattern, cond, body)
           case CaseDef(pattern, cond, body) =>
-            IR.Match.CaseDef(pattern, cond, IR.Monad(ZioValue(ZioType.Unit(et)).succeed(body).term))
+            IR.Match.CaseDef(pattern, cond, IR.Monad(monad.Value.succeed(body).asTerm))
         }
 
       def unapply(cases: List[CaseDef]) =

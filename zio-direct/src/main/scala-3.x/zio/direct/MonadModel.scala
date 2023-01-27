@@ -56,6 +56,7 @@ implicit val zioMonadSequenceParallel: MonadSequenceParallel[ZIO] = new MonadSeq
 }
 
 trait MonadFallible[F[_, _, _]] {
+
   def fail[E](e: => E): F[Any, E, Nothing]
   // TODO Maybe for this level of API we should not care about variance?
   // TODO errors should be throwable types enforce via an implicit constrait since E <: Throwable doesn't work with type-matching
@@ -63,6 +64,7 @@ trait MonadFallible[F[_, _, _]] {
 
   // def catchSome2[R, E1 <: Throwable, E2 <: Throwable, A](first: F[R, E1, A])(andThen: PartialFunction[E1, F[R, E2, A]]): F[R, E2, A]
 
+  def attempt[A](a: => A): F[Any, Throwable, A]
   def catchSome[R, E, A](first: F[R, E, A])(andThen: PartialFunction[E, F[R, E, A]]): F[R, E, A]
   def ensuring[R, E, A](f: F[R, E, A])(finalizer: F[R, Nothing, Any]): F[R, E, A]
   def mapError[R, E, A, E2](first: F[R, E, A])(f: E => E2): F[R, E2, A]
@@ -78,7 +80,7 @@ implicit val zioMonadSuccess: MonadSuccess[ZIO] = new MonadSuccess[ZIO] {
 
 implicit val zioMonadFallible: MonadFallible[ZIO] = new MonadFallible[ZIO] {
   def fail[E](e: => E): ZIO[Any, E, Nothing] = ZIO.fail(e)
-  // Is E2 >: E1 a legitimate condition?
+  def attempt[A](a: => A): ZIO[Any, Throwable, A] = ZIO.attempt[A](a)
 
   // def catchSome2[R, E1 <: Throwable, E2 <: Throwable , A](first: ZIO[R, E1, A])(andThen: PartialFunction[E1, ZIO[R, E2, A]]): ZIO[R, E2, A] = first.catchSome[R, E2, A](andThen)
   def catchSome[R, E, A](first: ZIO[R, E, A])(andThen: PartialFunction[E, ZIO[R, E, A]]): ZIO[R, E, A] = first.catchSome[R, E, A](andThen)

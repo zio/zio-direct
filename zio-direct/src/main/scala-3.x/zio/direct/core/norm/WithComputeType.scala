@@ -1,6 +1,7 @@
 package zio.direct.core.norm
 
 import zio.direct.core.metaprog.WithIR
+import zio.direct.core.metaprog.WithF
 import scala.quoted._
 import zio.direct.core.util.Format
 import zio.direct.core.metaprog.WithPrintIR
@@ -14,7 +15,7 @@ import zio.direct.core.metaprog.Embedder
 import zio.NonEmptyChunk
 
 trait WithComputeType {
-  self: WithIR with WithZioType with WithInterpolator with WithPrintIR =>
+  self: WithF with WithIR with WithZioType with WithInterpolator with WithPrintIR =>
 
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._
@@ -61,7 +62,7 @@ trait WithComputeType {
         case ir: IR.Leaf    => apply(ir)
 
     def apply(ir: IR.Monad): IRT.Monad =
-      IRT.Monad(ir.code, ir.source)(ZioType.fromZIO(et)(ir.code))
+      IRT.Monad(ir.code, ir.source)(ZioType.fromMonad(et)(ir.code))
 
     def apply(ir: IR.Pure): IRT.Pure =
       IRT.Pure(ir.code)(ZioType.fromPure(et)(ir.code))

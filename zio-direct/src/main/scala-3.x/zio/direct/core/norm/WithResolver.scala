@@ -2,6 +2,7 @@ package zio.direct.core.norm
 
 import scala.quoted._
 import zio.direct.core.metaprog.WithIR
+import zio.direct.core.metaprog.WithF
 import zio.direct.core.metaprog.Embedder._
 import zio.direct.core.metaprog.WithPrintIR
 import zio.Chunk
@@ -24,7 +25,7 @@ import zio.direct.core.metaprog.TypeUnion
 import zio.NonEmptyChunk
 
 trait WithResolver {
-  self: WithIR with WithZioType =>
+  self: WithF with WithIR with WithZioType =>
 
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._
@@ -32,7 +33,7 @@ trait WithResolver {
   case class ParallelBlockExtract(monadExpr: ZioValue, monadSymbol: Symbol, tpe: TypeRepr)
   class Capabilities[F[_, _, _]](success: Expr[MonadSuccess[F]], failure: Expr[MonadFallible[F]], sequence: Expr[MonadSequence[F]])
 
-  // TODO Memoize by passing an instance of this
+  // TODO Remove this and use DireftMonad which passed into the resolver
   object SummonCapability {
     def Success[F[_, _, _]: Type]: Expr[MonadSuccess[F]] =
       Expr.summon[MonadSuccess[F]].getOrElse {

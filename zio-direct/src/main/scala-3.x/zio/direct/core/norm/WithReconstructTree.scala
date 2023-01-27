@@ -1,6 +1,7 @@
 package zio.direct.core.norm
 
 import zio.direct.core.metaprog.WithIR
+import zio.direct.core.metaprog.WithF
 import scala.quoted._
 import zio.direct.core.metaprog.Embedder._
 import zio.ZIO
@@ -22,23 +23,20 @@ import java.lang.reflect.WildcardType
 import zio.direct.core.metaprog.TypeUnion
 
 trait WithReconstructTree {
-  self: WithIR with WithZioType with WithComputeType with WithPrintIR with WithInterpolator with WithResolver =>
+  self: WithF with WithIR with WithZioType with WithComputeType with WithPrintIR with WithInterpolator with WithResolver =>
 
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._
 
   protected object ReconstructTree {
-    def apply[F[_, _, _]: Type](effectType: ZioEffectType, instructions: Instructions) =
-      new ReconstructTree[F](effectType, instructions)
+    def apply[F[_, _, _]: Type](monad: DirectMonad[F], effectType: ZioEffectType, instructions: Instructions) =
+      new ReconstructTree[F](monad, effectType, instructions)
   }
 
-  protected class ReconstructTree[F[_, _, _]: Type] private (et: ZioEffectType, instructions: Instructions) {
+  protected class ReconstructTree[F[_, _, _]: Type] private (monad: DirectMonad[F], et: ZioEffectType, instructions: Instructions) {
     implicit val instructionsInst: Instructions = instructions
     // so that we can do IRT.Compute
     implicit val typeUnion: TypeUnion = instructions.typeUnion
-
-    // TODO define a type for all invocations of ZioValue(implicit here).succeed, .True, .False, etc...
-    // implicit val baseType: BaseZioType =
 
     def fromIR(irt: IRT) = apply(irt, true).term
 
@@ -61,7 +59,7 @@ trait WithReconstructTree {
     private def apply(ir: IRT, isTopLevel: Boolean = false): ZioValue = {
       ir match
         case irt: IRT.Pure =>
-          ZioValue(irt.zpe).succeed(irt.code)
+          ZioValue(monad.Value.succeed(irt.code), irt.zpe)
 
         // IRT.Unsafe is a construct used to modify the internal tree via the WrapUnsafes phase.
         // As such, we don't need to anything special with it during tree-reconstruction.
@@ -85,7 +83,7 @@ trait WithReconstructTree {
             // E.g: { val x = 123; somethingPure } - If it is a totally pure value, just return the original statement
             // case (_: IRT.Pure, _: IRT.Pure) => Some(origStmt)
             case (_: IRT.Pure, _: IRT.Pure) =>
-              ZioValue(irt.zpe).succeed(irt.originalStmt)
+              ZioValue(monad.Value.succeed(irt.originalStmt), irt.zpe)
             // The following cases are possible:
             // 0. Pure/Pure     - { val x = 123; somethingPure }
             // 1. Pure/Impure   - { val x = 123; somethingMonadic }
@@ -153,19 +151,19 @@ trait WithReconstructTree {
           val leftType = left.zpe
           (left, right) match {
             case (a: IRT.Monadic, b: IRT.Monadic) =>
-              val rightExpr = '{ (r: Any) => r match { case true => ${ apply(b).expr }; case false => ${ ZioValue(left.zpe).False.expr } } }
+              val rightExpr = '{ (r: Any) => r match { case true => ${ apply(b).expr }; case false => ${ monad.Value.False } } }
               Resolver[ZIO](irt.zpe).applyFlatMap(apply(a), rightExpr.toZioValue(b.zpe))
             case (a: IRT.Monadic, IRT.Pure(b)) =>
-              val rightExpr = '{ (r: Any) => r match { case true => ${ b.asExpr }; case false => ${ ZioValue(left.zpe).False.expr } } }
+              val rightExpr = '{ (r: Any) => r match { case true => ${ b.asExpr }; case false => ${ monad.Value.False } } }
               Resolver[ZIO](irt.zpe).applyMap(apply(a), rightExpr.asTerm)
             case (IRT.Pure(a), b: IRT.Monadic) =>
               '{
                 if (${ a.asExprOf[Boolean] }) ${ apply(b).expr }
-                else ${ ZioValue(b.zpe).False.expr }
+                else ${ monad.Value.False }
               }.asTerm.toZioValue(irt.zpe)
             // case Pure/Pure is taken care by in the transformer on a higher-level via the PureTree case. Still, handle them just in case
             case (IRT.Pure(a), IRT.Pure(b)) =>
-              ZioValue(irt.zpe).succeed('{ ${ a.asExprOf[Boolean] } && ${ b.asExprOf[Boolean] } }.asTerm)
+              ZioValue(monad.Value.succeed('{ ${ a.asExprOf[Boolean] } && ${ b.asExprOf[Boolean] } }.asTerm), irt.zpe)
             case _ =>
               report.errorAndAbort(s"Invalid boolean variable combination:\n${PrintIR(irt)}")
           }
@@ -174,12 +172,12 @@ trait WithReconstructTree {
           val leftType = left.zpe
           (left, right) match {
             case (a: IRT.Monadic, b: IRT.Monadic) =>
-              Resolver[ZIO](irt.zpe).applyFlatMap(apply(a), '{ (r: Any) => r match { case true => ${ ZioValue(right.zpe).True.expr }; case false => ${ apply(b).expr } } }.toZioValue(right.zpe))
+              Resolver[ZIO](irt.zpe).applyFlatMap(apply(a), '{ (r: Any) => r match { case true => ${ monad.Value.True }; case false => ${ apply(b).expr } } }.toZioValue(right.zpe))
             case (a: IRT.Monadic, IRT.Pure(b)) =>
-              Resolver[ZIO](irt.zpe).applyMap(apply(a), '{ (r: Any) => r match { case true => ${ ZioValue(right.zpe).True.expr }; case false => ${ b.asExpr } } }.asTerm)
+              Resolver[ZIO](irt.zpe).applyMap(apply(a), '{ (r: Any) => r match { case true => ${ monad.Value.True }; case false => ${ b.asExpr } } }.asTerm)
             case (IRT.Pure(a), b: IRT.Monadic) =>
               '{
-                if (${ a.asExprOf[Boolean] }) ${ ZioValue(b.zpe).True.expr }
+                if (${ a.asExprOf[Boolean] }) ${ monad.Value.True }
                 else ${ apply(b).expr }
               }.asTerm.toZioValue(irt.zpe)
             // case Pure/Pure is taken care by in the transformer on a higher-level via the PureTree case. Still, handle them just in case
@@ -371,7 +369,7 @@ trait WithReconstructTree {
               If(value, ifTrueTerm.term, ifFalseTerm.term).toZioValue(irt.zpe)
             case ConditionState.BothPure(ifTrue, ifFalse) =>
               val ifStatement = If(value, ifTrue, ifFalse)
-              ZioValue(irt.zpe).succeed(ifStatement)
+              ZioValue(monad.Value.succeed(ifStatement), irt.zpe)
           }
         }
       }
@@ -382,7 +380,7 @@ trait WithReconstructTree {
       unlifts.toList match {
         case List() =>
           newTree match
-            case IRT.Pure(newTree)     => ZioValue(irt.zpe).succeed(newTree)
+            case IRT.Pure(newTree)     => ZioValue(monad.Value.succeed(newTree), irt.zpe)
             case IRT.Monad(newTree, _) => newTree.toZioValue(irt.zpe)
 
         /*

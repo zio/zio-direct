@@ -4,7 +4,6 @@ import scala.quoted._
 import pprint._
 import fansi.Str
 import zio.direct.core.util.Format
-import zio.ZIO
 import scala.tools.nsc.PipelineMain.Pipeline
 import zio.direct.core.util.Unsupported
 import zio.direct.core.util.Messages
@@ -12,7 +11,7 @@ import zio.direct.core.metaprog.Extractors.BlockN
 import zio.NonEmptyChunk
 
 trait WithIR {
-  self: WithZioType =>
+  self: WithF with WithZioType =>
 
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._
@@ -145,7 +144,10 @@ trait WithIR {
    * We need it to become
    *   { collect(Chunk(foo, bar)).flatMap(iter => attempt { val par1 = iter.next; var par2 = iter.next; (par1, 4/0, bar) }
    */
-  object WrapUnsafes extends StatelessTransformer {
+  object WrapUnsafes {
+    def apply[F[_, _, _]: Type](monad: DirectMonad[F]) = new WrapUnsafes[F](monad)
+  }
+  class WrapUnsafes[F[_, _, _]: Type](monad: DirectMonad[F]) extends StatelessTransformer {
     override def apply(ir: IR.Monadic): IR.Monadic =
       ir match
         case IR.Unsafe(body) =>
@@ -160,7 +162,7 @@ trait WithIR {
 
     private object MakePuresIntoAttemps extends StatelessTransformer {
       private def monadify(pure: IR.Pure) =
-        IR.Monad('{ ZIO.attempt(${ pure.code.asExpr }) }.asTerm)
+        IR.Monad('{ ${ monad.Failure }.attempt(${ pure.code.asExpr }) }.asTerm)
 
       // Monadify all top-level pure calls
       override def apply(ir: IR): IR =

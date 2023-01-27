@@ -29,29 +29,6 @@ trait WithZioType {
   object ZioValue {
     def apply(term: Term, zpe: ZioType) = new ZioValue(term, zpe)
     def apply(expr: Expr[_], zpe: ZioType) = new ZioValue(expr.asTerm, zpe)
-
-    def apply(zpe: ZioType) = new ZioValueMaker(zpe)
-
-    class ZioValueMaker private[ZioValue] (zpe: ZioType) {
-      // wrap the value in a ZIO.succeed. Note that widening here could have some serious consequences
-      // and make statements not many any sense of the term passed in represents a singleton-type
-      // e.g. Zio.Apply('{ 1 }) or a union of singleton types e.g. Zio.Apply('{ if (blah) 1 else 2 })
-      // (the latter is typed as `1 | 2`)
-      def succeed(term: quotes.reflect.Term) =
-        // TODO widenByTermRef just in case?
-        import quotes.reflect._
-        term.tpe.asType match
-          case '[t] =>
-            ZioValue('{ zio.ZIO.succeed[t](${ term.asExprOf[t] }) }.asTerm, zpe) // .asInstanceOf[ZIO[Any, Nothing, t]]
-
-      def True =
-        import quotes.reflect._
-        succeed(Expr(true).asTerm)
-
-      def False =
-        import quotes.reflect._
-        succeed(Expr(false).asTerm)
-    }
   }
 
   case class ZioEffectTypeContext(zet: ZioEffectType)
@@ -139,13 +116,12 @@ trait WithZioType {
 
     def Unit(effectType: ZioEffectType) = fromPure(effectType)('{ () }.asTerm)
 
-    def fromZIO(effectType: ZioEffectType)(zio: Term) =
+    def fromMonad(effectType: ZioEffectType)(zio: Term) =
       zio.tpe match
         case effectType(r, e, a) =>
           ZioType(effectType)(r, e, a)
         case _ =>
-          println("===================== ERROR HERE =================")
-          report.errorAndAbort(s"The type of ${Format.Term(zio)} is not a ZIO. It is: ${Format.TypeRepr(zio.tpe)} (${Printer.TypeReprStructure.show(zio.tpe.widenTermRefByName.dealias)})")
+          report.errorAndAbort(s"The type of ${Format.Term(zio)} is not a ZIO. It is: ${Format.TypeRepr(zio.tpe)}")
 
     // In this case the error is considered to be Nothing (since we are not wrapping error handling for pure values)
     // and the environment type is considered to be Any (it will be removed via later `ZioType.union` calls if it can be specialized).
