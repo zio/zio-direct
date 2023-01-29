@@ -19,22 +19,22 @@ def unsafe[T](value: T): T = NotDeferredException.fromNamed("unsafe")
 object defer {
 
   // @scala.reflect.macros.internal.macroImpl("nothing")
-  transparent inline def apply[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Silent }, '{ Use }) }
+  transparent inline def apply[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.implZIO[T]('value, '{ InfoBehavior.Silent }, '{ Use }) }
   // @scala.reflect.macros.internal.macroImpl("nothing")
-  transparent inline def info[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Info }, '{ Use }) }
+  transparent inline def info[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.implZIO[T]('value, '{ InfoBehavior.Info }, '{ Use }) }
   // @scala.reflect.macros.internal.macroImpl("nothing")
-  transparent inline def verbose[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Verbose }, '{ Use }) }
+  transparent inline def verbose[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.implZIO[T]('value, '{ InfoBehavior.Verbose }, '{ Use }) }
   // @scala.reflect.macros.internal.macroImpl("nothing")
-  transparent inline def verboseTree[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.VerboseTree }, '{ Use }) }
+  transparent inline def verboseTree[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.implZIO[T]('value, '{ InfoBehavior.VerboseTree }, '{ Use }) }
 
   // @scala.reflect.macros.internal.macroImpl("nothing")
-  transparent inline def apply[T](inline params: Use)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Silent }, 'params) }
+  transparent inline def apply[T](inline params: Use)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.implZIO[T]('value, '{ InfoBehavior.Silent }, 'params) }
   // @scala.reflect.macros.internal.macroImpl("nothing")
-  transparent inline def info[T](inline params: Use)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Info }, 'params) }
+  transparent inline def info[T](inline params: Use)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.implZIO[T]('value, '{ InfoBehavior.Info }, 'params) }
   // @scala.reflect.macros.internal.macroImpl("nothing")
-  transparent inline def verbose[T](inline params: Use)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Verbose }, 'params) }
+  transparent inline def verbose[T](inline params: Use)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.implZIO[T]('value, '{ InfoBehavior.Verbose }, 'params) }
   // @scala.reflect.macros.internal.macroImpl("nothing")
-  transparent inline def verboseTree[T](inline params: Use)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.VerboseTree }, 'params) }
+  transparent inline def verboseTree[T](inline params: Use)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.implZIO[T]('value, '{ InfoBehavior.VerboseTree }, 'params) }
 }
 
 extension [R, E, A](value: ZIO[R, E, A]) {
@@ -44,15 +44,17 @@ extension [R, E, A](value: ZIO[R, E, A]) {
 object Dsl {
   import InfoBehavior._
 
-  def impl[T: Type](value: Expr[T], infoExpr: Expr[InfoBehavior], useTree: Expr[Use])(using q: Quotes): Expr[ZIO[?, ?, ?]] =
+  def implZIO[T: Type](value: Expr[T], infoExpr: Expr[InfoBehavior], useTree: Expr[Use])(using q: Quotes) =
+    impl[T, ZIO, ZIO[?, ?, ?]](value, infoExpr, useTree)
+
+  def impl[T: Type, F[_, _, _]: Type, F_out: Type](value: Expr[T], infoExpr: Expr[InfoBehavior], useTree: Expr[Use])(using q: Quotes): Expr[F_out] =
     import quotes.reflect._
     val infoBehavior = Unliftables.unliftInfoBehavior(infoExpr.asTerm.underlyingArgument.asExprOf[InfoBehavior])
     val instructionsRaw = Instructions.default.copy(info = infoBehavior)
     val instructions = RefineInstructions.fromUseTree(useTree, instructionsRaw)
-    doTransform(value, instructions)
+    (new Transformer[F, F_out](q)).apply(value, instructions)
+    // (new Transformer[ZIO, ZIO[?, ?, ?]](q)).apply(value, instructions)
 
-  def doTransform[T: Type](value: Expr[T], instructions: Instructions)(using q: Quotes): Expr[ZIO[?, ?, ?]] =
-    (new Transformer[ZIO, ZIO[?, ?, ?]](q)).apply(value, instructions)
 }
 
 object Internal {

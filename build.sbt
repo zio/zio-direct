@@ -72,6 +72,7 @@ lazy val `zio-direct` = project
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework"),
     libraryDependencies ++= Seq(
       zio,
+      `zio-streams`,
       `quill-util`,
       pprint,
       sourcecode,
@@ -101,6 +102,7 @@ lazy val `zio-direct-test` = project
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework"),
     libraryDependencies ++= Seq(
       zio,
+      `zio-streams`,
       `quill-util`,
       pprint,
       sourcecode,

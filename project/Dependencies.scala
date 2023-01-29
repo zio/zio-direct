@@ -24,6 +24,7 @@ object Dependencies {
   val QuillUtilVersion = "4.6.0"
 
   val zio               = "dev.zio" %% "zio"             % ZioVersion
+  val `zio-streams`     = "dev.zio" %% "zio-streams"     % ZioVersion
   val `zio-test`        = "dev.zio" %% "zio-test"        % ZioVersion % "test"
   val `zio-test-sbt`    = "dev.zio" %% "zio-test-sbt"    % ZioVersion % "test"
 
