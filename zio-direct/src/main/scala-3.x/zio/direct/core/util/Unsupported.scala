@@ -2,7 +2,6 @@ package zio.direct.core.util
 
 import scala.quoted._
 import zio.direct.core.util.IndentExt._
-import zio.ZIO
 import zio.direct.core.metaprog.Instructions
 import zio.direct.core.metaprog.InfoBehavior
 import zio.direct.core.metaprog.WithIR
