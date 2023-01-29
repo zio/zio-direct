@@ -12,7 +12,7 @@ trait WithF {
       val Success: Expr[MonadSuccess[F]],
       val Failure: Expr[MonadFallible[F]],
       val Sequence: Expr[MonadSequence[F]],
-      val MonadSequencePar: Expr[MonadSequenceParallel[F]]
+      val SequencePar: Expr[MonadSequenceParallel[F]]
   ) { self =>
     object Value {
       def succeed(term: Term) =

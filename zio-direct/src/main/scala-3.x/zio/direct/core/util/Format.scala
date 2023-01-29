@@ -146,7 +146,7 @@ object Format {
         case Formatted.Success(formattedCode) =>
           formattedCode
         case Formatted.Failure(e) =>
-          if (showErrorTrace)
+          if (true)
             println(
               s"""===== Failed to format the code ====
                 |$code

@@ -31,27 +31,6 @@ trait WithResolver {
   import macroQuotes.reflect._
 
   case class ParallelBlockExtract(monadExpr: ZioValue, monadSymbol: Symbol, tpe: TypeRepr)
-  class Capabilities[F[_, _, _]](success: Expr[MonadSuccess[F]], failure: Expr[MonadFallible[F]], sequence: Expr[MonadSequence[F]])
-
-  // TODO Remove this and use DireftMonad which passed into the resolver
-  object SummonCapability {
-    def Success[F[_, _, _]: Type]: Expr[MonadSuccess[F]] =
-      Expr.summon[MonadSuccess[F]].getOrElse {
-        report.errorAndAbort(s"Cannot perform map/flatMap/succeed on the type: ${TypeRepr.of[F].show}. A MonadSuccess typeclass was not found for it.")
-      }
-    def Failure[F[_, _, _]: Type]: Expr[MonadFallible[F]] =
-      Expr.summon[MonadFallible[F]].getOrElse {
-        report.errorAndAbort(s"Cannot perform catchSome/ensuring/mapError/die on the type: ${TypeRepr.of[F].show}. A MonadFallible typeclass was not found for it.")
-      }
-    def Sequence[F[_, _, _]: Type]: Expr[MonadSequence[F]] =
-      Expr.summon[MonadSequence[F]].getOrElse {
-        report.errorAndAbort(s"Cannot perform collect/foreach on the type: ${TypeRepr.of[F].show}. A SequencePar typeclass was not found for it.")
-      }
-    def SequencePar[F[_, _, _]: Type]: Expr[MonadSequenceParallel[F]] =
-      Expr.summon[MonadSequenceParallel[F]].getOrElse {
-        report.errorAndAbort(s"Cannot perform collectPar/foreachPar on the type: ${TypeRepr.of[F].show}. A SequencePar typeclass was not found for it.")
-      }
-  }
 
   private object CommonTypes {
     val anyToNothing = TypeBounds(TypeRepr.of[Nothing], TypeRepr.of[Any])
@@ -59,12 +38,12 @@ trait WithResolver {
   }
 
   // Right now typing this at WithReconstructTree but really will need to get it from input signatures
-  class Resolver[F[_, _, _]: Type](zpe: ZioType) {
+  class Resolver[F[_, _, _]: Type](zpe: ZioType, directMonad: DirectMonad[F]) {
     private def notPossible() =
       report.errorAndAbort("Invalid match case, this shuold not be possible")
 
     def applyFlatMap(monad: ZioValue, applyLambda: ZioValue): ZioValue =
-      val MonadSuccess = SummonCapability.Success[F]
+      val MonadSuccess = directMonad.Success
       (monad.zpe.asTypeTuple, zpe.valueType) match
         case (('[r], '[e], '[a]), '[b]) =>
           '{
@@ -87,25 +66,14 @@ trait WithResolver {
     }
 
     def applyMap(monad: ZioValue, applyLambdaTerm: Term): ZioValue =
-      val MonadSuccess = SummonCapability.Success[F]
+      val MonadSuccess = directMonad.Success
       (monad.zpe.asTypeTuple, zpe.asTypeTuple) match
         case (('[r], '[e], '[a]), ('[or], '[oe], '[b])) =>
-          // println(s"------------------ Cast To: ${TypeRepr.of[ZIO[or, oe, b]].show} ----------------")
           val out = '{
             $MonadSuccess.map[r, e, a, b](${ monad.term.asExpr }.asInstanceOf[F[r, e, a]])(
               ${ applyLambdaTerm.asExpr }.asInstanceOf[a => b]
             )
           }
-          // val castedMonad = '{ ${ monad.term.asExpr }.asInstanceOf[ZIO[or, oe, oa]] }.asTerm
-          // println(
-          //   s"============ Monad type: ${monad.term.tpe.widen.show} =========\n" +
-          //     monad.term.show + "\n" +
-          //     s"============ Monad type-casted: ${castedMonad.tpe.show}} =========\n" +
-          //     castedMonad.show + "\n" +
-          //     s"============ Lambda type: ${applyLambdaTerm.asExprOf[t => ?].asTerm.tpe.show} =========\n" +
-          //     s"============ out: ${out.asTerm.tpe.show} ============\n" +
-          //     out.asTerm.show + "\n"
-          // )
           out.toZioValue(zpe)
         case _ =>
           notPossible()
@@ -122,7 +90,7 @@ trait WithResolver {
     }
 
     def applyCatchSome(tryClause: ZioValue, body: ZioValue): ZioValue = {
-      val MonadFailure = SummonCapability.Failure[F]
+      val MonadFailure = directMonad.Failure
       (zpe.asTypeTuple) match
         case ('[or], '[oe], '[oa]) =>
           '{
@@ -135,7 +103,7 @@ trait WithResolver {
     }
 
     def applyEnsuring(monad: ZioValue, finalizer: ZioValue): ZioValue =
-      val MonadFailure = SummonCapability.Failure[F]
+      val MonadFailure = directMonad.Failure
       monad.zpe.asTypeTuple match
         case ('[r], '[e], '[a]) =>
           // when generalizing to non-zio check there result-type and change ZIO[?, ?, ?] representation to the appropriate one for the given type
@@ -150,12 +118,12 @@ trait WithResolver {
 
     def applyForeach(monadExpr: ZioValue, elementSymbol: Symbol, bodyMonad: ZioValue)(implicit collectStrategy: Collect) =
       val elementType = elementSymbol.termRef.widenTermRefByName.asType
-      val MonadSuccess = SummonCapability.Success[F]
+      val MonadSuccess = directMonad.Success
       (zpe.asTypeTuple, elementType, bodyMonad.zpe.asTypeTuple) match
         case (('[or], '[oe], '[oa]), '[e], ('[br], '[be], '[b])) =>
           collectStrategy match
             case Sequence =>
-              val MonadSequence = SummonCapability.Sequence[F]
+              val MonadSequence = directMonad.Sequence
               '{
                 $MonadSuccess.map[or, oe, Iterable[b], Unit](
                   $MonadSuccess.flatMap[or, oe, Iterable[e], Iterable[b]](${ monadExpr.expr }.asInstanceOf[F[or, oe, Iterable[e]]])((list: Iterable[e]) =>
@@ -167,7 +135,7 @@ trait WithResolver {
                 )(_ => ())
               }.toZioValue(zpe)
             case Parallel =>
-              val MonadSequencePar = SummonCapability.SequencePar[F]
+              val MonadSequencePar = directMonad.SequencePar
               '{
                 $MonadSuccess.map[or, oe, Iterable[b], Unit](
                   $MonadSuccess.flatMap[or, oe, Iterable[e], Iterable[b]](${ monadExpr.expr }.asInstanceOf[F[or, oe, Iterable[e]]])((list: Iterable[e]) =>
@@ -197,7 +165,7 @@ trait WithResolver {
       since otherwise the exception would escape the ZIO effect-system.
        */
       // when generalizing to non-zio check there result-type and change ZIO[?, ?, ?] representation to the appropriate one for the given type
-      val MonadSuccess = SummonCapability.Success[F]
+      val MonadSuccess = directMonad.Success
       block.zpe.asTypeTuple match
         case ('[r], '[e], '[a]) =>
           '{
@@ -226,14 +194,14 @@ trait WithResolver {
             val collect =
               collectStrategy match
                 case Collect.Sequence =>
-                  val MonadSequence = SummonCapability.Sequence[F]
+                  val MonadSequence = directMonad.Sequence
                   // Since the things inside the `run` calls on a single line could be totally unrelated e.g:
                   // ((foo: F[Foo]).run, (bar: F[Bar].run)) it make no sense to try to find a type that represents
                   // what would be the type of ZIO.collect(foo, bar) so we just use wilcards and explicitly re-type
                   // these things later.
                   '{ $MonadSequence.collectAll(Chunk.from($termsExpr)) }
                 case Collect.Parallel =>
-                  val MonadSequencePar = SummonCapability.SequencePar[F]
+                  val MonadSequencePar = directMonad.SequencePar
                   '{ $MonadSequencePar.collectAllPar(Chunk.from($termsExpr)) }
 
             def makeVariables(iterator: Expr[Iterator[?]]) =
@@ -244,7 +212,7 @@ trait WithResolver {
                 }
               )
 
-            val MonadSuccess = SummonCapability.Success[F]
+            val MonadSuccess = directMonad.Success
             aliasedTree.zpe.transformA(_.widen).asTypeTuple match
               case ('[r], '[e], '[t]) =>
                 aliasedTree match
