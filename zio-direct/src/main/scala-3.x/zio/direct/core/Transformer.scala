@@ -9,6 +9,7 @@ import scala.collection.mutable
 import zio.Chunk
 import zio.direct.core.util.PureTree
 import zio.direct.core.util.WithInterpolator
+import zio.direct.core.util.WithUnsupported
 import zio.direct.core.metaprog.WithPrintIR
 import zio.direct.core.metaprog.Embedder._
 import zio.direct.core.norm.WithComputeType
@@ -30,7 +31,8 @@ class Transformer[F[_, _, _]: Type, F_out: Type](inputQuotes: Quotes)
     with WithInterpolator
     with WithZioType
     with WithResolver
-    with WithAllowed {
+    with WithAllowed
+    with WithUnsupported {
 
   implicit val macroQuotes = inputQuotes
   import quotes.reflect._

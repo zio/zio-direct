@@ -5,13 +5,13 @@ import pprint._
 import fansi.Str
 import zio.direct.core.util.Format
 import scala.tools.nsc.PipelineMain.Pipeline
-import zio.direct.core.util.Unsupported
+import zio.direct.core.util.WithUnsupported
 import zio.direct.core.util.Messages
 import zio.direct.core.metaprog.Extractors.BlockN
 import zio.NonEmptyChunk
 
 trait WithIR {
-  self: WithF with WithZioType =>
+  self: WithF with WithZioType with WithUnsupported =>
 
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._

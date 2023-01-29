@@ -12,16 +12,16 @@ import zio.direct.core.metaprog.WithPrintIR
 import zio.direct.core.metaprog.Embedder._
 import zio.direct.core.norm.WithComputeType
 import zio.direct.core.norm.WithReconstructTree
+import zio.direct.core.util.WithUnsupported
 import zio.direct.core.util.ShowDetails
 import zio.direct.Internal.deferred
 import zio.direct.Internal.ignore
-import zio.direct.core.util.Unsupported
 import zio.direct.core.util.WithInterpolator
 import zio.NonEmptyChunk
 import zio.direct.core.util.Messages
 
 trait WithDecomposeTree {
-  self: WithF with WithIR with WithZioType =>
+  self: WithF with WithIR with WithZioType with WithUnsupported =>
 
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._
@@ -258,7 +258,7 @@ trait WithDecomposeTree {
           //   import blah._          // 2nd part, will recurse 2nd time (here)
           //   val b = unlift(ZIO.succeed(value).asInstanceOf[Task[Int]]) // Then will match valdef case
           case head :: BlockN(DecomposeBlock(parts)) =>
-            Unsupported.Warn.checkUnmooredZio(head)
+            Unsupported.Warn.checkUnmooredZio(et)(head)
             Some(IR.Block(head, parts))
 
           case other =>

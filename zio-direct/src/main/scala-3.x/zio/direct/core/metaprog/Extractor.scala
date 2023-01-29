@@ -3,6 +3,7 @@ package zio.direct.core.metaprog
 import scala.quoted._
 import scala.quoted.Varargs
 import zio.direct.core.util.Format
+import zio.Chunk
 
 object Extractors {
   import zio.direct._
@@ -23,17 +24,109 @@ object Extractors {
   //       case _ => None
   // }
 
+  object AnnotationsOf {
+    object Term {
+      def apply(using Quotes)(term: quotes.reflect.Term) = {
+        import quotes.reflect._
+        val termUntyped = Untype(term)
+        AnnotationsOf.Symbol(termUntyped.tpe.termSymbol)
+      }
+    }
+
+    object Symbol {
+      def apply(using Quotes)(symbol: quotes.reflect.Symbol) = {
+        import quotes.reflect._
+        symbol.annotations.collect {
+          case UnApplys(UntypeApply(Select(New(id: TypeIdent), "<init>")), argss) =>
+            (id.tpe.typeSymbol.fullName, argss)
+        }
+      }
+    }
+  }
+
+  /**
+   * Agnostic to Apply(Apply(Apply(term, args1), args2), args3). If there are apply nodes,
+   * it will return Some((term, Some(List(args1, args2, args3)))) otherwise it will return
+   * Some((term, None))
+   */
+  object UnApplys {
+    private def recurse(using Quotes)(term: quotes.reflect.Term, accum: List[List[quotes.reflect.Term]]): (quotes.reflect.Term, List[List[quotes.reflect.Term]]) = {
+      import quotes.reflect._
+      term match {
+        // prepend every args list instead of append, then reverse at the end
+        case Apply(inner, args) => recurse(inner, args +: accum)
+        case _                  => (term, accum.reverse)
+      }
+    }
+
+    def unapply(using Quotes)(term: quotes.reflect.Term): Option[(quotes.reflect.Term, Option[List[List[quotes.reflect.Term]]])] = {
+      import quotes.reflect._
+      term match {
+        case Apply(inner, args) =>
+          val (root, allArgs) = recurse(inner, List(args))
+          Some(root, Some(allArgs))
+        case _ =>
+          Some((term, None))
+      }
+    }
+  }
+
+  object UntypeApply {
+    private def recurse(using Quotes)(term: quotes.reflect.Term): quotes.reflect.Term = {
+      import quotes.reflect._
+      term match {
+        case TypeApply(terms, typeArgs) => recurse(terms)
+        case other                      => other
+      }
+    }
+    def unapply(using Quotes)(term: quotes.reflect.Term) = Some(recurse(term))
+  }
+
   object RunCall {
     def unapply(using Quotes)(tree: quotes.reflect.Tree): Option[Expr[_]] =
       import quotes.reflect._
       tree match
-        case Seal('{ run[r, e, a]($task) }) =>
-          Some(task)
-        case Seal('{ ($task: zio.ZIO[r, e, a]).run }) =>
-          Some(task)
-        case Seal('{ ($task: zio.stream.ZStream[r, e, a]).each }) =>
-          Some(task)
+        case DottyExtensionCall(invocation, effect) =>
+          // println(s"-------------- Here with: ${invocation.show} - flags: ${invocation.tpe.termSymbol.flags.show}")
+          val annotations = AnnotationsOf.Term(invocation).filter(_._1 == "zio.direct.directRunCall")
+          // println(s"------------ Found annotations: ${annotations}")
+          if (annotations.length == 0)
+            None
+          else if (annotations.length > 1)
+            val methodName = Untype(invocation).tpe.termSymbol.name
+            report.errorAndAbort(s"Found multiple @RunCall annotations on the method: ${methodName}. Only one is allowed.")
+          else
+            Some(effect.asExpr)
+
+        // case Seal('{ run[r, e, a]($task) }) =>
+        //   Some(task)
+        // case Seal('{ ($task: zio.ZIO[r, e, a]).run }) =>
+        //   Some(task)
+        // case Seal('{ ($task: zio.stream.ZStream[r, e, a]).each }) =>
+        //   Some(task)
         case _ => None
+  }
+
+  object DottyExtensionCall {
+    private object InocationTarget {
+      def unapply(using Quotes)(term: quotes.reflect.Term) =
+        import quotes.reflect._
+        term match
+          case v: Select => Some(v)
+          case v: Ident  => Some(v)
+          case _         => None
+    }
+
+    def unapply(using Quotes)(term: quotes.reflect.Term) =
+      import quotes.reflect._
+      term match
+        case Apply(
+              invoke @ UntypeApply(InocationTarget(invocation)),
+              List(arg)
+            ) if (invocation.tpe.termSymbol.flags.is(Flags.ExtensionMethod)) =>
+          Some((invocation, arg))
+        case _ =>
+          None
   }
 
   object NotBlock {

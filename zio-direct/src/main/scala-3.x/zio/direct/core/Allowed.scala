@@ -6,7 +6,7 @@ import zio.direct.core.metaprog.Trees
 import zio.direct.core.metaprog.Extractors._
 import zio.direct.core.metaprog.WithZioType
 import zio.direct.core.util.PureTree
-import zio.direct.core.util.Unsupported
+import zio.direct.core.util.WithUnsupported
 import zio.direct.core.util.Messages
 import zio.direct.core.metaprog.Instructions
 import zio.direct.core.metaprog.Verify
@@ -16,7 +16,7 @@ import zio.direct.Internal.deferred
 import zio.direct.Internal.ignore
 
 trait WithAllowed {
-  self: WithZioType =>
+  self: WithZioType with WithUnsupported =>
 
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._
@@ -44,7 +44,7 @@ trait WithAllowed {
         // If there are code blocks remaining that have arbitrary zio values it means that
         // they will be lost because the transformations for block-stmts to map/flatMap chains are already done.
         case Block(stmts, output) =>
-          stmts.foreach(Unsupported.Warn.checkUnmooredZio(_))
+          stmts.foreach(Unsupported.Warn.checkUnmooredZio(effectType)(_))
         case tree @ RunCall(_) =>
           Unsupported.Error.withTree(tree, Messages.RunRemainingAfterTransformer)
       }
