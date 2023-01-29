@@ -86,10 +86,7 @@ implicit val zstreamMonadFallible: MonadFallible[ZStream] = new MonadFallible[ZS
   // finalizer here is a ZIO. How should this be encapsulated? does it need a special type?
   def ensuring[R, E, A](f: ZStream[R, E, A])(finalizer: ZStream[R, Nothing, Any]): ZStream[R, E, A] = f.ensuring(finalizer.runHead)
   def mapError[R, E, A, E2](first: ZStream[R, E, A])(f: E => E2): ZStream[R, E2, A] = first.mapError(f)
-  def orDie[R, E <: Throwable, A](first: ZStream[R, E, A]): ZStream[R, Nothing, A] =
-    first.refineOrDie {
-      case e: Throwable => throw e
-    }
+  def orDie[R, E <: Throwable, A](first: ZStream[R, E, A]): ZStream[R, Nothing, A] = first.orDie
 }
 
 implicit val zioMonadSequence: MonadSequence[ZIO] = new MonadSequence[ZIO] {

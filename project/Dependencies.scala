@@ -15,7 +15,7 @@ object Dependencies {
       )
   }
 
-  val ZioVersion = "2.0.2"
+  val ZioVersion = "2.0.6"
   val PPrintVersion = "0.6.6"
   val FansiVersion = "0.4.0"
   val SourceCodeVersion = "0.2.8"
