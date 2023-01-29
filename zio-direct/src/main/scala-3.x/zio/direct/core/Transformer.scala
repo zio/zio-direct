@@ -29,7 +29,8 @@ class Transformer[F[_, _, _]: Type, F_out: Type](inputQuotes: Quotes)
     with WithDecomposeTree
     with WithInterpolator
     with WithZioType
-    with WithResolver {
+    with WithResolver
+    with WithAllowed {
 
   implicit val macroQuotes = inputQuotes
   import quotes.reflect._
@@ -46,7 +47,7 @@ class Transformer[F[_, _, _]: Type, F_out: Type](inputQuotes: Quotes)
 
     // Do a top-level transform to check that there are no invalid constructs
     if (instructions.verify != Verify.None)
-      Allowed.validateBlocksIn(value.asExpr, instructions)
+      Allowed(effectType).validateBlocksIn(value.asExpr, instructions)
 
     // // Do the main transformation
     val transformedRaw = Decompose[F](directMonad, effectType, instructions).apply(value)
@@ -99,7 +100,7 @@ class Transformer[F[_, _, _]: Type, F_out: Type](inputQuotes: Quotes)
 
     // If there are any remaining run-calls in the tree then fail
     // TODO need to figure out a way to test this
-    Allowed.finalValidtyCheck(output.asExpr, instructions)
+    Allowed(effectType).finalValidtyCheck(output.asExpr, instructions)
 
     computedType.asTypeTuple match {
       case ('[r], '[e], '[a]) =>
@@ -115,7 +116,7 @@ class Transformer[F[_, _, _]: Type, F_out: Type](inputQuotes: Quotes)
         // '{ deferred[zio.ZIO, r, e, a](${ output.asExpr }.asInstanceOf[zio.ZIO[r, e, a]]) }.asExprOf[F_out]
         val deferredOutput =
           // '{ deferred[zio.ZIO[r, e, a]](${ output.asExpr }.asInstanceOf[zio.ZIO[r, e, a]]) }.asExprOf[F_out]
-          '{ deferred(${ output.asExpr }.asInstanceOf[zio.ZIO[r, e, a]]) }.asExprOf[F_out]
+          '{ deferred(${ output.asExpr }.asInstanceOf[F[r, e, a]]) }.asExprOf[F_out]
 
         // Announce.section("Final Output Code", Format.Expr(deferredOutput, Format.Mode.DottyColor(ShowDetails.Verbose)), fileShow)
         deferredOutput

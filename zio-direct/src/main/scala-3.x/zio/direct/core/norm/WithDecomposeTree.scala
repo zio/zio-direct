@@ -18,6 +18,7 @@ import zio.direct.Internal.ignore
 import zio.direct.core.util.Unsupported
 import zio.direct.core.util.WithInterpolator
 import zio.NonEmptyChunk
+import zio.direct.core.util.Messages
 
 trait WithDecomposeTree {
   self: WithF with WithIR with WithZioType =>
@@ -31,6 +32,7 @@ trait WithDecomposeTree {
 
   protected class Decompose[F[_, _, _]: Type](monad: DirectMonad[F], et: ZioEffectType, instr: Instructions):
     def apply(value: Term) = DecomposeTree.orPure(value)
+    // object RunCall extends RunCallExtractor[F]
 
     private object DecomposeTree {
       def orPure(term: Term): IR =
@@ -141,7 +143,12 @@ trait WithDecomposeTree {
           // { (unlift(foo), unlift(bar)) }
           // To something that looks like:
           // { ZIO.collect(foo, bar).map(iter => val a = iter.next(); val b = iter.next(); (a, b)) }
-          case term => // @ Allowed.ParallelExpression()
+          // Since this introduces all the correctness issues that disallow mutable variables we
+          // allow a mode that specifically disallows it
+          case term =>
+            if (instr.linearity == Linearity.Linear)
+              Unsupported.Error.withTree(term, Messages.UnsafeNotAllowedParallel, InfoBehavior.Info)
+
             val unlifts = mutable.ArrayBuffer.empty[(IR.Monadic, Symbol)]
             val newTree: Term =
               Trees.Transform(term, Symbol.spliceOwner) {

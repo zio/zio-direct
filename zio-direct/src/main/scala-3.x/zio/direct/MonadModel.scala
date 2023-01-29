@@ -13,12 +13,27 @@ import zio.direct.core.NotDeferredException
 import zio.direct.core.util.TraceType
 import zio.direct.core.metaprog.TypeUnion
 import zio.direct.core.metaprog.RefineInstructions
+import zio.stream.ZStream
 
 trait MonadSuccess[F[_, _, _]] {
   def unit[A](a: => A): F[Any, Nothing, A]
   def map[R, E, A, B](first: F[R, E, A])(map: A => B): F[R, E, B]
   def flatMap[R, E, A, B](first: F[R, E, A])(andThen: A => F[R, E, B]): F[R, E, B]
   def flatten[R, E, A, R1 <: R, E1 >: E](first: F[R, E, F[R1, E1, A]]): F[R1, E1, A] // = flatMap(first)(x => x)
+}
+
+trait MonadFallible[F[_, _, _]] {
+
+  def fail[E](e: => E): F[Any, E, Nothing]
+  // TODO Maybe for this level of API we should not care about variance?
+  // TODO errors should be throwable types enforce via an implicit constrait since E <: Throwable doesn't work with type-matching
+  // Trying to unify the two e-parameters (i.e. generalize the two into one another because otherwise it's difficult for the type-matching in Resolver)
+
+  def attempt[A](a: => A): F[Any, Throwable, A]
+  def catchSome[R, E, A](first: F[R, E, A])(andThen: PartialFunction[E, F[R, E, A]]): F[R, E, A]
+  def ensuring[R, E, A](f: F[R, E, A])(finalizer: F[R, Nothing, Any]): F[R, E, A]
+  def mapError[R, E, A, E2](first: F[R, E, A])(f: E => E2): F[R, E2, A]
+  def orDie[R, E <: Throwable, A](first: F[R, E, A]): F[R, Nothing, A]
 }
 
 trait MonadSequence[F[_, _, _]] {
@@ -41,11 +56,55 @@ trait MonadSequenceParallel[F[_, _, _]] {
   ): F[R, E, Collection[A]] = foreachPar(in)(x => x)
 }
 
+implicit val zioMonadSuccess: MonadSuccess[ZIO] = new MonadSuccess[ZIO] {
+  def unit[A](a: => A): ZIO[Any, Nothing, A] = ZIO.succeed[A](a)
+  def map[R, E, A, B](first: ZIO[R, E, A])(andThen: A => B): ZIO[R, E, B] = first.map[B](andThen)
+  def flatMap[R, E, A, B](first: ZIO[R, E, A])(andThen: A => ZIO[R, E, B]): ZIO[R, E, B] = first.flatMap[R, E, B](andThen)
+  def flatten[R, E, A, R1 <: R, E1 >: E](first: ZIO[R, E, ZIO[R1, E1, A]]): ZIO[R1, E1, A] = first.flatten
+}
+
+implicit val zstreamMonadSuccess: MonadSuccess[ZStream] = new MonadSuccess[ZStream] {
+  def unit[A](a: => A): ZStream[Any, Nothing, A] = ZStream.succeed[A](a)
+  def map[R, E, A, B](first: ZStream[R, E, A])(andThen: A => B): ZStream[R, E, B] = first.map[B](andThen)
+  def flatMap[R, E, A, B](first: ZStream[R, E, A])(andThen: A => ZStream[R, E, B]): ZStream[R, E, B] = first.flatMap[R, E, B](andThen)
+  def flatten[R, E, A, R1 <: R, E1 >: E](first: ZStream[R, E, ZStream[R1, E1, A]]): ZStream[R1, E1, A] = first.flatten
+}
+
+implicit val zioMonadFallible: MonadFallible[ZIO] = new MonadFallible[ZIO] {
+  def fail[E](e: => E): ZIO[Any, E, Nothing] = ZIO.fail(e)
+  def attempt[A](a: => A): ZIO[Any, Throwable, A] = ZIO.attempt[A](a)
+  def catchSome[R, E, A](first: ZIO[R, E, A])(andThen: PartialFunction[E, ZIO[R, E, A]]): ZIO[R, E, A] = first.catchSome[R, E, A](andThen)
+  def ensuring[R, E, A](f: ZIO[R, E, A])(finalizer: ZIO[R, Nothing, Any]): ZIO[R, E, A] = f.ensuring(finalizer)
+  def mapError[R, E, A, E2](first: ZIO[R, E, A])(f: E => E2): ZIO[R, E2, A] = first.mapError(f)
+  def orDie[R, E <: Throwable, A](first: ZIO[R, E, A]): ZIO[R, Nothing, A] = first.orDie
+}
+
+implicit val zstreamMonadFallible: MonadFallible[ZStream] = new MonadFallible[ZStream] {
+  def fail[E](e: => E): ZStream[Any, E, Nothing] = ZStream.fail(e)
+  def attempt[A](a: => A): ZStream[Any, Throwable, A] = ZStream.fromZIO(ZIO.attempt[A](a))
+  def catchSome[R, E, A](first: ZStream[R, E, A])(andThen: PartialFunction[E, ZStream[R, E, A]]): ZStream[R, E, A] = first.catchSome[R, E, A](andThen)
+  // finalizer here is a ZIO. How should this be encapsulated? does it need a special type?
+  def ensuring[R, E, A](f: ZStream[R, E, A])(finalizer: ZStream[R, Nothing, Any]): ZStream[R, E, A] = f.ensuring(finalizer.runHead)
+  def mapError[R, E, A, E2](first: ZStream[R, E, A])(f: E => E2): ZStream[R, E2, A] = first.mapError(f)
+  def orDie[R, E <: Throwable, A](first: ZStream[R, E, A]): ZStream[R, Nothing, A] =
+    first.refineOrDie {
+      case e: Throwable => throw e
+    }
+}
+
 implicit val zioMonadSequence: MonadSequence[ZIO] = new MonadSequence[ZIO] {
   def foreach[R, E, A, B, Collection[+Element] <: Iterable[Element]](
       in: Collection[A]
   )(f: A => ZIO[R, E, B])(implicit bf: scala.collection.BuildFrom[Collection[A], B, Collection[B]]): ZIO[R, E, Collection[B]] =
     ZIO.foreach(in)(f)
+}
+
+implicit val zstreamMonadSequence: MonadSequence[ZStream] = new MonadSequence[ZStream] {
+  def foreach[R, E, A, B, Collection[+Element] <: Iterable[Element]](
+      in: Collection[A]
+  )(f: A => ZStream[R, E, B])(implicit bf: scala.collection.BuildFrom[Collection[A], B, Collection[B]]): ZStream[R, E, Collection[B]] =
+    // TODO Same problem again. Need a different type for the finalization
+    ZStream.fromZIO(ZIO.foreach(in)((a: A) => f(a).runHead.map(_.get)))
 }
 
 implicit val zioMonadSequenceParallel: MonadSequenceParallel[ZIO] = new MonadSequenceParallel[ZIO] {
@@ -55,36 +114,10 @@ implicit val zioMonadSequenceParallel: MonadSequenceParallel[ZIO] = new MonadSeq
     ZIO.foreachPar(in)(f)
 }
 
-trait MonadFallible[F[_, _, _]] {
-
-  def fail[E](e: => E): F[Any, E, Nothing]
-  // TODO Maybe for this level of API we should not care about variance?
-  // TODO errors should be throwable types enforce via an implicit constrait since E <: Throwable doesn't work with type-matching
-  // Trying to unify the two e-parameters (i.e. generalize the two into one another because otherwise it's difficult for the type-matching in Resolver)
-
-  // def catchSome2[R, E1 <: Throwable, E2 <: Throwable, A](first: F[R, E1, A])(andThen: PartialFunction[E1, F[R, E2, A]]): F[R, E2, A]
-
-  def attempt[A](a: => A): F[Any, Throwable, A]
-  def catchSome[R, E, A](first: F[R, E, A])(andThen: PartialFunction[E, F[R, E, A]]): F[R, E, A]
-  def ensuring[R, E, A](f: F[R, E, A])(finalizer: F[R, Nothing, Any]): F[R, E, A]
-  def mapError[R, E, A, E2](first: F[R, E, A])(f: E => E2): F[R, E2, A]
-  def orDie[R, E <: Throwable, A](first: F[R, E, A]): F[R, Nothing, A]
-}
-
-implicit val zioMonadSuccess: MonadSuccess[ZIO] = new MonadSuccess[ZIO] {
-  def unit[A](a: => A): ZIO[Any, Nothing, A] = ZIO.succeed[A](a)
-  def map[R, E, A, B](first: ZIO[R, E, A])(andThen: A => B): ZIO[R, E, B] = first.map[B](andThen)
-  def flatMap[R, E, A, B](first: ZIO[R, E, A])(andThen: A => ZIO[R, E, B]): ZIO[R, E, B] = first.flatMap[R, E, B](andThen)
-  def flatten[R, E, A, R1 <: R, E1 >: E](first: ZIO[R, E, ZIO[R1, E1, A]]): ZIO[R1, E1, A] = first.flatten
-}
-
-implicit val zioMonadFallible: MonadFallible[ZIO] = new MonadFallible[ZIO] {
-  def fail[E](e: => E): ZIO[Any, E, Nothing] = ZIO.fail(e)
-  def attempt[A](a: => A): ZIO[Any, Throwable, A] = ZIO.attempt[A](a)
-
-  // def catchSome2[R, E1 <: Throwable, E2 <: Throwable , A](first: ZIO[R, E1, A])(andThen: PartialFunction[E1, ZIO[R, E2, A]]): ZIO[R, E2, A] = first.catchSome[R, E2, A](andThen)
-  def catchSome[R, E, A](first: ZIO[R, E, A])(andThen: PartialFunction[E, ZIO[R, E, A]]): ZIO[R, E, A] = first.catchSome[R, E, A](andThen)
-  def ensuring[R, E, A](f: ZIO[R, E, A])(finalizer: ZIO[R, Nothing, Any]): ZIO[R, E, A] = f.ensuring(finalizer)
-  def mapError[R, E, A, E2](first: ZIO[R, E, A])(f: E => E2): ZIO[R, E2, A] = first.mapError(f)
-  def orDie[R, E <: Throwable, A](first: ZIO[R, E, A]): ZIO[R, Nothing, A] = first.orDie
+implicit val zstreamMonadSequencePar: MonadSequenceParallel[ZStream] = new MonadSequenceParallel[ZStream] {
+  def foreachPar[R, E, A, B, Collection[+Element] <: Iterable[Element]](
+      in: Collection[A]
+  )(f: A => ZStream[R, E, B])(implicit bf: scala.collection.BuildFrom[Collection[A], B, Collection[B]]): ZStream[R, E, Collection[B]] =
+    // TODO Same problem again. Need a different type for the finalization
+    ZStream.fromZIO(ZIO.foreachPar(in)((a: A) => f(a).runHead.map(_.get)))
 }

@@ -3,23 +3,48 @@ package zio.direct.core.metaprog
 import scala.quoted._
 import scala.quoted.Varargs
 import zio.direct.core.util.Format
-import zio.ZIO
 
 object Extractors {
   import zio.direct._
 
+  // class RunCallExtractor[F[_, _, _]: Type] {
+  //   // TODO need to refactor API here. Maybe match whatever function is annotated in a certain way?
+  //   //      possibly need to detect extensions methods on a tree-level.
+  //   //      Or maybe just make the `run` call just be generic F[a, b, c] => c ? Need to discuss.
+  //   def unapply(using Quotes)(tree: quotes.reflect.Tree): Option[Expr[_]] =
+  //     import quotes.reflect._
+  //     tree match
+  //       case Seal('{ run[r, e, a]($task) }) =>
+  //         Some(task.asExprOf[F[r, e, a]])
+  //       case Seal('{ ($task: ZIO[r, e, a]).run }) =>
+  //         Some(task.asExprOf[F[r, e, a]])
+  //       case Seal('{ ($task: ZStream[r, e, a]).run }) =>
+  //         Some(task.asExprOf[F[r, e, a]])
+  //       case _ => None
+  // }
+
   object RunCall {
-    // TODO need to refactor API here. Maybe match whatever function is annotated in a certain way?
-    //      possibly need to detect extensions methods on a tree-level.
-    //      Or maybe just make the `run` call just be generic F[a, b, c] => c ? Need to discuss.
-    def unapply(using Quotes)(tree: quotes.reflect.Tree): Option[Expr[ZIO[?, ?, ?]]] =
+    def unapply(using Quotes)(tree: quotes.reflect.Tree): Option[Expr[_]] =
       import quotes.reflect._
       tree match
         case Seal('{ run[r, e, a]($task) }) =>
           Some(task)
-        case Seal('{ ($task: ZIO[r, e, a]).run }) =>
+        case Seal('{ ($task: zio.ZIO[r, e, a]).run }) =>
+          Some(task)
+        case Seal('{ ($task: zio.stream.ZStream[r, e, a]).each }) =>
           Some(task)
         case _ => None
+  }
+
+  object NotBlock {
+    object Term {
+      def unapply(using Quotes)(term: quotes.reflect.Term) =
+        import quotes.reflect._
+        term match {
+          case _: Block                   => None
+          case other: quotes.reflect.Term => Some(other)
+        }
+    }
   }
 
   object Dealiased {
