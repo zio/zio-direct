@@ -13,7 +13,6 @@ import zio.direct.core.NotDeferredException
 import zio.direct.core.util.TraceType
 import zio.direct.core.metaprog.TypeUnion
 import zio.direct.core.metaprog.RefineInstructions
-import zio.stream.ZStream
 import zio.direct.core.metaprog.Linearity
 
 class directRunCall extends scala.annotation.StaticAnnotation
@@ -65,16 +64,10 @@ trait deferCall[F[_, _, _], F_out] {
 }
 
 object defer extends deferCall[ZIO, ZIO[?, ?, ?]]
-object deferStream extends deferCall[ZStream, ZStream[?, ?, ?]]
 
 extension [R, E, A](value: ZIO[R, E, A]) {
   @directRunCall
   def run: A = NotDeferredException.fromNamed("run")
-}
-
-extension [R, E, A](value: ZStream[R, E, A]) {
-  @directRunCall
-  def each: A = NotDeferredException.fromNamed("each")
 }
 
 object Dsl {

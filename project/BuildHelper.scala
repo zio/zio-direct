@@ -5,7 +5,7 @@ import sbtbuildinfo._
 import java.nio.file.FileSystem
 import java.nio.file.FileSystems
 import java.nio.file.Files
-
+import Dependencies._
 
 object BuildHelper {
   private val versions: Map[String, String] = {
@@ -268,8 +268,33 @@ object BuildHelper {
   def stdSettings(prjName: String) = Seq(
     name                                   := s"$prjName",
     ThisBuild / scalaVersion               := `zd.scala.version`,
-    scalacOptions                          := stdOptions ++ extraOptions(scalaVersion.value),
+    scalacOptions                          := stdOptions ++ extraOptions(scalaVersion.value)
   )
+
+  def projectModuleSettings =
+    crossProjectSettings ++
+    dottySettings ++
+    buildInfoSettings("zio.direct") ++
+    Seq(
+      libraryDependencies ++= Seq(
+        zio,
+        `quill-util`,
+        pprint,
+        sourcecode,
+        fansi,
+        `scala-java8-compat`,
+        `scala-collection-compat`,
+        `zio-test`,
+        `zio-test-sbt`
+      ),
+      resolvers ++= Seq(
+        Resolver.mavenLocal,
+        "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots",
+        "Sonatype OSS Releases" at "https://oss.sonatype.org/content/repositories/releases"
+      ),
+      Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat,
+      testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
+    )
 
   def macroDefinitionSettings = Seq(
     scalacOptions += "-language:experimental.macros",

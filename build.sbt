@@ -32,7 +32,8 @@ addCommandAlias(
 lazy val modules =
   Seq[sbt.ClasspathDep[sbt.ProjectReference]](
     `zio-direct`,
-    `zio-direct-test`
+    `zio-direct-test`,
+    `zio-direct-streams`
   ) ++ {
     if (isScala3) Seq[sbt.ClasspathDep[sbt.ProjectReference]](docs) else Seq[sbt.ClasspathDep[sbt.ProjectReference]]()
   }
@@ -48,14 +49,12 @@ lazy val root = (project in file("."))
 lazy val `zio-direct` = project
   .in(file("zio-direct"))
   .settings(stdSettings("zio-direct"))
-  .settings(crossProjectSettings)
-  .settings(dottySettings)
-  .settings(buildInfoSettings("zio.direct"))
+  .settings(projectModuleSettings)
   .enablePlugins(BuildInfoPlugin)
   .settings(
     crossScalaVersions := Seq(Scala212, Scala213, ScalaDotty),
-    Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat,
-    Compile / resourceGenerators += Def.task {
+    // TODO can resourceGenerators be added to Package phase? Double check this.
+    Package / resourceGenerators += Def.task {
       val rootFolder = (Compile / resourceManaged).value / "META-INF"
       rootFolder.mkdirs()
       val compatFile = rootFolder / "intellij-compat.json"
@@ -63,54 +62,31 @@ lazy val `zio-direct` = project
       println(s"--- Writing compat file: ${compatFile} - ${compatFileContent} ---")
       IO.write(compatFile, compatFileContent)
       Seq(compatFile)
-    },
-    resolvers ++= Seq(
-      Resolver.mavenLocal,
-      "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots",
-      "Sonatype OSS Releases" at "https://oss.sonatype.org/content/repositories/releases"
-    ),
-    testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework"),
-    libraryDependencies ++= Seq(
-      zio,
-      `zio-streams`,
-      `quill-util`,
-      pprint,
-      sourcecode,
-      fansi,
-      `scala-java8-compat`,
-      `scala-collection-compat`,
-      `zio-test`,
-      `zio-test-sbt`
-    )
+    }
   )
 
 lazy val `zio-direct-test` = project
   .in(file("zio-direct-test"))
   .settings(stdSettings("zio-direct-test"))
-  .settings(crossProjectSettings)
-  .settings(dottySettings)
-  .settings(buildInfoSettings("zio.direct"))
+  .settings(projectModuleSettings)
   .enablePlugins(BuildInfoPlugin)
   .settings(
     crossScalaVersions := Seq(Scala212, Scala213, ScalaDotty),
-    Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat,
-    resolvers ++= Seq(
-      Resolver.mavenLocal,
-      "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots",
-      "Sonatype OSS Releases" at "https://oss.sonatype.org/content/repositories/releases"
-    ),
-    testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework"),
+    publish / skip := true
+  )
+  .dependsOn(`zio-direct` % "compile->compile;test->test")
+
+lazy val `zio-direct-streams` = project
+  .in(file("zio-direct-streams"))
+  .settings(stdSettings("zio-direct-streams"))
+  //.settings(crossProjectSettings)
+  //.settings(dottySettings)
+  //.settings(buildInfoSettings("zio.direct"))
+  //.enablePlugins(BuildInfoPlugin)
+  .settings(
+    crossScalaVersions := Seq(ScalaDotty),
     libraryDependencies ++= Seq(
-      zio,
-      `zio-streams`,
-      `quill-util`,
-      pprint,
-      sourcecode,
-      fansi,
-      `scala-java8-compat`,
-      `scala-collection-compat`,
-      `zio-test`,
-      `zio-test-sbt`
+      `zio-streams`
     ),
     publish / skip := true
   )
