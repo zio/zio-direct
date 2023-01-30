@@ -14,7 +14,7 @@ object PureTree:
     import quotes.reflect._
     // If the below terms exist always treat the tree as something that needs to be introspected
     Trees.exists(tree, Symbol.spliceOwner) {
-      case RunCall(_)                => true
+      case AnyRunCall(_)             => true
       case Seal('{ unsafe($value) }) => true
       case Try(_, _, _)              => true
       case Seal('{ throw $e })       => true

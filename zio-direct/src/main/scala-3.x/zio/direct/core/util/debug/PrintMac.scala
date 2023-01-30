@@ -29,21 +29,21 @@ object PrintMac {
       println(Format.apply(Printer.TreeStructure.show(any.asTerm)))
     }
 
-    Trees.traverse(any.asTerm, Symbol.spliceOwner) {
-      case DottyExtensionCall(app, inner) =>
-        val infos = AnnotationsOf.Term(app).map((name, args) => s"Name: ${name}, Args: ${args.map(_.map(arg => arg.map(_.show)))}")
-        println(s"Call Matched ${inner.show} - " + infos.toList)
+    // Trees.traverse(any.asTerm, Symbol.spliceOwner) {
+    //   case DottyExtensionCall(app, inner) =>
+    //     val infos = AnnotationsOf.Term(app).map((name, args) => s"Name: ${name}, Args: ${args.map(_.map(arg => arg.map(_.show)))}")
+    //     println(s"Call Matched ${inner.show} - " + infos.toList)
 
-      case _ =>
-        println("No call matched")
+    //   case _ =>
+    //     println("No call matched")
 
-      // println(
-      //   s"""|Symbol Flags (${v.show}): ${v.symbol.flags.show}
-      //       |Term Symbol Flags (${v.show}): ${v.tpe.termSymbol.flags.show}
-      //       |Type Symbol Flags (${v.show}): ${v.tpe.typeSymbol.flags.show}
-      //       |""".stripMargin
-      // )
-    }
+    //   // println(
+    //   //   s"""|Symbol Flags (${v.show}): ${v.symbol.flags.show}
+    //   //       |Term Symbol Flags (${v.show}): ${v.tpe.termSymbol.flags.show}
+    //   //       |Type Symbol Flags (${v.show}): ${v.tpe.typeSymbol.flags.show}
+    //   //       |""".stripMargin
+    //   // )
+    // }
 
     any
   }

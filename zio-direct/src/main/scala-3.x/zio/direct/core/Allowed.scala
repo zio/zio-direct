@@ -45,7 +45,7 @@ trait WithAllowed {
         // they will be lost because the transformations for block-stmts to map/flatMap chains are already done.
         case Block(stmts, output) =>
           stmts.foreach(Unsupported.Warn.checkUnmooredZio(effectType)(_))
-        case tree @ RunCall(_) =>
+        case tree @ effectType.RunCall(_) =>
           Unsupported.Error.withTree(tree, Messages.RunRemainingAfterTransformer)
       }
 
@@ -56,7 +56,7 @@ trait WithAllowed {
     private def validateRunClause(expr: quotes.reflect.Tree)(using instructions: Instructions): Unit =
       Trees.traverse(expr, Symbol.spliceOwner) {
         // Cannot have nested runs:
-        case tree @ RunCall(_) =>
+        case tree @ effectType.RunCall(_) =>
           Unsupported.Error.withTree(tree, Messages.RunInRunError)
 
         // Assignment in an run allowed by not recommenteded
@@ -127,7 +127,7 @@ trait WithAllowed {
             }
 
           // should be handled by the tree traverser but put here just in case
-          case tree @ RunCall(content) =>
+          case tree @ effectType.RunCall(content) =>
             validateRunClause(content.asTerm)
             // Do not need other validations inside the run-clause
             Next.Exit

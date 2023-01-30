@@ -133,7 +133,7 @@ trait WithDecomposeTree {
               }
             Some(IR.Match(IR.Pure(value), caseDefs))
 
-          case RunCall(task) =>
+          case et.RunCall(task) =>
             Some(IR.Monad(task.asTerm))
 
           case Typed(tree, _) =>
@@ -152,7 +152,7 @@ trait WithDecomposeTree {
             val unlifts = mutable.ArrayBuffer.empty[(IR.Monadic, Symbol)]
             val newTree: Term =
               Trees.Transform(term, Symbol.spliceOwner) {
-                case originalTerm @ RunCall(task) =>
+                case originalTerm @ et.RunCall(task) =>
                   val tpe = originalTerm.tpe
                   val sym = Symbol.newVal(Symbol.spliceOwner, "runVal", tpe, Flags.EmptyFlags, Symbol.noSymbol)
                   unlifts += ((IR.Monad(task.asTerm), sym))

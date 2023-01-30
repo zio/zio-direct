@@ -33,19 +33,34 @@ trait WithZioType {
 
   case class ZioEffectTypeContext(zet: ZioEffectType)
 
+  object List3Or6 {
+    def unapply[T](list: List[T]) =
+      list match {
+        case List(a, b, c)          => Some((a, b, c))
+        case List(_, _, _, a, b, c) => Some((a, b, c))
+        case _                      => None
+      }
+  }
+
   class ZioEffectType private (val tpe: TypeRepr) {
     // Compares erased values of the two effects
     def isEffectOf(other: TypeRepr): Boolean =
       other match {
-        case AppliedType(root, List(_, _, _)) =>
-          root == this.tpe
-        case Dealiased(AppliedType(root, List(_, _, _))) =>
-          root == this.tpe
+        case AppliedType(root, List3Or6(_, _, _)) => // - TODO Should have a way to tell system how many args there are
+          root =:= this.tpe
+        case Dealiased(AppliedType(root, List3Or6(_, _, _))) => //  - TODO Should have a way to tell system how many args there are
+          root =:= this.tpe
         case _ =>
           false
       }
     def reconstruct(r: TypeRepr, e: TypeRepr, a: TypeRepr) =
       AppliedType(tpe, List(r, e, a))
+
+    private val runCallMatcher = new RunCall(this)
+
+    object RunCall {
+      def unapply(term: Term) = runCallMatcher.unapply(term)
+    }
 
     /**
      * Similar to something like
@@ -57,9 +72,10 @@ trait WithZioType {
      */
     def unapply(otherTpe: TypeRepr) =
       otherTpe match
-        case AppliedType(root, List(a, b, c)) if (root =:= this.tpe) =>
+        // In the type-spec, need to have a way to specify how many args
+        case AppliedType(root, List3Or6(a, b, c)) if (root =:= this.tpe) =>
           Some((a, b, c))
-        case Dealiased(AppliedType(root, List(a, b, c))) if (root =:= this.tpe) =>
+        case Dealiased(AppliedType(root, List3Or6(a, b, c))) if (root =:= this.tpe) =>
           Some((a, b, c))
         case _ =>
           None
@@ -70,10 +86,10 @@ trait WithZioType {
       val tpe = stmt.asTerm.tpe
       val rootType =
         tpe match
-          case AppliedType(root, List(a, b, c)) =>
+          case AppliedType(root, args) => // List(a, b, c) (TODO should have some kind of way to specify # params used?)
             root
           case _ =>
-            report.errorAndAbort(s"Could not identify the effect type of: ${tpe}")
+            report.errorAndAbort(s"Could not identify the effect type of: ${tpe.show}")
       new ZioEffectType(rootType)
     }
   }
@@ -211,5 +227,21 @@ trait WithZioType {
             else
               TypeRepr.of[at with bt]
       out
+  }
+
+  private class RunCall(effectType: ZioEffectType) {
+    import Extractors._
+    def unapply(tree: Tree): Option[Expr[_]] = {
+      tree match
+        case DottyExtensionCall(invocation @ DirectRunCallAnnotated.Term(), effect) =>
+          if (effectType.isEffectOf(effect.tpe))
+            println(s"**************** Match effect: ${effect.tpe}")
+            Some(effect.asExpr)
+          else
+            println(s"**************** Fail effect: ${effect.tpe}")
+            None
+
+        case _ => None
+    }
   }
 }

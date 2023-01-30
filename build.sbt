@@ -33,7 +33,8 @@ lazy val modules =
   Seq[sbt.ClasspathDep[sbt.ProjectReference]](
     `zio-direct`,
     `zio-direct-test`,
-    `zio-direct-streams`
+    `zio-direct-streams`,
+    `zio-direct-pure`
   ) ++ {
     if (isScala3) Seq[sbt.ClasspathDep[sbt.ProjectReference]](docs) else Seq[sbt.ClasspathDep[sbt.ProjectReference]]()
   }
@@ -54,7 +55,7 @@ lazy val `zio-direct` = project
   .settings(
     crossScalaVersions := Seq(Scala212, Scala213, ScalaDotty),
     // TODO can resourceGenerators be added to Package phase? Double check this.
-    Package / resourceGenerators += Def.task {
+    Compile / resourceGenerators += Def.task {
       val rootFolder = (Compile / resourceManaged).value / "META-INF"
       rootFolder.mkdirs()
       val compatFile = rootFolder / "intellij-compat.json"
@@ -79,14 +80,24 @@ lazy val `zio-direct-test` = project
 lazy val `zio-direct-streams` = project
   .in(file("zio-direct-streams"))
   .settings(stdSettings("zio-direct-streams"))
-  //.settings(crossProjectSettings)
-  //.settings(dottySettings)
-  //.settings(buildInfoSettings("zio.direct"))
   //.enablePlugins(BuildInfoPlugin)
   .settings(
     crossScalaVersions := Seq(ScalaDotty),
     libraryDependencies ++= Seq(
       `zio-streams`
+    ),
+    publish / skip := true
+  )
+  .dependsOn(`zio-direct` % "compile->compile;test->test")
+
+lazy val `zio-direct-pure` = project
+  .in(file("zio-direct-pure"))
+  .settings(stdSettings("zio-direct-pure"))
+  //.enablePlugins(BuildInfoPlugin)
+  .settings(
+    crossScalaVersions := Seq(ScalaDotty),
+    libraryDependencies ++= Seq(
+      `zio-prelude`
     ),
     publish / skip := true
   )

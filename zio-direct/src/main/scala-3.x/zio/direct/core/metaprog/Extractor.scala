@@ -24,25 +24,25 @@ object Extractors {
   //       case _ => None
   // }
 
-  object AnnotationsOf {
-    object Term {
-      def apply(using Quotes)(term: quotes.reflect.Term) = {
-        import quotes.reflect._
-        val termUntyped = Untype(term)
-        AnnotationsOf.Symbol(termUntyped.tpe.termSymbol)
-      }
-    }
+  // class HasAnnotation(name: String) {
+  //   object Term {
+  //     def apply(using Quotes)(term: quotes.reflect.Term) = {
+  //       import quotes.reflect._
+  //       val termUntyped = Untype(term)
+  //       AnnotationsOf.Symbol(termUntyped.tpe.termSymbol)
+  //     }
+  //   }
 
-    object Symbol {
-      def apply(using Quotes)(symbol: quotes.reflect.Symbol) = {
-        import quotes.reflect._
-        symbol.annotations.collect {
-          case UnApplys(UntypeApply(Select(New(id: TypeIdent), "<init>")), argss) =>
-            (id.tpe.typeSymbol.fullName, argss)
-        }
-      }
-    }
-  }
+  //   object Symbol {
+  //     def apply(using Quotes)(symbol: quotes.reflect.Symbol) = {
+  //       import quotes.reflect._
+  //       symbol.annotations.collect {
+  //         case UnApplys(UntypeApply(Select(New(id: TypeIdent), "<init>")), argss) =>
+  //           (id.tpe.typeSymbol.fullName, argss)
+  //       }
+  //     }
+  //   }
+  // }
 
   /**
    * Agnostic to Apply(Apply(Apply(term, args1), args2), args3). If there are apply nodes,
@@ -82,46 +82,61 @@ object Extractors {
     def unapply(using Quotes)(term: quotes.reflect.Term) = Some(recurse(term))
   }
 
-  object RunCall {
-    def unapply(using Quotes)(tree: quotes.reflect.Tree): Option[Expr[_]] =
-      import quotes.reflect._
+  object AnyRunCall {
+    def unapply(using Quotes)(tree: quotes.reflect.Tree): Option[Expr[_]] = {
       tree match
-        case DottyExtensionCall(invocation, effect) =>
-          // println(s"-------------- Here with: ${invocation.show} - flags: ${invocation.tpe.termSymbol.flags.show}")
-          val annotations = AnnotationsOf.Term(invocation).filter(_._1 == "zio.direct.directRunCall")
-          // println(s"------------ Found annotations: ${annotations}")
-          if (annotations.length == 0)
-            None
-          else if (annotations.length > 1)
-            val methodName = Untype(invocation).tpe.termSymbol.name
-            report.errorAndAbort(s"Found multiple @RunCall annotations on the method: ${methodName}. Only one is allowed.")
-          else
-            Some(effect.asExpr)
+        case DottyExtensionCall(invocation @ DirectRunCallAnnotated.Term(), effect) =>
+          Some(effect.asExpr)
+        case _ =>
+          None
+    }
+  }
 
-        // case Seal('{ run[r, e, a]($task) }) =>
-        //   Some(task)
-        // case Seal('{ ($task: zio.ZIO[r, e, a]).run }) =>
-        //   Some(task)
-        // case Seal('{ ($task: zio.stream.ZStream[r, e, a]).each }) =>
-        //   Some(task)
-        case _ => None
+  /* Completely specific therefore maximally efficient match of directRunCall */
+  object DirectRunCallAnnotated {
+    object Term {
+      def unapply(using Quotes)(term: quotes.reflect.Term): Boolean = {
+        import quotes.reflect._
+        // early-exist if it's the wrong effect-type
+        val termUntyped = Untype(term)
+        println(s"------------------ HERE: ${termUntyped.show}")
+        DirectRunCallAnnotated.Symbol.unapply(termUntyped.tpe.termSymbol)
+      }
+    }
+
+    object Symbol {
+      def unapply(using Quotes)(symbol: quotes.reflect.Symbol): Boolean = {
+        import quotes.reflect._
+        println(s"------------------ HERE HERE: ${symbol.annotations}")
+        symbol.annotations.exists { annot =>
+          annot match {
+            case v @ Apply(Select(New(typeId), "<init>"), argss) if (typeId.symbol.name == "directRunCall") =>
+              println("------------ MATCH ------------")
+              true
+            case _ =>
+              println("------------ FAIL ------------")
+              false
+          }
+        }
+      }
+    }
   }
 
   object DottyExtensionCall {
-    private object InocationTarget {
-      def unapply(using Quotes)(term: quotes.reflect.Term) =
+    private object SelectOrIdent {
+      def unapply(using Quotes)(term: quotes.reflect.Term): Boolean =
         import quotes.reflect._
         term match
-          case v: Select => Some(v)
-          case v: Ident  => Some(v)
-          case _         => None
+          case _: Select => true
+          case _: Ident  => true
+          case _         => false
     }
 
     def unapply(using Quotes)(term: quotes.reflect.Term) =
       import quotes.reflect._
       term match
         case Apply(
-              invoke @ UntypeApply(InocationTarget(invocation)),
+              UntypeApply(invocation @ SelectOrIdent()),
               List(arg)
             ) if (invocation.tpe.termSymbol.flags.is(Flags.ExtensionMethod)) =>
           Some((invocation, arg))
