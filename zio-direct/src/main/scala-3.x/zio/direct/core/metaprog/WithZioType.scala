@@ -56,7 +56,7 @@ trait WithZioType {
 
     private val defaultType = TypeRepr.of[Nothing]
 
-    private val variancesLettersStrict: List[MonadShape.Letter] = variances.map(_._1)
+    private val variancesLettersStrict: List[MonadShape.Letter] = variances.filter(_._1 != MonadShape.Letter.Other).map(_._1)
     private val indexStrictOfR = variancesLettersStrict.indexOf(MonadShape.Letter.R)
     private val indexStrictOfE = variancesLettersStrict.indexOf(MonadShape.Letter.E)
     private val indexStrictOfA = variancesLettersStrict.indexOf(MonadShape.Letter.A)
