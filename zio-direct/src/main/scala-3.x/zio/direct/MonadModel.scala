@@ -16,39 +16,59 @@ import zio.direct.core.metaprog.RefineInstructions
 
 sealed trait MonadShape
 object MonadShape {
-  trait MonadShape1[T1 <: Type] extends MonadShape
-  trait MonadShape2[T1 <: Type, T2 <: Type] extends MonadShape
-  trait MonadShape3[T1 <: Type, T2 <: Type, T3 <: Type] extends MonadShape
-  trait MonadShape4[T1 <: Type, T2 <: Type, T3 <: Type, T4 <: Type] extends MonadShape
-  trait MonadShape5[T1 <: Type, T2 <: Type, T3 <: Type, T4 <: Type, T5 <: Type] extends MonadShape
-  trait MonadShape6[T1 <: Type, T2 <: Type, T3 <: Type, T4 <: Type, T5 <: Type, T6 <: Type] extends MonadShape
-  trait MonadShape7[T1 <: Type, T2 <: Type, T3 <: Type, T4 <: Type, T5 <: Type, T6 <: Type, T7 <: Type] extends MonadShape
+  sealed trait Variances
+  // trait Variances1[T1 <: Variance] extends Variances
+  // trait Variances2[T1 <: Variance, T2 <: Variance] extends Variances
+  trait Variances3[T1, T2, T3] extends Variances
+  // trait Variances4[T1 <: Variance, T2 <: Variance, T3 <: Variance, T4 <: Variance] extends Variances
+  // trait Variances5[T1 <: Variance, T2 <: Variance, T3 <: Variance, T4 <: Variance, T5 <: Variance] extends Variances
+  // trait Variances6[T1 <: Variance, T2 <: Variance, T3 <: Variance, T4 <: Variance, T5 <: Variance, T6 <: Variance] extends Variances
+  // trait Variances7[T1 <: Variance, T2 <: Variance, T3 <: Variance, T4 <: Variance, T5 <: Variance, T6 <: Variance, T7 <: Variance] extends Variances
 
-  sealed trait Type
-  object Type {
-    trait Covariant extends Type
-    object Covariant extends Covariant
-    trait Contravariant extends Type
-    object Contravariant extends Contravariant
-    trait Unused extends Type
-    object Unused extends Unused
+  sealed trait Letters
+  // trait Letters1[T1 <: Letter] extends Letters
+  // trait Letters2[T1 <: Letter, T2 <: Letter] extends Letters
+  trait Letters3[T1, T2, T3] extends Letters
+  // trait Letters4[T1 <: Letter, T2 <: Letter, T3 <: Letter, T4 <: Letter] extends Letters
+  // trait Letters5[T1 <: Letter, T2 <: Letter, T3 <: Letter, T4 <: Letter, T5 <: Letter] extends Letters
+  // trait Letters6[T1 <: Letter, T2 <: Letter, T3 <: Letter, T4 <: Letter, T5 <: Letter, T6 <: Letter] extends Letters
+  // trait Letters7[T1 <: Letter, T2 <: Letter, T3 <: Letter, T4 <: Letter, T5 <: Letter, T6 <: Letter, T7 <: Letter] extends Letters
+
+  sealed trait Variance
+  object Variance {
+    trait Covariant extends Variance
+    case object Covariant extends Covariant
+    trait Contravariant extends Variance
+    case object Contravariant extends Contravariant
+    trait Unused extends Variance
+    case object Unused extends Unused
   }
 
   sealed trait Letter
   object Letter {
     trait R extends Letter
-    object R extends E
+    case object R extends R
     trait E extends Letter
-    object E extends E
+    case object E extends E
     trait A extends Letter
-    object A extends A
+    case object A extends A
     trait Other extends Letter
-    object Other extends Other
+    case object Other extends Other
   }
 }
 
-trait MonadModel {
-  type Shape
+trait MonadModel[F[_, _, _]] {
+  type Variances <: MonadShape.Variances
+  type Letters <: MonadShape.Letters
+}
+
+// todo in the Scala 3 version can't type this way because it will widen so just do do a type annotation (i.e. `: MonadModel[ZIO]`)
+given zioMonadModel: MonadModel[ZIO] with {
+  // TODO make this a standard model since same for ZStream etc...
+  import MonadShape.Variance._
+  import MonadShape.Letter._
+  type Variances = MonadShape.Variances3[Contravariant, Covariant, Covariant]
+  type Letters = MonadShape.Letters3[R, E, A]
 }
 
 trait MonadSuccess[F[_, _, _]] {
