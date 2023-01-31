@@ -4,10 +4,12 @@ import zio.direct._
 import zio.stream.ZStream
 import zio.ZIO
 
-given streamMonadModel: MonadModel[ZStream] with {
-  // TODO make this a standard model since same for ZStream etc...
-  import MonadShape.Variance._
-  import MonadShape.Letter._
+import MonadShape.Variance._
+import MonadShape.Letter._
+implicit val streamMonadModel: MonadModel[ZStream] {
+  type Variances = MonadShape.Variances3[Contravariant, Covariant, Covariant]
+  type Letters = MonadShape.Letters3[R, E, A]
+} = new MonadModel[ZStream] {
   type Variances = MonadShape.Variances3[Contravariant, Covariant, Covariant]
   type Letters = MonadShape.Letters3[R, E, A]
 }

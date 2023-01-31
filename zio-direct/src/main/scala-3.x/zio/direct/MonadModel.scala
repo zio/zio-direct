@@ -19,15 +19,6 @@ trait MonadModel[F[_, _, _]] {
   type Letters <: MonadShape.Letters
 }
 
-// todo in the Scala 3 version can't type this way because it will widen so just do do a type annotation (i.e. `: MonadModel[ZIO]`)
-given zioMonadModel: MonadModel[ZIO] with {
-  // TODO make this a standard model since same for ZStream etc...
-  import MonadShape.Variance._
-  import MonadShape.Letter._
-  type Variances = MonadShape.Variances3[Contravariant, Covariant, Covariant]
-  type Letters = MonadShape.Letters3[R, E, A]
-}
-
 trait MonadSuccess[F[_, _, _]] {
   def unit[A](a: => A): F[Any, Nothing, A]
   def map[R, E, A, B](first: F[R, E, A])(map: A => B): F[R, E, B]

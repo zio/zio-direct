@@ -2,6 +2,16 @@ package zio.direct
 
 import zio.ZIO
 
+import MonadShape.Variance._
+import MonadShape.Letter._
+implicit val zioMonadModel: MonadModel[ZIO] {
+  type Variances = MonadShape.Variances3[Contravariant, Covariant, Covariant]
+  type Letters = MonadShape.Letters3[R, E, A]
+} = new MonadModel[ZIO] {
+  type Variances = MonadShape.Variances3[Contravariant, Covariant, Covariant]
+  type Letters = MonadShape.Letters3[R, E, A]
+}
+
 implicit val zioMonadSuccess: MonadSuccess[ZIO] = new MonadSuccess[ZIO] {
   def unit[A](a: => A): ZIO[Any, Nothing, A] = ZIO.succeed[A](a)
   def map[R, E, A, B](first: ZIO[R, E, A])(andThen: A => B): ZIO[R, E, B] = first.map[B](andThen)
