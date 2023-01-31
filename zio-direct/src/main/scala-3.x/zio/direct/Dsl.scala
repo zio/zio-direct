@@ -19,51 +19,51 @@ class directRunCall extends scala.annotation.StaticAnnotation
 
 def unsafe[T](value: T): T = NotDeferredException.fromNamed("unsafe")
 
-trait deferCall[F[_, _, _], F_out] {
-  transparent inline def impl[T](inline value: T, inline info: InfoBehavior, inline use: Use, inline linearity: Linearity) = ${ zio.direct.Dsl.impl[T, F, F_out]('value, 'info, 'use, 'linearity) }
+trait deferCall {
+  transparent inline def impl[T](inline value: T, inline info: InfoBehavior, inline use: Use, inline linearity: Linearity) = ${ zio.direct.Dsl.impl[T]('value, 'info, 'use, 'linearity) }
 
   import zio.direct.core.metaprog.Linearity.{Regular => LinReg, Linear => Lin}
 
   // @scala.reflect.macros.internal.macroImpl("nothing")
-  transparent inline def apply[T](inline value: T): F_out = impl(value, InfoBehavior.Silent, Use, LinReg)
+  transparent inline def apply[T](inline value: T): Any = impl(value, InfoBehavior.Silent, Use, LinReg)
   // @scala.reflect.macros.internal.macroImpl("nothing")
-  transparent inline def info[T](inline value: T): F_out = impl(value, InfoBehavior.Info, Use, LinReg)
-  // @scala.reflect.macros.internal.macroImpl("nothing")
-  transparent inline def verbose[T](inline value: T): F_out = impl(value, InfoBehavior.Verbose, Use, LinReg)
-  // @scala.reflect.macros.internal.macroImpl("nothing")
-  transparent inline def verboseTree[T](inline value: T): F_out = impl(value, InfoBehavior.VerboseTree, Use, LinReg)
+  transparent inline def info[T](inline value: T): Any = impl(value, InfoBehavior.Info, Use, LinReg)
+  // // @scala.reflect.macros.internal.macroImpl("nothing")
+  // transparent inline def verbose[T](inline value: T): Any = impl(value, InfoBehavior.Verbose, Use, LinReg)
+  // // @scala.reflect.macros.internal.macroImpl("nothing")
+  // transparent inline def verboseTree[T](inline value: T): Any = impl(value, InfoBehavior.VerboseTree, Use, LinReg)
 
-  // @scala.reflect.macros.internal.macroImpl("nothing")
-  transparent inline def apply[T](inline params: Use)(inline value: T): F_out = impl(value, InfoBehavior.Silent, params, LinReg)
-  // @scala.reflect.macros.internal.macroImpl("nothing")
-  transparent inline def info[T](inline params: Use)(inline value: T): F_out = impl(value, InfoBehavior.Info, params, LinReg)
-  // @scala.reflect.macros.internal.macroImpl("nothing")
-  transparent inline def verbose[T](inline params: Use)(inline value: T): F_out = impl(value, InfoBehavior.Verbose, params, LinReg)
-  // @scala.reflect.macros.internal.macroImpl("nothing")
-  transparent inline def verboseTree[T](inline params: Use)(inline value: T): F_out = impl(value, InfoBehavior.VerboseTree, params, LinReg)
+  // // @scala.reflect.macros.internal.macroImpl("nothing")
+  transparent inline def apply[T](inline params: Use)(inline value: T): Any = impl(value, InfoBehavior.Silent, params, LinReg)
+  // // @scala.reflect.macros.internal.macroImpl("nothing")
+  // transparent inline def info[T](inline params: Use)(inline value: T): Any = impl(value, InfoBehavior.Info, params, LinReg)
+  // // @scala.reflect.macros.internal.macroImpl("nothing")
+  // transparent inline def verbose[T](inline params: Use)(inline value: T): Any = impl(value, InfoBehavior.Verbose, params, LinReg)
+  // // @scala.reflect.macros.internal.macroImpl("nothing")
+  // transparent inline def verboseTree[T](inline params: Use)(inline value: T): Any = impl(value, InfoBehavior.VerboseTree, params, LinReg)
 
-  object linear {
-    // @scala.reflect.macros.internal.macroImpl("nothing")
-    transparent inline def apply[T](inline value: T): F_out = impl(value, InfoBehavior.Silent, Use, Lin)
-    // @scala.reflect.macros.internal.macroImpl("nothing")
-    transparent inline def info[T](inline value: T): F_out = impl(value, InfoBehavior.Info, Use, Lin)
-    // @scala.reflect.macros.internal.macroImpl("nothing")
-    transparent inline def verbose[T](inline value: T): F_out = impl(value, InfoBehavior.Verbose, Use, Lin)
-    // @scala.reflect.macros.internal.macroImpl("nothing")
-    transparent inline def verboseTree[T](inline value: T): F_out = impl(value, InfoBehavior.VerboseTree, Use, Lin)
+  // object linear {
+  //   // @scala.reflect.macros.internal.macroImpl("nothing")
+  //   transparent inline def apply[T](inline value: T): Any = impl(value, InfoBehavior.Silent, Use, Lin)
+  //   // @scala.reflect.macros.internal.macroImpl("nothing")
+  //   transparent inline def info[T](inline value: T): Any = impl(value, InfoBehavior.Info, Use, Lin)
+  //   // @scala.reflect.macros.internal.macroImpl("nothing")
+  //   transparent inline def verbose[T](inline value: T): Any = impl(value, InfoBehavior.Verbose, Use, Lin)
+  //   // @scala.reflect.macros.internal.macroImpl("nothing")
+  //   transparent inline def verboseTree[T](inline value: T): Any = impl(value, InfoBehavior.VerboseTree, Use, Lin)
 
-    // @scala.reflect.macros.internal.macroImpl("nothing")
-    transparent inline def apply[T](inline params: Use)(inline value: T): F_out = impl(value, InfoBehavior.Silent, params, Lin)
-    // @scala.reflect.macros.internal.macroImpl("nothing")
-    transparent inline def info[T](inline params: Use)(inline value: T): F_out = impl(value, InfoBehavior.Info, params, Lin)
-    // @scala.reflect.macros.internal.macroImpl("nothing")
-    transparent inline def verbose[T](inline params: Use)(inline value: T): F_out = impl(value, InfoBehavior.Verbose, params, Lin)
-    // @scala.reflect.macros.internal.macroImpl("nothing")
-    transparent inline def verboseTree[T](inline params: Use)(inline value: T): F_out = impl(value, InfoBehavior.VerboseTree, params, Lin)
-  }
+  //   // @scala.reflect.macros.internal.macroImpl("nothing")
+  //   transparent inline def apply[T](inline params: Use)(inline value: T): Any = impl(value, InfoBehavior.Silent, params, Lin)
+  //   // @scala.reflect.macros.internal.macroImpl("nothing")
+  //   transparent inline def info[T](inline params: Use)(inline value: T): Any = impl(value, InfoBehavior.Info, params, Lin)
+  //   // @scala.reflect.macros.internal.macroImpl("nothing")
+  //   transparent inline def verbose[T](inline params: Use)(inline value: T): Any = impl(value, InfoBehavior.Verbose, params, Lin)
+  //   // @scala.reflect.macros.internal.macroImpl("nothing")
+  //   transparent inline def verboseTree[T](inline params: Use)(inline value: T): Any = impl(value, InfoBehavior.VerboseTree, params, Lin)
+  // }
 }
 
-object defer extends deferCall[ZIO, ZIO[?, ?, ?]]
+object defer extends deferCall
 
 extension [R, E, A](value: ZIO[R, E, A]) {
   @directRunCall
@@ -76,7 +76,7 @@ object Dsl {
   // def implZIO[T: Type](value: Expr[T], infoExpr: Expr[InfoBehavior], useTree: Expr[Use])(using q: Quotes) =
   //   impl[T, ZIO, ZIO[?, ?, ?]](value, infoExpr, useTree)
 
-  def impl[T: Type, F[_, _, _]: Type, F_out: Type](value: Expr[T], infoExpr: Expr[InfoBehavior], useTree: Expr[Use], linearityExpr: Expr[Linearity])(using q: Quotes): Expr[F_out] =
+  def impl[T: Type](value: Expr[T], infoExpr: Expr[InfoBehavior], useTree: Expr[Use], linearityExpr: Expr[Linearity])(using q: Quotes): Expr[Any] =
     import quotes.reflect._
     val linearity = Unliftables.unliftLinearity(linearityExpr.asTerm.underlyingArgument.asExprOf[Linearity])
     val infoBehavior = Unliftables.unliftInfoBehavior(infoExpr.asTerm.underlyingArgument.asExprOf[InfoBehavior])
@@ -92,7 +92,7 @@ object Dsl {
         }
       )
     val instructions = RefineInstructions.fromUseTree(useTree, instructionsRaw)
-    (new Transformer[F, F_out](q)).apply(value, instructions)
+    (new Transformer(q)).apply(value, instructions)
     // (new Transformer[ZIO, ZIO[?, ?, ?]](q)).apply(value, instructions)
 
 }

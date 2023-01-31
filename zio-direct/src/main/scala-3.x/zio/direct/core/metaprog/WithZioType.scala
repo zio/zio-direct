@@ -152,17 +152,17 @@ trait WithZioType {
           case _ =>
             report.errorAndAbort(s"Could not identify the effect type of: ${tpe.show}")
 
-      val monadModel = computeMonadModel[F](tpe)
+      // val monadModel = computeMonadModel[F](tpe)
       // println(s"============== Letters and variances: ${monadModel}")
 
       new ZioEffectType(
         rootType,
-        monadModel.toArray
-        // Array(
-        //   (MonadShape.Letter.R, MonadShape.Variance.Contravariant),
-        //   (MonadShape.Letter.E, MonadShape.Variance.Covariant),
-        //   (MonadShape.Letter.A, MonadShape.Variance.Covariant)
-        // )
+        // monadModel.toArray,
+        Array(
+          (MonadShape.Letter.R, MonadShape.Variance.Contravariant),
+          (MonadShape.Letter.E, MonadShape.Variance.Covariant),
+          (MonadShape.Letter.A, MonadShape.Variance.Covariant)
+        )
       )
     }
 

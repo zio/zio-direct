@@ -21,7 +21,7 @@ import zio.direct.Internal.deferred
 import zio.direct.core.util.Announce
 import zio.direct.Internal.Marker
 
-class Transformer[F[_, _, _]: Type, F_out: Type](inputQuotes: Quotes)
+class Transformer(inputQuotes: Quotes)
     extends WithF
     with WithIR
     with WithComputeType
@@ -39,18 +39,18 @@ class Transformer[F[_, _, _]: Type, F_out: Type](inputQuotes: Quotes)
     val path = pos.sourceFile.path
     s"$path:${pos.startLine + 1}:${pos.startColumn}"
 
-  def apply[T: Type](valueRaw: Expr[T], instructions: Instructions): Expr[F_out] = {
+  def apply[T: Type](valueRaw: Expr[T], instructions: Instructions): Expr[Any] = {
     val value = valueRaw.asTerm.underlyingArgument
 
-    val effectType = ZioEffectType.of[F]
-    val directMonad = DirectMonad.of[F]
+    val effectType = ZioEffectType.of[zio.ZIO]
+    val directMonad = DirectMonad.of // .of[zio.ZIO]
 
     // Do a top-level transform to check that there are no invalid constructs
     if (instructions.verify != Verify.None)
       Allowed.validateBlocksIn(instructions, effectType.isEffectOf)(value.asExpr)
 
     // // Do the main transformation
-    val transformedRaw = Decompose[F](directMonad, effectType, instructions).apply(value)
+    val transformedRaw = Decompose[zio.ZIO](directMonad, effectType, instructions).apply(value)
 
     def fileShow = Announce.FileShow.FullPath(posFileStr(valueRaw.asTerm.pos))
 
@@ -60,7 +60,7 @@ class Transformer[F[_, _, _]: Type, F_out: Type](inputQuotes: Quotes)
     if (instructions.info.showDeconstructed)
       Announce.section("Deconstructed Instructions", PrintIR(transformedRaw), fileShow)
 
-    val transformed = WrapUnsafes[F](directMonad).apply(transformedRaw)
+    val transformed = WrapUnsafes[zio.ZIO](directMonad).apply(transformedRaw)
     val transformedSameAsRaw = transformed != transformedRaw
     if (instructions.info.showDeconstructed) {
       if (transformedSameAsRaw)
@@ -70,7 +70,7 @@ class Transformer[F[_, _, _]: Type, F_out: Type](inputQuotes: Quotes)
     }
 
     val irt = ComputeIRT(effectType, instructions.typeUnion)(transformed)
-    val output = ReconstructTree[F](directMonad, effectType, instructions).fromIR(irt)
+    val output = ReconstructTree[zio.ZIO](directMonad, effectType, instructions).fromIR(irt)
     if (instructions.info.showReconstructed)
       val showDetailsMode =
         instructions.info match {
@@ -104,7 +104,7 @@ class Transformer[F[_, _, _]: Type, F_out: Type](inputQuotes: Quotes)
 
     computedType.asTypeTuple match {
       case ('[r], '[e], '[a]) =>
-        val computedTypeMsg = s"Computed Type: ${Format.TypeOf[F[r, e, a]]}"
+        val computedTypeMsg = s"Computed Type: ${Format.TypeOf[zio.ZIO[r, e, a]]}"
 
         if (instructions.info.showComputedType)
           ownerPositionOpt match {
@@ -116,7 +116,7 @@ class Transformer[F[_, _, _]: Type, F_out: Type](inputQuotes: Quotes)
         // '{ deferred[zio.ZIO, r, e, a](${ output.asExpr }.asInstanceOf[zio.ZIO[r, e, a]]) }.asExprOf[F_out]
         val deferredOutput =
           // '{ deferred[zio.ZIO[r, e, a]](${ output.asExpr }.asInstanceOf[zio.ZIO[r, e, a]]) }.asExprOf[F_out]
-          '{ deferred(${ output.asExpr }.asInstanceOf[F[r, e, a]]) }.asExprOf[F_out]
+          '{ deferred(${ output.asExpr }.asInstanceOf[zio.ZIO[r, e, a]]) }
 
         // Announce.section("Final Output Code", Format.Expr(deferredOutput, Format.Mode.DottyColor(ShowDetails.Verbose)), fileShow)
         deferredOutput
