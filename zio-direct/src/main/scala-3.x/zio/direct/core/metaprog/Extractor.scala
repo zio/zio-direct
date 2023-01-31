@@ -90,6 +90,16 @@ object Extractors {
         case _ =>
           None
     }
+
+    object TypedAs {
+      def unapply(using Quotes)(tree: quotes.reflect.Tree): Option[quotes.reflect.TypeRepr] = {
+        tree match
+          case DottyExtensionCall(invocation @ DirectRunCallAnnotated.Term(), effect) =>
+            Some(effect.tpe)
+          case _ =>
+            None
+      }
+    }
   }
 
   /* Completely specific therefore maximally efficient match of directRunCall */

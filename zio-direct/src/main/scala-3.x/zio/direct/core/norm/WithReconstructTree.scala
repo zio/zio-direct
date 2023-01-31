@@ -14,7 +14,7 @@ import zio.direct.core.metaprog.Instructions
 import zio.direct.core.metaprog.Collect
 import zio.direct.core.metaprog.WithZioType
 import zio.direct.core.util.ZioUtil
-import zio.direct.core.util.WithUnsupported
+import zio.direct.core.util.Unsupported
 import org.scalafmt.util.LogLevel.info
 import zio.direct.core.metaprog.Collect.Sequence
 import zio.direct.core.metaprog.Collect.Parallel
@@ -22,7 +22,7 @@ import java.lang.reflect.WildcardType
 import zio.direct.core.metaprog.TypeUnion
 
 trait WithReconstructTree {
-  self: WithF with WithIR with WithZioType with WithComputeType with WithPrintIR with WithInterpolator with WithResolver with WithUnsupported =>
+  self: WithF with WithIR with WithZioType with WithComputeType with WithPrintIR with WithInterpolator with WithResolver =>
 
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._

@@ -9,7 +9,7 @@ import scala.collection.mutable
 import zio.Chunk
 import zio.direct.core.util.PureTree
 import zio.direct.core.util.WithInterpolator
-import zio.direct.core.util.WithUnsupported
+import zio.direct.core.util.Unsupported
 import zio.direct.core.metaprog.WithPrintIR
 import zio.direct.core.metaprog.Embedder._
 import zio.direct.core.norm.WithComputeType
@@ -30,9 +30,7 @@ class Transformer[F[_, _, _]: Type, F_out: Type](inputQuotes: Quotes)
     with WithDecomposeTree
     with WithInterpolator
     with WithZioType
-    with WithResolver
-    with WithAllowed
-    with WithUnsupported {
+    with WithResolver {
 
   implicit val macroQuotes = inputQuotes
   import quotes.reflect._
@@ -49,7 +47,7 @@ class Transformer[F[_, _, _]: Type, F_out: Type](inputQuotes: Quotes)
 
     // Do a top-level transform to check that there are no invalid constructs
     if (instructions.verify != Verify.None)
-      Allowed(effectType).validateBlocksIn(value.asExpr, instructions)
+      Allowed.validateBlocksIn(instructions, effectType.isEffectOf)(value.asExpr)
 
     // // Do the main transformation
     val transformedRaw = Decompose[F](directMonad, effectType, instructions).apply(value)
@@ -102,7 +100,7 @@ class Transformer[F[_, _, _]: Type, F_out: Type](inputQuotes: Quotes)
 
     // If there are any remaining run-calls in the tree then fail
     // TODO need to figure out a way to test this
-    Allowed(effectType).finalValidtyCheck(output.asExpr, instructions)
+    Allowed.finalValidityCheck(instructions, effectType.isEffectOf)(output.asExpr)
 
     computedType.asTypeTuple match {
       case ('[r], '[e], '[a]) =>

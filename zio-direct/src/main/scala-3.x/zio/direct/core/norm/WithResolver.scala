@@ -12,7 +12,7 @@ import zio.direct.core.metaprog.Instructions
 import zio.direct.core.metaprog.Collect
 import zio.direct.core.metaprog.WithZioType
 import zio.direct.core.util.ZioUtil
-import zio.direct.core.util.WithUnsupported
+import zio.direct.core.util.Unsupported
 import org.scalafmt.util.LogLevel.info
 import zio.direct.core.metaprog.Collect.Sequence
 import zio.direct.core.metaprog.Collect.Parallel
@@ -25,7 +25,7 @@ import zio.direct.core.metaprog.TypeUnion
 import zio.NonEmptyChunk
 
 trait WithResolver {
-  self: WithF with WithIR with WithZioType with WithUnsupported =>
+  self: WithF with WithIR with WithZioType =>
 
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._

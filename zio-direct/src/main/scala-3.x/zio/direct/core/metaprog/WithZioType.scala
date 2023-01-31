@@ -45,18 +45,18 @@ trait WithZioType {
   }
 
   // TODO At least check that the A type exists, it has to since it's a value
-  class ZioEffectType private (val tpe: TypeRepr, val variances: List[(MonadShape.Letter, MonadShape.Variance)]) {
+  class ZioEffectType private (val tpe: TypeRepr, val variances: Array[(MonadShape.Letter, MonadShape.Variance)]) {
     if (!variances.exists(_._1 == MonadShape.Letter.A))
       report.errorAndAbort("List of MonadShape letters must at least include an A i.e. value-type.")
 
-    private val variancesLetters: List[MonadShape.Letter] = variances.map(_._1)
+    private val variancesLetters: Array[MonadShape.Letter] = variances.map(_._1)
     private val indexOfR = variancesLetters.indexOf(MonadShape.Letter.R)
     private val indexOfE = variancesLetters.indexOf(MonadShape.Letter.E)
     private val indexOfA = variancesLetters.indexOf(MonadShape.Letter.A)
 
     private val defaultType = TypeRepr.of[Nothing]
 
-    private val variancesLettersStrict: List[MonadShape.Letter] = variances.filter(_._1 != MonadShape.Letter.Other).map(_._1)
+    private val variancesLettersStrict: Array[MonadShape.Letter] = variances.filter(_._1 != MonadShape.Letter.Other).map(_._1)
     private val indexStrictOfR = variancesLettersStrict.indexOf(MonadShape.Letter.R)
     private val indexStrictOfE = variancesLettersStrict.indexOf(MonadShape.Letter.E)
     private val indexStrictOfA = variancesLettersStrict.indexOf(MonadShape.Letter.A)
@@ -114,12 +114,6 @@ trait WithZioType {
       ifExistFillElement(indexStrictOfA, a, arr)
       AppliedType(tpe, arr.asInstanceOf[Array[TypeRepr]].toList)
 
-    private val runCallMatcher = new RunCall(this)
-
-    object RunCall {
-      def unapply(term: Term) = runCallMatcher.unapply(term)
-    }
-
     // assumes lengths of variances and types list are the same, things that calls this needs to check that
     private def extractTypes(tpes: List[TypeRepr]) =
       // Again, this could be achieved via zipping but I want it to be more performant since this check
@@ -158,24 +152,40 @@ trait WithZioType {
           case _ =>
             report.errorAndAbort(s"Could not identify the effect type of: ${tpe.show}")
 
-      // val monadModel = Expr.summon[MonadModel[F]].getOrElse {
-      //   report.errorAndAbort(s"Could not summon a MonadModel for: ${tpe.show}")
-      // }
-      // val monadModelVariancesMemberSymbol = monadModel.asTerm.tpe.termSymbol.typeMembers.find(_.name == "Variances").getOrElse {
-      //   report.errorAndAbort(s"Did not found a `Variances` property on the type `${tpe.show}`")
-      // }
-      // val monadModelLettersMemberSymbol = monadModel.asTerm.tpe.termSymbol.typeMembers.find(_.name == "Letters").getOrElse {
-      //   report.errorAndAbort(s"Did not found a `Letters` property on the type `${tpe.show}`")
-      // }
+      val monadModel = computeMonadModel[F](tpe)
+      // println(s"============== Letters and variances: ${monadModel}")
 
-      // val monadModelVariancesList = monadModel.asTerm.select(monadModelVariancesMemberSymbol).tpe.widen
-      // val monadModelLettersList = monadModel.asTerm.select(monadModelLettersMemberSymbol).tpe.widen
+      new ZioEffectType(
+        rootType,
+        monadModel.toArray
+        // Array(
+        //   (MonadShape.Letter.R, MonadShape.Variance.Contravariant),
+        //   (MonadShape.Letter.E, MonadShape.Variance.Covariant),
+        //   (MonadShape.Letter.A, MonadShape.Variance.Covariant)
+        // )
+      )
+    }
+
+    private def computeMonadModel[F[_, _, _]: Type](tpe: TypeRepr) = {
+      val monadModel = Expr.summon[MonadModel[F]].getOrElse {
+        report.errorAndAbort(s"Could not summon a MonadModel for: ${tpe.show}")
+      }
+      val monadModelVariancesMemberSymbol = monadModel.asTerm.tpe.termSymbol.typeMembers.find(_.name == "Variances").getOrElse {
+        report.errorAndAbort(s"Did not found a `Variances` property on the type `${tpe.show}`")
+      }
+      val monadModelLettersMemberSymbol = monadModel.asTerm.tpe.termSymbol.typeMembers.find(_.name == "Letters").getOrElse {
+        report.errorAndAbort(s"Did not found a `Letters` property on the type `${tpe.show}`")
+      }
+
+      val monadModelVariancesList = monadModel.asTerm.select(monadModelVariancesMemberSymbol).tpe.widen
+      val monadModelLettersList = monadModel.asTerm.select(monadModelLettersMemberSymbol).tpe.widen
 
       // // println(s"------------- Types: ${monadModelVariancesList}")
 
-      // val monadShapeVariances =
-      //   monadModelVariancesList match
-      //     case TypeBounds(AppliedType(variances /* todo check name of this? */, args), _) => args
+      val monadShapeVariances =
+        monadModelVariancesList match
+          case TypeBounds(AppliedType(variances /* todo check name of this? */, args), _) => args
+
       //     // case '[MonadShape.Variances1[a]]                   => List(TypeRepr.of[a])
       //     // case '[MonadShape.Variances2[a, b]]                => List(TypeRepr.of[a], TypeRepr.of[b])
       //     // case '[MonadShape.Variances3[a, b, c]]             => List(TypeRepr.of[a], TypeRepr.of[b], TypeRepr.of[c])
@@ -184,9 +194,10 @@ trait WithZioType {
       //     // case '[MonadShape.Variances6[a, b, c, d, e, f]]    => List(TypeRepr.of[a], TypeRepr.of[b], TypeRepr.of[c], TypeRepr.of[d], TypeRepr.of[e], TypeRepr.of[f])
       //     // case '[MonadShape.Variances7[a, b, c, d, e, f, g]] => List(TypeRepr.of[a], TypeRepr.of[b], TypeRepr.of[c], TypeRepr.of[d], TypeRepr.of[e], TypeRepr.of[f], TypeRepr.of[g])
 
-      // val monadShapeLetters =
-      //   monadModelLettersList match
-      //     case TypeBounds(AppliedType(letters /* todo check name of this? */, args), _) => args
+      val monadShapeLetters =
+        monadModelLettersList match
+          case TypeBounds(AppliedType(letters /* todo check name of this? */, args), _) => args
+
       //     // case '[MonadShape.Letters1[a]]                   => List(TypeRepr.of[a])
       //     // case '[MonadShape.Letters2[a, b]]                => List(TypeRepr.of[a], TypeRepr.of[b])
       //     // case '[MonadShape.Letters3[a, b, c]]             => List(TypeRepr.of[a], TypeRepr.of[b], TypeRepr.of[c])
@@ -198,33 +209,23 @@ trait WithZioType {
       // // println(s"============ MonadModelTypes: ${monadShapeTypes.map(_.show)}")
       // // println(s"============ MonadModelLetters: ${monadShapeLetters.map(_.show)}")
 
-      // if (monadShapeVariances.length != monadShapeLetters.length)
-      //   report.errorAndAbort(s"The type `${tpe.show}` does not have an equally sized list of Letters and Variances but needs to. (${monadShapeLetters.map(_.show)} vs ${monadShapeVariances.map(_.show)})")
+      if (monadShapeVariances.length != monadShapeLetters.length)
+        report.errorAndAbort(s"The type `${tpe.show}` does not have an equally sized list of Letters and Variances but needs to. (${monadShapeLetters.map(_.show)} vs ${monadShapeVariances.map(_.show)})")
 
-      // def letterTypeToLetter(letter: TypeRepr) =
-      //   if (letter =:= TypeRepr.of[MonadShape.Letter.R]) MonadShape.Letter.R
-      //   else if (letter =:= TypeRepr.of[MonadShape.Letter.E]) MonadShape.Letter.E
-      //   else if (letter =:= TypeRepr.of[MonadShape.Letter.A]) MonadShape.Letter.A
-      //   else MonadShape.Letter.Other
+      def letterTypeToLetter(letter: TypeRepr) =
+        if (letter =:= TypeRepr.of[MonadShape.Letter.R]) MonadShape.Letter.R
+        else if (letter =:= TypeRepr.of[MonadShape.Letter.E]) MonadShape.Letter.E
+        else if (letter =:= TypeRepr.of[MonadShape.Letter.A]) MonadShape.Letter.A
+        else MonadShape.Letter.Other
 
-      // def varianceTypeToVariance(variance: TypeRepr) =
-      //   if (variance =:= TypeRepr.of[MonadShape.Variance.Contravariant]) MonadShape.Variance.Contravariant
-      //   else if (variance =:= TypeRepr.of[MonadShape.Variance.Covariant]) MonadShape.Variance.Covariant
-      //   else MonadShape.Variance.Unused
+      def varianceTypeToVariance(variance: TypeRepr) =
+        if (variance =:= TypeRepr.of[MonadShape.Variance.Contravariant]) MonadShape.Variance.Contravariant
+        else if (variance =:= TypeRepr.of[MonadShape.Variance.Covariant]) MonadShape.Variance.Covariant
+        else MonadShape.Variance.Unused
 
-      // val letters = monadShapeLetters.map(letterTypeToLetter(_))
-      // val variances = monadShapeVariances.map(varianceTypeToVariance(_))
-      // val zipped = letters.zip(variances)
-      // println(s"============== Letters and variances: ${zipped}")
-
-      new ZioEffectType(
-        rootType,
-        List(
-          (MonadShape.Letter.R, MonadShape.Variance.Contravariant),
-          (MonadShape.Letter.E, MonadShape.Variance.Covariant),
-          (MonadShape.Letter.A, MonadShape.Variance.Covariant)
-        )
-      )
+      val letters = monadShapeLetters.map(letterTypeToLetter(_))
+      val variances = monadShapeVariances.map(varianceTypeToVariance(_))
+      letters.zip(variances)
     }
   }
 
@@ -324,17 +325,17 @@ trait WithZioType {
       ZioType(et)(et.composeR(a.r, b.r), et.composeE(a.e, b.e), et.composeA(a.a, b.a))
   }
 
-  private class RunCall(effectType: ZioEffectType) {
-    import Extractors._
-    def unapply(tree: Tree): Option[Expr[_]] = {
-      tree match
-        case DottyExtensionCall(invocation @ DirectRunCallAnnotated.Term(), effect) =>
-          if (effectType.isEffectOf(effect.tpe))
-            Some(effect.asExpr)
-          else
-            None
+  // private class RunCall(effectType: ZioEffectType) {
+  //   import Extractors._
+  //   def unapply(tree: Tree): Option[Expr[_]] = {
+  //     tree match
+  //       case DottyExtensionCall(invocation @ DirectRunCallAnnotated.Term(), effect) =>
+  //         if (effectType.isEffectOf(effect.tpe))
+  //           Some(effect.asExpr)
+  //         else
+  //           None
 
-        case _ => None
-    }
-  }
+  //       case _ => None
+  //   }
+  // }
 }

@@ -7,7 +7,7 @@ import zio.direct.core.util.Format
 import zio.direct.core.metaprog.WithPrintIR
 import zio.direct.core.metaprog.WithZioType
 import zio.direct.core.util.WithInterpolator
-import zio.direct.core.util.WithUnsupported
+import zio.direct.core.util.Unsupported
 import zio.direct.core.util.TraceType
 import zio.direct.core.metaprog.Instructions
 import zio.direct.core.metaprog.Embedder.topLevelOwner
@@ -16,7 +16,7 @@ import zio.direct.core.metaprog.Embedder
 import zio.NonEmptyChunk
 
 trait WithComputeType {
-  self: WithF with WithIR with WithZioType with WithInterpolator with WithPrintIR with WithUnsupported =>
+  self: WithF with WithIR with WithZioType with WithInterpolator with WithPrintIR =>
 
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._

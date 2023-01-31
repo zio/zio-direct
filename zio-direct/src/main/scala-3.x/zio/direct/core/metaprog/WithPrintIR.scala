@@ -6,10 +6,9 @@ import fansi.Str
 import zio.direct.core.util.Format
 import zio.direct.core.norm.WithComputeType
 import zio.direct.core.util.WithInterpolator
-import zio.direct.core.util.WithUnsupported
 
 trait WithPrintIR {
-  self: WithF with WithIR with WithZioType with WithUnsupported =>
+  self: WithF with WithIR with WithZioType =>
 
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect

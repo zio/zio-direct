@@ -12,7 +12,7 @@ import zio.direct.core.metaprog.WithPrintIR
 import zio.direct.core.metaprog.Embedder._
 import zio.direct.core.norm.WithComputeType
 import zio.direct.core.norm.WithReconstructTree
-import zio.direct.core.util.WithUnsupported
+import zio.direct.core.util.Unsupported
 import zio.direct.core.util.ShowDetails
 import zio.direct.Internal.deferred
 import zio.direct.Internal.ignore
@@ -21,7 +21,7 @@ import zio.NonEmptyChunk
 import zio.direct.core.util.Messages
 
 trait WithDecomposeTree {
-  self: WithF with WithIR with WithZioType with WithUnsupported =>
+  self: WithF with WithIR with WithZioType =>
 
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._
@@ -33,6 +33,10 @@ trait WithDecomposeTree {
   protected class Decompose[F[_, _, _]: Type](monad: DirectMonad[F], et: ZioEffectType, instr: Instructions):
     def apply(value: Term) = DecomposeTree.orPure(value)
     // object RunCall extends RunCallExtractor[F]
+
+    private def isRunCallEffectOrFail(runCall: Term): Unit =
+      if (!et.isEffectOf(runCall.tpe))
+        report.errorAndAbort(s"The effect-type of the of the below run call was `${runCall.tpe}` but this defer-block expects a `${et.tpe}`:\n${Format.Term(runCall)}")
 
     private object DecomposeTree {
       def orPure(term: Term): IR =
@@ -133,7 +137,8 @@ trait WithDecomposeTree {
               }
             Some(IR.Match(IR.Pure(value), caseDefs))
 
-          case et.RunCall(task) =>
+          case AnyRunCall(task) =>
+            isRunCallEffectOrFail(task.asTerm)
             Some(IR.Monad(task.asTerm))
 
           case Typed(tree, _) =>
@@ -152,7 +157,7 @@ trait WithDecomposeTree {
             val unlifts = mutable.ArrayBuffer.empty[(IR.Monadic, Symbol)]
             val newTree: Term =
               Trees.Transform(term, Symbol.spliceOwner) {
-                case originalTerm @ et.RunCall(task) =>
+                case originalTerm @ AnyRunCall(task) =>
                   val tpe = originalTerm.tpe
                   val sym = Symbol.newVal(Symbol.spliceOwner, "runVal", tpe, Flags.EmptyFlags, Symbol.noSymbol)
                   unlifts += ((IR.Monad(task.asTerm), sym))
@@ -258,7 +263,7 @@ trait WithDecomposeTree {
           //   import blah._          // 2nd part, will recurse 2nd time (here)
           //   val b = unlift(ZIO.succeed(value).asInstanceOf[Task[Int]]) // Then will match valdef case
           case head :: BlockN(DecomposeBlock(parts)) =>
-            Unsupported.Warn.checkUnmooredZio(et)(head)
+            Unsupported.Warn.checkUnmooredZio(et.isEffectOf)(head)
             Some(IR.Block(head, parts))
 
           case other =>
