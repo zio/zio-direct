@@ -100,8 +100,8 @@ trait WithResolver {
               $MonadFailure.orDie(
                 F3Util.wrapWithThrowable[F, r, Nothing, Any](${ finalizer.term.asExprOf[F[r, Nothing, Any]] })($MonadFailure)
               )
-            ).asInstanceOf[F[r, e, a]]
-          }.toZioValue(zpe)
+            ) // .asInstanceOf[F[r, e, a]]
+          }.asExprOf[F[r, e, a]].toZioValue(zpe)
 
     def applyForeach(monadExpr: ZioValue, elementSymbol: Symbol, bodyMonad: ZioValue)(implicit collectStrategy: Collect) =
       val elementType = elementSymbol.termRef.widenTermRefByName.asType
