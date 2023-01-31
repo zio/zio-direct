@@ -114,7 +114,7 @@ trait WithResolver {
               '{
                 $MonadSuccess.map[or, oe, Iterable[b], Unit](
                   $MonadSuccess.flatMap[or, oe, Iterable[e], Iterable[b]](${ monadExpr.expr }.asInstanceOf[F[or, oe, Iterable[e]]])((list: Iterable[e]) =>
-                    $MonadSequence.foreach(list.asInstanceOf[Iterable[e]])(
+                    $MonadSequence.foreach(list)( // .asInstanceOf[Iterable[e]]
                       ${ makeLambda(TypeRepr.of[F[or, oe, b]])(bodyMonad.term, Some(elementSymbol)).asExpr }.asInstanceOf[e => F[or, oe, b]]
                       // ${ replaceSymbolInBodyMaybe(using macroQuotes)(bodyMonad.term.changeOwner(('v).asTerm.symbol))(Some(elementSymbol), ('v).asTerm).asExprOf[ZIO[?, ?, ?]] }
                     )
@@ -126,7 +126,7 @@ trait WithResolver {
               '{
                 $MonadSuccess.map[or, oe, Iterable[b], Unit](
                   $MonadSuccess.flatMap[or, oe, Iterable[e], Iterable[b]](${ monadExpr.expr }.asInstanceOf[F[or, oe, Iterable[e]]])((list: Iterable[e]) =>
-                    $MonadSequencePar.foreachPar(list.asInstanceOf[Iterable[e]])(
+                    $MonadSequencePar.foreachPar(list)( // .asInstanceOf[Iterable[e]]
                       ${ makeLambda(TypeRepr.of[F[or, oe, b]])(bodyMonad.term, Some(elementSymbol)).asExpr }.asInstanceOf[e => F[or, oe, b]]
                       // ${ replaceSymbolInBodyMaybe(using macroQuotes)(bodyMonad.term.changeOwner(('v).asTerm.symbol))(Some(elementSymbol), ('v).asTerm).asExprOf[ZIO[?, ?, ?]] }
                     )
@@ -207,14 +207,14 @@ trait WithResolver {
                     '{
                       $MonadSuccess.map($collect)(terms => {
                         val iter = terms.iterator
-                        ${ Block(makeVariables('iter), code).asExpr }.asInstanceOf[t]
+                        ${ Block(makeVariables('iter), code).asExpr } // .asInstanceOf[t]
                       }).asInstanceOf[F[r, e, t]]
                     }
                   case IRT.Monad(code, _) =>
                     '{
                       $MonadSuccess.flatMap($collect)(terms => {
                         val iter = terms.iterator
-                        ${ Block(makeVariables('iter), code).asExpr }.asInstanceOf[F[tr, te, t]]
+                        ${ Block(makeVariables('iter), code).asExprOf[F[tr, te, t]] } // .asInstanceOf[F[tr, te, t]]
                       }).asInstanceOf[F[r, e, t]]
                     }
           }
