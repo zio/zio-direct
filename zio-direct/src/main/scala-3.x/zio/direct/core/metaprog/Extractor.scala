@@ -99,7 +99,6 @@ object Extractors {
         import quotes.reflect._
         // early-exist if it's the wrong effect-type
         val termUntyped = Untype(term)
-        println(s"------------------ HERE: ${termUntyped.show}")
         DirectRunCallAnnotated.Symbol.unapply(termUntyped.tpe.termSymbol)
       }
     }
@@ -107,14 +106,11 @@ object Extractors {
     object Symbol {
       def unapply(using Quotes)(symbol: quotes.reflect.Symbol): Boolean = {
         import quotes.reflect._
-        println(s"------------------ HERE HERE: ${symbol.annotations}")
         symbol.annotations.exists { annot =>
           annot match {
             case v @ Apply(Select(New(typeId), "<init>"), argss) if (typeId.symbol.name == "directRunCall") =>
-              println("------------ MATCH ------------")
               true
             case _ =>
-              println("------------ FAIL ------------")
               false
           }
         }

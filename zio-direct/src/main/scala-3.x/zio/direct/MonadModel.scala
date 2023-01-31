@@ -14,6 +14,43 @@ import zio.direct.core.util.TraceType
 import zio.direct.core.metaprog.TypeUnion
 import zio.direct.core.metaprog.RefineInstructions
 
+sealed trait MonadShape
+object MonadShape {
+  trait MonadShape1[T1 <: Type] extends MonadShape
+  trait MonadShape2[T1 <: Type, T2 <: Type] extends MonadShape
+  trait MonadShape3[T1 <: Type, T2 <: Type, T3 <: Type] extends MonadShape
+  trait MonadShape4[T1 <: Type, T2 <: Type, T3 <: Type, T4 <: Type] extends MonadShape
+  trait MonadShape5[T1 <: Type, T2 <: Type, T3 <: Type, T4 <: Type, T5 <: Type] extends MonadShape
+  trait MonadShape6[T1 <: Type, T2 <: Type, T3 <: Type, T4 <: Type, T5 <: Type, T6 <: Type] extends MonadShape
+  trait MonadShape7[T1 <: Type, T2 <: Type, T3 <: Type, T4 <: Type, T5 <: Type, T6 <: Type, T7 <: Type] extends MonadShape
+
+  sealed trait Type
+  object Type {
+    trait Covariant extends Type
+    object Covariant extends Covariant
+    trait Contravariant extends Type
+    object Contravariant extends Contravariant
+    trait Unused extends Type
+    object Unused extends Unused
+  }
+
+  sealed trait Letter
+  object Letter {
+    trait R extends Letter
+    object R extends E
+    trait E extends Letter
+    object E extends E
+    trait A extends Letter
+    object A extends A
+    trait Other extends Letter
+    object Other extends Other
+  }
+}
+
+trait MonadModel {
+  type Shape
+}
+
 trait MonadSuccess[F[_, _, _]] {
   def unit[A](a: => A): F[Any, Nothing, A]
   def map[R, E, A, B](first: F[R, E, A])(map: A => B): F[R, E, B]
