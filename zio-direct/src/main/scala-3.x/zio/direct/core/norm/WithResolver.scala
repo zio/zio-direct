@@ -59,7 +59,7 @@ trait WithResolver {
             '{
               // make the lambda accept anything because the symbol-type computations for what `t` is are not always correct for what `t` is are not always
               // maybe something like this is needed for the flatMap case too?
-              ${ makeLambda(TypeRepr.of[F[r, e, a]])(body.term, valSymbol).asExpr }.asInstanceOf[Any => F[r, e, a]]
+              ${ makeLambda(TypeRepr.of[F[r, e, a]])(body.term, valSymbol).asExpr }
             }.asTerm
       }
       applyFlatMap(monad, ZioValue(applyLambdaTerm, body.zpe))
