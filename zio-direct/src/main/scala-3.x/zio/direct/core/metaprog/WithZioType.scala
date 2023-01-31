@@ -33,16 +33,15 @@ trait WithZioType {
     def apply(expr: Expr[_], zpe: ZioType) = new ZioValue(expr.asTerm, zpe)
   }
 
-  case class ZioEffectTypeContext(zet: ZioEffectType)
-
-  object List3Or6 {
-    def unapply[T](list: List[T]) =
-      list match {
-        case List(a, b, c)          => Some((a, b, c))
-        case List(_, _, _, a, b, c) => Some((a, b, c))
-        case _                      => None
-      }
-  }
+  // case class ZioEffectTypeContext(zet: ZioEffectType)
+  // object List3Or6 {
+  //   def unapply[T](list: List[T]) =
+  //     list match {
+  //       case List(a, b, c)          => Some((a, b, c))
+  //       case List(_, _, _, a, b, c) => Some((a, b, c))
+  //       case _                      => None
+  //     }
+  // }
 
   // TODO At least check that the A type exists, it has to since it's a value
   class ZioEffectType private (val tpe: TypeRepr, val variances: Array[(MonadShape.Letter, MonadShape.Variance)]) {
@@ -170,10 +169,12 @@ trait WithZioType {
       val monadModel = Expr.summon[MonadModel[F]].getOrElse {
         report.errorAndAbort(s"Could not summon a MonadModel for: ${tpe.show}")
       }
-      val monadModelVariancesMemberSymbol = monadModel.asTerm.tpe.termSymbol.typeMembers.find(_.name == "Variances").getOrElse {
-        report.errorAndAbort(s"Did not found a `Variances` property on the type `${tpe.show}`")
+      val monadModelVariancesMemberSymbol = monadModel.asTerm.tpe.typeSymbol.typeMembers.find(_.name == "Variances").getOrElse {
+        report.errorAndAbort(s"""Did not found a `Variances` property on the type `${tpe.show}`""")
+        // term: ${monadModel.asTerm.tpe.termSymbol.typeMembers}
+        // type: ${monadModel.asTerm.tpe.typeSymbol.typeMembers}
       }
-      val monadModelLettersMemberSymbol = monadModel.asTerm.tpe.termSymbol.typeMembers.find(_.name == "Letters").getOrElse {
+      val monadModelLettersMemberSymbol = monadModel.asTerm.tpe.typeSymbol.typeMembers.find(_.name == "Letters").getOrElse {
         report.errorAndAbort(s"Did not found a `Letters` property on the type `${tpe.show}`")
       }
 
