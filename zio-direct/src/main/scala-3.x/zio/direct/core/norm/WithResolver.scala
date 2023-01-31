@@ -157,7 +157,7 @@ trait WithResolver {
         case ('[r], '[e], '[a]) =>
           '{
             $MonadSuccess.flatten(
-              $MonadSuccess.unit(${ block.term.asExpr }.asInstanceOf[F[r, e, a]])
+              $MonadSuccess.unit(${ block.term.asExprOf[F[r, e, a]] })
             )
           }.toZioValue(zpe)
 
