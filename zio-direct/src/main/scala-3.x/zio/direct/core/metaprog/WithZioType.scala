@@ -11,6 +11,7 @@ import zio.direct.core.util.ThrowableOps
 import zio.Chunk
 import zio.direct.MonadShape
 import zio.direct.MonadModel
+import zio.direct.core.metaprog.Embedder.Compose
 
 trait WithZioType {
   implicit val macroQuotes: Quotes

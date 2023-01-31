@@ -136,7 +136,14 @@ trait WithComputeType {
                 //   outputType.asType match
                 //     case '[ZIO[r, e, a]] => ZioType(TypeRepr.of[r].widen, TypeRepr.of[e].widen, TypeRepr.of[a].widen)
                 //     case '[t]            => ZioType(TypeRepr.of[Any].widen, TypeRepr.of[Throwable].widen, TypeRepr.of[t].widen)
-                tryBlockIRT.zpe.flatMappedWith(caseDefsIRT.zpe)
+
+                // Technically the A-value of a try-catch needs to be union-composed
+                // that means that for something like:
+                //    try x:X catch { case _ => y:Y }
+                // the output-type will always be `X | Y`
+                // In reality however, scala typically uses a least-upper bound for this and the result
+                // can be very tricky sometimes. So instead just use the whole output type that scala has computed.
+                tryBlockIRT.zpe.flatMappedWith(caseDefsIRT.zpe).transformA(_ => ir.resultType)
               case None =>
                 tryBlockIRT.zpe
             }

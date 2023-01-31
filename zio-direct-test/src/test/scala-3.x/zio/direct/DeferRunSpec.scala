@@ -25,7 +25,15 @@ object DeferRunSpec {
     if (expectedTpe =:= actualType)
       '{ true }
     else
-      report.warning(s"Expected type to be: ${Format(Printer.TypeReprStructure.show(expectedTpe))} but got: ${Format(Printer.TypeReprStructure.show(actualType))}")
+      report.warning(
+        s"""
+        |Expected `${expectedTpe.show}` but got: `${actualType.show}`
+        |======== In Detail. Expected: ========
+        |${Format(Printer.TypeReprStructure.show(expectedTpe))}
+        |======== but got: ========
+        |${Format(Printer.TypeReprStructure.show(actualType))}
+        """.stripMargin
+      )
       '{ false }
 }
 

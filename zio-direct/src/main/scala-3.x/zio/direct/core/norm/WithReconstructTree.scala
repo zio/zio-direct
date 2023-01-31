@@ -278,9 +278,12 @@ trait WithReconstructTree {
           val functionBlock = '{ ${ Block(List(method), closure).asExpr }.asInstanceOf[PartialFunction[zioTry_E, zioOut]] }
           val tryExpr = '{ ${ tryTerm.expr }.asInstanceOf[zioTry] }
           // val monadExpr = '{ ${ tryTerm.asExpr }.asInstanceOf[zioRET].catchSome { ${ functionBlock } } }
-          val monadZioType = tryBlock.zpe.flatMappedWith(caseDefs.zpe)
-          val monadZioValue = ResolveWith(monadZioType).applyCatchSome(tryExpr.asTerm.toZioValue(tryBlock.zpe), functionBlock.toZioValue(caseDefs.zpe))
-          (monadZioType, monadZioValue)
+          // val monadZioType = tryBlock.zpe.flatMappedWith(caseDefs.zpe).transformA(_ => tryBlock.)
+
+          // Use the wholeTryZpe. The R, E should ahve been unified in the IRT type computation in WithComputeType
+          // and the chosen A type should have been determined by scala and also used in WithComputeType (in the apply(ir: IR.Try) case there)
+          val monadZioValue = ResolveWith(wholeTryZpe).applyCatchSome(tryExpr.asTerm.toZioValue(tryBlock.zpe), functionBlock.toZioValue(caseDefs.zpe))
+          (wholeTryZpe, monadZioValue)
     }
 
     def reconstructMatch(irt: IRT.Match): ZioValue =

@@ -95,7 +95,7 @@ object TrySpec extends DeferRunSpec {
               case `e` => 111
             }
           }
-          assertIsType[ZIO[Any, FooError, Int]](out) andAssert
+          assertIsType[ZIO[Any, FooError, (Int, Nothing) | 111]](out) andAssert
             assertZIO(out.exit)(fails(isSubtype[FooError](anything)))
         },
         test("not caught error in parallel block (fail-channel)") {
@@ -106,7 +106,7 @@ object TrySpec extends DeferRunSpec {
               case `e` => 111
             }
           }
-          assertIsType[ZIO[Any, Throwable, Int]](out) andAssert
+          assertIsType[ZIO[Any, Throwable, (Int, Nothing) | 111]](out) andAssert
             assertZIO(out.exit)(fails(isSubtype[FooError](anything)))
         },
         test("not caught error in parallel block (die-channel) - one side") {
