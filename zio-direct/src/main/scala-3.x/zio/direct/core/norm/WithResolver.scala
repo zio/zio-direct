@@ -95,7 +95,7 @@ trait WithResolver {
         case ('[r], '[e], '[a]) =>
           // when generalizing to non-zio check there result-type and change ZIO[?, ?, ?] representation to the appropriate one for the given type
           '{
-            $MonadFailure.ensuring(${ monad.term.asExpr }.asInstanceOf[F[r, e, a]])(
+            $MonadFailure.ensuring(${ monad.term.asExprOf[F[r, e, a]] })(
               // TODO make a better check here, manually check if it's a subtype of throwable and cast it, otherwise make the macro fail
               $MonadFailure.orDie(
                 F3Util.wrapWithThrowable[F, r, Nothing, Any](${ finalizer.term.asExprOf[F[r, Nothing, Any]] })($MonadFailure)
