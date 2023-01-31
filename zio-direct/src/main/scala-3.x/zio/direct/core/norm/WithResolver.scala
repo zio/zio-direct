@@ -47,20 +47,15 @@ trait WithResolver {
       (monad.zpe.asTypeTuple, zpe.valueType) match
         case (('[r], '[e], '[a]), '[b]) =>
           '{
-            $MonadSuccess.flatMap[r, e, a, b](${ monad.term.asExpr }.asInstanceOf[F[r, e, a]])(
-              ${ applyLambda.term.asExpr }.asInstanceOf[a => F[r, e, b]]
-            )
+            $MonadSuccess.flatMap[r, e, a, b](${ monad.term.asExprOf[F[r, e, a]] })( // .asInstanceOf[F[r, e, a]]
+              ${ applyLambda.term.asExpr }.asInstanceOf[a => F[r, e, b]])
           }.toZioValue(zpe)
 
     def applyFlatMapWithBody(monad: ZioValue, valSymbol: Option[Symbol], body: ZioValue): ZioValue = {
       val applyLambdaTerm = {
         body.zpe.asTypeTuple match
           case ('[r], '[e], '[a]) =>
-            '{
-              // make the lambda accept anything because the symbol-type computations for what `t` is are not always correct for what `t` is are not always
-              // maybe something like this is needed for the flatMap case too?
-              ${ makeLambda(TypeRepr.of[F[r, e, a]])(body.term, valSymbol).asExpr }
-            }.asTerm
+            makeLambda(TypeRepr.of[F[r, e, a]])(body.term, valSymbol)
       }
       applyFlatMap(monad, ZioValue(applyLambdaTerm, body.zpe))
     }
