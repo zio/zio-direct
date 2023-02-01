@@ -13,7 +13,6 @@ import zio.direct.core.metaprog.Instructions
 import zio.direct.core.metaprog.Embedder.topLevelOwner
 import zio.direct.core.metaprog.TypeUnion
 import zio.direct.core.metaprog.Embedder
-import zio.NonEmptyChunk
 
 trait WithComputeType {
   self: WithF with WithIR with WithZioType with WithInterpolator with WithPrintIR =>
@@ -156,7 +155,7 @@ trait WithComputeType {
         case IR.Foreach(monad, _, _, body) =>
           val monadIRT = apply(monad)
           val bodyIRT = apply(body)
-          val zpe = ZioType.fromUnitWithOthers(NonEmptyChunk(bodyIRT.zpe, monadIRT.zpe))
+          val zpe = ZioType.fromUnitWithOthers(List(bodyIRT.zpe, monadIRT.zpe))
           IRT.Foreach(monadIRT, ir.listType, ir.elementSymbol, bodyIRT)(zpe)
 
     def apply(ir: IR.FlatMap): IRT.FlatMap =
@@ -211,7 +210,7 @@ trait WithComputeType {
           //   so we include the body-type error and environment just in case
           val zpe =
             ZioType.fromPrimaryWithOthers(bodyIRT.zpe)(
-              monadicsIRTs.map { case (mon, _) => mon.zpe }: _*
+              monadicsIRTs.map { case (mon, _) => mon.zpe }
             )
 
           IRT.Parallel(ir.originalExpr, monadicsIRTs, bodyIRT)(zpe)

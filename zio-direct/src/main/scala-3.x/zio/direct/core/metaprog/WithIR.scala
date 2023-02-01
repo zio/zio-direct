@@ -8,7 +8,6 @@ import scala.tools.nsc.PipelineMain.Pipeline
 import zio.direct.core.util.Unsupported
 import zio.direct.core.util.Messages
 import zio.direct.core.metaprog.Extractors.BlockN
-import zio.NonEmptyChunk
 
 trait WithIR {
   self: WithF with WithZioType =>
@@ -67,7 +66,7 @@ trait WithIR {
     case class Block(head: Statement, tail: Monadic) extends Monadic
     case class Match(scrutinee: IR, caseDefs: IR.Match.CaseDefs) extends Monadic
     object Match {
-      case class CaseDefs(cases: NonEmptyChunk[IR.Match.CaseDef])
+      case class CaseDefs(cases: List[IR.Match.CaseDef])
       case class CaseDef(pattern: Tree, guard: Option[Term], rhs: Monadic)
     }
     case class If(cond: IR, ifTrue: IR, ifFalse: IR) extends Monadic
@@ -112,7 +111,7 @@ trait WithIR {
     case class Or(left: IRT, right: IRT)(val zpe: ZioType) extends Monadic
     case class Parallel(originalExpr: Term, monads: List[(IRT.Monadic, Symbol)], body: IRT.Leaf)(val zpe: ZioType) extends Monadic
     object Match {
-      case class CaseDefs(cases: NonEmptyChunk[IRT.Match.CaseDef])(val zpe: ZioType)
+      case class CaseDefs(cases: List[IRT.Match.CaseDef])(val zpe: ZioType)
       case class CaseDef(pattern: Tree, guard: Option[Term], rhs: Monadic)(val zpe: ZioType)
     }
   }

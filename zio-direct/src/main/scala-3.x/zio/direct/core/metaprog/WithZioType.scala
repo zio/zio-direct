@@ -6,9 +6,7 @@ import fansi.Str
 import zio.direct.core.util.Format
 import zio.direct.Internal.Marker
 import zio.direct.core.metaprog.Extractors.Dealiased
-import zio.NonEmptyChunk
 import zio.direct.core.util.ThrowableOps
-import zio.Chunk
 import zio.direct.MonadShape
 import zio.direct.MonadModel
 import zio.direct.core.metaprog.Embedder.Compose
@@ -69,9 +67,9 @@ trait WithZioType {
     def composeE(a: TypeRepr, b: TypeRepr)(implicit tu: TypeUnion) = composeLetter(monadShapeE)(a, b)
     def composeA(a: TypeRepr, b: TypeRepr)(implicit tu: TypeUnion) = composeLetter(monadShapeA)(a, b)
 
-    def composeRs(rs: Chunk[TypeRepr])(implicit tu: TypeUnion) = composeLetterN(monadShapeR)(rs)
-    def composeEs(es: Chunk[TypeRepr])(implicit tu: TypeUnion) = composeLetterN(monadShapeE)(es)
-    def composeAs(as: Chunk[TypeRepr])(implicit tu: TypeUnion) = composeLetterN(monadShapeA)(as)
+    def composeRs(rs: List[TypeRepr])(implicit tu: TypeUnion) = composeLetterN(monadShapeR)(rs)
+    def composeEs(es: List[TypeRepr])(implicit tu: TypeUnion) = composeLetterN(monadShapeE)(es)
+    def composeAs(as: List[TypeRepr])(implicit tu: TypeUnion) = composeLetterN(monadShapeA)(as)
 
     private def composeLetter(letterShape: MonadShape.Variance)(a: TypeRepr, b: TypeRepr)(implicit tu: TypeUnion) = {
       // case match would be better but performance is important here
@@ -81,7 +79,7 @@ trait WithZioType {
       else defaultType
     }
 
-    private def composeLetterN(letterShape: MonadShape.Variance)(letters: Chunk[TypeRepr])(implicit tu: TypeUnion) = {
+    private def composeLetterN(letterShape: MonadShape.Variance)(letters: List[TypeRepr])(implicit tu: TypeUnion) = {
       // case match would be better but performance is important here
       import zio.direct.core.metaprog.Embedder.Compose
       if (letterShape == MonadShape.Variance.Contravariant) Compose.andN(letters)
@@ -285,35 +283,35 @@ trait WithZioType {
     def apply(effectType: ZioEffectType)(r: TypeRepr, e: TypeRepr, a: TypeRepr) =
       new ZioType(effectType)(r.widenTermRefByName, e.widenTermRefByName, a.widenTermRefByName)
 
-    def fromPrimaryWithOthers(primary: ZioType)(others: ZioType*)(implicit typeUnion: TypeUnion) = {
-      fromMultiTypes(validateSameEffect(NonEmptyChunk(primary, others: _*), "N+primary composition"))(
-        NonEmptyChunk(primary.r, others.map(_.r): _*),
-        NonEmptyChunk(primary.e, others.map(_.e): _*),
-        NonEmptyChunk(primary.a)
+    def fromPrimaryWithOthers(primary: ZioType)(others: List[ZioType])(implicit typeUnion: TypeUnion) = {
+      fromMultiTypes(validateSameEffect(primary +: others, "N+primary composition"))(
+        primary.r +: others.map(_.r),
+        primary.e +: others.map(_.e),
+        List(primary.a)
       )(typeUnion)
     }
 
-    def fromUnitWithOthers(others: NonEmptyChunk[ZioType])(implicit typeUnion: TypeUnion) = {
+    def fromUnitWithOthers(others: List[ZioType])(implicit typeUnion: TypeUnion) = {
       fromMultiTypes(validateSameEffect(others, "N+unit composition"))(
         others.map(_.r),
         others.map(_.e),
-        NonEmptyChunk(TypeRepr.of[Unit])
+        List(TypeRepr.of[Unit])
       )(typeUnion)
     }
 
-    private def fromMultiTypes(effectType: ZioEffectType)(rs: NonEmptyChunk[TypeRepr], es: NonEmptyChunk[TypeRepr], as: NonEmptyChunk[TypeRepr])(implicit typeUnion: TypeUnion) =
+    private def fromMultiTypes(effectType: ZioEffectType)(rs: List[TypeRepr], es: List[TypeRepr], as: List[TypeRepr])(implicit typeUnion: TypeUnion) =
       ZioType(effectType)(
         effectType.composeRs(rs),
         effectType.composeEs(es)(typeUnion),
         effectType.composeAs(as)
       )
 
-    def composeN(zioTypes: NonEmptyChunk[ZioType])(implicit typeUnion: TypeUnion): ZioType =
+    def composeN(zioTypes: List[ZioType])(implicit typeUnion: TypeUnion): ZioType =
       val et = validateSameEffect(zioTypes, "N-composition")
       val (rs, es, as) = zioTypes.map(zt => (zt.r, zt.e, zt.a)).unzip3
       ZioType(validateSameEffect(zioTypes, "N-composition"))(et.composeRs(rs), et.composeEs(es), et.composeAs(as))
 
-    private def validateSameEffect(types: NonEmptyChunk[ZioType], label: String): ZioEffectType = {
+    private def validateSameEffect(types: List[ZioType], label: String): ZioEffectType = {
       types.map(_.effectType).reduce((a, b) => {
         if (a != b)
           report.errorAndAbort(s"Different effect types encountered: ${a.tpe.show} and ${b.tpe.show}")
@@ -323,7 +321,7 @@ trait WithZioType {
     }
 
     def compose(a: ZioType, b: ZioType)(implicit typeUnion: TypeUnion): ZioType =
-      val et = validateSameEffect(NonEmptyChunk(a, b), "a/b composition")
+      val et = validateSameEffect(List(a, b), "a/b composition")
       ZioType(et)(et.composeR(a.r, b.r), et.composeE(a.e, b.e), et.composeA(a.a, b.a))
   }
 

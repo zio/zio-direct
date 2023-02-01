@@ -5,12 +5,11 @@ import zio.direct.core.metaprog.Extractors._
 import zio.direct.core.metaprog.TypeUnion
 import zio.direct.core.util.Format
 import zio.ZIO
-import zio.Chunk
 
 object Embedder {
 
   object Compose {
-    def andN(using Quotes)(types: Chunk[quotes.reflect.TypeRepr]) =
+    def andN(using Quotes)(types: List[quotes.reflect.TypeRepr]) =
       import quotes.reflect._
       if (types.length == 1)
         types.head
@@ -19,7 +18,7 @@ object Embedder {
       else
         TypeRepr.of[Any]
 
-    def orN(using Quotes)(types: Chunk[quotes.reflect.TypeRepr])(implicit typeUnion: TypeUnion) = {
+    def orN(using Quotes)(types: List[quotes.reflect.TypeRepr])(implicit typeUnion: TypeUnion) = {
       import quotes.reflect._
       if (types.length == 1)
         types.head

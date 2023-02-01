@@ -18,7 +18,8 @@ trait WithF {
       def succeed(term: Term) =
         term.tpe.asType match
           case '[t] =>
-            '{ ${ self.Success }.unit[t](${ term.asExprOf[t] }) }
+            val typedTerm = term.asExprOf[t]
+            '{ ${ self.Success }.unit[t]($typedTerm) }
 
       def True =
         import quotes.reflect._
