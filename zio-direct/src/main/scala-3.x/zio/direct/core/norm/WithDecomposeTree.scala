@@ -35,7 +35,7 @@ trait WithDecomposeTree {
 
     private def isRunCallEffectOrFail(runCall: Term): Unit =
       if (!et.isEffectOf(runCall.tpe))
-        report.errorAndAbort(s"The effect-type of the of the below run call was `${runCall.tpe}` but this defer-block expects a `${et.tpe}`:\n${Format.Term(runCall)}")
+        report.errorAndAbort(s"The effect-type of the of the below run call was `${runCall.tpe.widenTermRefByName.show}` but this defer-block expects a `${et.tpe.widenTermRefByName.show}`:\n${Format.Term(runCall)}")
 
     private object DecomposeTree {
       def orPure(term: Term): IR =
@@ -65,77 +65,6 @@ trait WithDecomposeTree {
 
           case DecomposeSingleTermConstruct(monad) => Some(monad)
 
-          case If(cond, ifTrue, ifFalse) =>
-            // NOTE: Code below is quite inefficient, do instead do this:
-            // (DecomposeTree.unapply(ifTrue), DecomposeTree.unapply(ifFalse)). Then match on the Some/Some, Some/None, etc... cases
-            val (ifTrueIR, ifFalseIR) = DecomposeTree.orPure2(ifTrue, ifFalse)
-            val condIR = DecomposeTree.orPure(cond)
-            Some(IR.If(condIR, ifTrueIR, ifFalseIR))
-
-          // For example, this:
-          //   while (foo) { run(bar:ZIO) }
-          // will be translated into:
-          //   def whileFunc() { if (foo) { bar; whileFunc() } }
-          // the actual function will be synthesized in the Reconstructor. Ultimately the following code will be spliced:
-          //   { def whileFunc() { if (foo) { bar; whileFunc() } } }
-          //
-          // in the case that `if` is a monad, i.e. something like this
-          //   while (run(foo)) { run(bar) }
-          // then something like this will happen:
-          //   def whileFunc() { foo.flatMap(fooVal => { if (foo) { bar; whileFunc() } })) }
-          case While(cond, body) =>
-            Some(IR.While(DecomposeTree.orPure(cond), DecomposeTree.orPure(body)))
-
-          case Seal('{ ($list: Iterable[t]).foreach(${ Lambda1(sym, expr) }) }) =>
-            val monad = DecomposeTree.orPure(list.asTerm)
-            val body = DecomposeTree.orPure(expr.asTerm)
-            Some(IR.Foreach(monad, list.asTerm.tpe, sym, body))
-
-          case Seal('{ ($a: Boolean) && ($b: Boolean) }) =>
-            // the actual case where they are both cure is handled by the PureTree case
-            val (aTerm, bTerm) = DecomposeTree.orPure2(a.asTerm, b.asTerm)
-            Some(IR.And(aTerm, bTerm))
-
-          case Seal('{ ($a: Boolean) || ($b: Boolean) }) =>
-            // the actual case where they are both cure is handled by the PureTree case
-            val (aTerm, bTerm) = DecomposeTree.orPure2(a.asTerm, b.asTerm)
-            Some(IR.Or(aTerm, bTerm))
-
-          case Match(m @ DecomposeTree(monad), caseDefs) =>
-            // Since in Scala 3 we cannot just create a arbitrary symbol and pass it around.
-            // (See https://github.com/lampepfl/dotty/blob/33818506801c80c8c73649fdaab3782c052580c6/library/src/scala/quoted/Quotes.scala#L3675)
-            // In order to be able to have a valdef-symbol to manipulate, we need to create the actual valdef
-            // Therefore we need to create
-            // a synthetic val-def for the symbol with which to substitute this expression.
-            // For example if we want to substitute something like this:
-            //   unlift(ZIO.attempt(stuff)) match { case ...can-use-m.... }
-            // We need to do something like this:
-            //   ZIO.attempt(stuff).map(m => match { case ...can-use-m.... })
-            // However, in order to be able to get the `m => ...`
-            // We first need to create a fake val-def + right-hand-side that looks like:
-            //   '{ val m:StuffType = ???; ...can-use-m.... }
-            // So the Nest-call can actually change it to:
-            //   ZIO.attempt(stuff).map(m => match { case ...can-use-m.... })
-            val (oldSymbol, body) =
-              useNewSymbolIn(m.tpe)(sym => Match(sym, caseDefs))
-
-            val out =
-              body match
-                case DecomposeTree(bodyMonad) =>
-                  IR.FlatMap(monad, oldSymbol, bodyMonad)
-                case bodyPure =>
-                  IR.Map(monad, oldSymbol, IR.Pure(bodyPure))
-            Some(out)
-
-          case m @ Match(value, DecomposeCases(cases)) =>
-            val caseDefs =
-              if (cases.nonEmpty) {
-                IR.Match.CaseDefs(cases)
-              } else {
-                report.errorAndAbort(s"Invalid match statement with no cases:\n${Format.Term(m)}")
-              }
-            Some(IR.Match(IR.Pure(value), caseDefs))
-
           case AnyRunCall(task) =>
             isRunCallEffectOrFail(task.asTerm)
             Some(IR.Monad(task.asTerm))
@@ -157,6 +86,7 @@ trait WithDecomposeTree {
             val newTree: Term =
               Trees.Transform(term, Symbol.spliceOwner) {
                 case originalTerm @ AnyRunCall(task) =>
+                  println(s"+++++++++++++ Found run call: ${task.show}")
                   val tpe = originalTerm.tpe
                   val sym = Symbol.newVal(Symbol.spliceOwner, "runVal", tpe, Flags.EmptyFlags, Symbol.noSymbol)
                   unlifts += ((IR.Monad(task.asTerm), sym))
@@ -300,6 +230,77 @@ trait WithDecomposeTree {
 
           case Seal('{ throw $e }) =>
             Some(IR.Fail(DecomposeTree.orPure(e.asTerm)))
+
+          case If(cond, ifTrue, ifFalse) =>
+            // NOTE: Code below is quite inefficient, do instead do this:
+            // (DecomposeTree.unapply(ifTrue), DecomposeTree.unapply(ifFalse)). Then match on the Some/Some, Some/None, etc... cases
+            val (ifTrueIR, ifFalseIR) = DecomposeTree.orPure2(ifTrue, ifFalse)
+            val condIR = DecomposeTree.orPure(cond)
+            Some(IR.If(condIR, ifTrueIR, ifFalseIR))
+
+          // For example, this:
+          //   while (foo) { run(bar:ZIO) }
+          // will be translated into:
+          //   def whileFunc() { if (foo) { bar; whileFunc() } }
+          // the actual function will be synthesized in the Reconstructor. Ultimately the following code will be spliced:
+          //   { def whileFunc() { if (foo) { bar; whileFunc() } } }
+          //
+          // in the case that `if` is a monad, i.e. something like this
+          //   while (run(foo)) { run(bar) }
+          // then something like this will happen:
+          //   def whileFunc() { foo.flatMap(fooVal => { if (foo) { bar; whileFunc() } })) }
+          case While(cond, body) =>
+            Some(IR.While(DecomposeTree.orPure(cond), DecomposeTree.orPure(body)))
+
+          case Seal('{ ($list: Iterable[t]).foreach(${ Lambda1(sym, expr) }) }) =>
+            val monad = DecomposeTree.orPure(list.asTerm)
+            val body = DecomposeTree.orPure(expr.asTerm)
+            Some(IR.Foreach(monad, list.asTerm.tpe, sym, body))
+
+          case Seal('{ ($a: Boolean) && ($b: Boolean) }) =>
+            // the actual case where they are both cure is handled by the PureTree case
+            val (aTerm, bTerm) = DecomposeTree.orPure2(a.asTerm, b.asTerm)
+            Some(IR.And(aTerm, bTerm))
+
+          case Seal('{ ($a: Boolean) || ($b: Boolean) }) =>
+            // the actual case where they are both cure is handled by the PureTree case
+            val (aTerm, bTerm) = DecomposeTree.orPure2(a.asTerm, b.asTerm)
+            Some(IR.Or(aTerm, bTerm))
+
+          case Match(m @ DecomposeTree(monad), caseDefs) =>
+            // Since in Scala 3 we cannot just create a arbitrary symbol and pass it around.
+            // (See https://github.com/lampepfl/dotty/blob/33818506801c80c8c73649fdaab3782c052580c6/library/src/scala/quoted/Quotes.scala#L3675)
+            // In order to be able to have a valdef-symbol to manipulate, we need to create the actual valdef
+            // Therefore we need to create
+            // a synthetic val-def for the symbol with which to substitute this expression.
+            // For example if we want to substitute something like this:
+            //   unlift(ZIO.attempt(stuff)) match { case ...can-use-m.... }
+            // We need to do something like this:
+            //   ZIO.attempt(stuff).map(m => match { case ...can-use-m.... })
+            // However, in order to be able to get the `m => ...`
+            // We first need to create a fake val-def + right-hand-side that looks like:
+            //   '{ val m:StuffType = ???; ...can-use-m.... }
+            // So the Nest-call can actually change it to:
+            //   ZIO.attempt(stuff).map(m => match { case ...can-use-m.... })
+            val (oldSymbol, body) =
+              useNewSymbolIn(m.tpe)(sym => Match(sym, caseDefs))
+
+            val out =
+              body match
+                case DecomposeTree(bodyMonad) =>
+                  IR.FlatMap(monad, oldSymbol, bodyMonad)
+                case bodyPure =>
+                  IR.Map(monad, oldSymbol, IR.Pure(bodyPure))
+            Some(out)
+
+          case m @ Match(value, DecomposeCases(cases)) =>
+            val caseDefs =
+              if (cases.nonEmpty) {
+                IR.Match.CaseDefs(cases)
+              } else {
+                report.errorAndAbort(s"Invalid match statement with no cases:\n${Format.Term(m)}")
+              }
+            Some(IR.Match(IR.Pure(value), caseDefs))
 
           case _ => None
         }
