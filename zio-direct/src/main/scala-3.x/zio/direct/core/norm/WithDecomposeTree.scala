@@ -86,7 +86,6 @@ trait WithDecomposeTree {
             val newTree: Term =
               Trees.Transform(term, Symbol.spliceOwner) {
                 case originalTerm @ AnyRunCall(task) =>
-                  println(s"+++++++++++++ Found run call: ${task.show}")
                   val tpe = originalTerm.tpe
                   val sym = Symbol.newVal(Symbol.spliceOwner, "runVal", tpe, Flags.EmptyFlags, Symbol.noSymbol)
                   unlifts += ((IR.Monad(task.asTerm), sym))

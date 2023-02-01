@@ -110,7 +110,7 @@ trait WithZioType {
       ifExistFillElement(indexStrictOfR, r, arr)
       ifExistFillElement(indexStrictOfE, e, arr)
       ifExistFillElement(indexStrictOfA, a, arr)
-      println(s"---------------- Fill Arr (${lettersArraySize}): ${arr.asInstanceOf[Array[TypeRepr]].toList}")
+      // println(s"---------------- Fill Arr (${lettersArraySize}): ${arr.asInstanceOf[Array[TypeRepr]].toList}")
       AppliedType(tpe, arr.asInstanceOf[Array[TypeRepr]].toList)
 
     // assumes lengths of variances and types list are the same, things that calls this needs to check that
@@ -152,7 +152,7 @@ trait WithZioType {
             report.errorAndAbort(s"Could not identify the effect type of: ${tpe.show}")
 
       val monadModel = computeMonadModel[F](tpe)
-      println(s"============== Letters and variances: ${monadModel}")
+      // println(s"============== Letters and variances: ${monadModel}")
 
       new ZioEffectType(
         rootType,

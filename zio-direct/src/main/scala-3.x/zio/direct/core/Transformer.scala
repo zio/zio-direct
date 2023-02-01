@@ -78,7 +78,7 @@ class Transformer[F[_, _, _]: Type, F_out: Type](inputQuotes: Quotes)
           case InfoBehavior.Verbose     => ShowDetails.Standard
           case _                        => ShowDetails.Compact
         }
-      Announce.section("Reconstituted Code", Format.Term(output, Format.Mode.DottyColor(showDetailsMode)), fileShow)
+      Announce.section("Reconstituted Code", Format.Term(output.underlyingArgument, Format.Mode.DottyColor(showDetailsMode)), fileShow)
 
     if (instructions.info.showReconstructedTree)
       Announce.section("Reconstituted Code Raw", Format(Printer.TreeStructure.show(output)), fileShow)
