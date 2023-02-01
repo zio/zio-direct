@@ -9,7 +9,7 @@ import zio.direct.core.util.Messages
 import scala.annotation.nowarn
 
 @nowarn
-object VariaSpec extends DeferRunSpec {
+object VariaSpec extends DeferRunSpec { //
   case class Config1(value: Int)
   case class Config2(value: Int)
   case class Config3(value: Int)

@@ -80,6 +80,7 @@ lazy val `zio-direct-test` = project
 lazy val `zio-direct-streams` = project
   .in(file("zio-direct-streams"))
   .settings(stdSettings("zio-direct-streams"))
+  .settings(projectModuleSettings)
   .enablePlugins(BuildInfoPlugin)
   .settings(
     crossScalaVersions := Seq(ScalaDotty),
@@ -88,10 +89,12 @@ lazy val `zio-direct-streams` = project
     )
   )
   .dependsOn(`zio-direct` % "compile->compile;test->test")
+  .dependsOn(`zio-direct-test` % "compile->compile;test->test")
 
 lazy val `zio-direct-pure` = project
   .in(file("zio-direct-pure"))
   .settings(stdSettings("zio-direct-pure"))
+  .settings(projectModuleSettings)
   .enablePlugins(BuildInfoPlugin)
   .settings(
     crossScalaVersions := Seq(ScalaDotty),
@@ -100,6 +103,7 @@ lazy val `zio-direct-pure` = project
     )
   )
   .dependsOn(`zio-direct` % "compile->compile;test->test")
+  .dependsOn(`zio-direct-test` % "compile->compile;test->test")
 
 lazy val docs = project
   .in(file("zio-direct-docs"))
