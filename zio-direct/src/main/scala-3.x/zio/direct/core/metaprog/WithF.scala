@@ -15,10 +15,12 @@ trait WithF {
       val SequencePar: Expr[MonadSequenceParallel[F]]
   ) { self =>
     object Value {
-      def succeed(term: Term) =
+      def succeed(term: Term) = {
         term.tpe.asType match
           case '[t] =>
-            '{ ${ self.Success }.unit[t](${ term.asExprOf[t] }) }
+            val typedTerm = term.asExprOf[t]
+            '{ ${ self.Success }.unit[t]($typedTerm) }
+      }
 
       def True =
         import quotes.reflect._
@@ -36,7 +38,7 @@ trait WithF {
       val monadFailure: Expr[MonadFallible[zio.ZIO]] = '{ zio.direct.zioMonadFallible }
       val monadSequence: Expr[MonadSequence[zio.ZIO]] = '{ zio.direct.zioMonadSequence }
       val monadSequencePar: Expr[MonadSequenceParallel[zio.ZIO]] = '{ zio.direct.zioMonadSequenceParallel }
-      DirectMonad[ZIO](monadSuccess, monadFailure, monadSequence, monadSequencePar)
+      DirectMonad[zio.ZIO](monadSuccess, monadFailure, monadSequence, monadSequencePar)
     }
   }
 

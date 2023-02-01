@@ -17,7 +17,6 @@ import zio.direct.core.util.ShowDetails
 import zio.direct.Internal.deferred
 import zio.direct.Internal.ignore
 import zio.direct.core.util.WithInterpolator
-import zio.NonEmptyChunk
 import zio.direct.core.util.Messages
 
 trait WithDecomposeTree {
@@ -130,10 +129,10 @@ trait WithDecomposeTree {
 
           case m @ Match(value, DecomposeCases(cases)) =>
             val caseDefs =
-              NonEmptyChunk.fromIterableOption(cases) match {
-                case Some(value) => IR.Match.CaseDefs(value)
-                case None =>
-                  report.errorAndAbort(s"Invalid match statement with no cases:\n${Format.Term(m)}")
+              if (cases.nonEmpty) {
+                IR.Match.CaseDefs(cases)
+              } else {
+                report.errorAndAbort(s"Invalid match statement with no cases:\n${Format.Term(m)}")
               }
             Some(IR.Match(IR.Pure(value), caseDefs))
 
@@ -291,9 +290,11 @@ trait WithDecomposeTree {
             // val tryBlockIR = DecomposeTree.orPure(tryBlock)
             // val cases = DecomposeCases(caseDefs)
             val casesOptIRTs =
-              NonEmptyChunk.fromIterableOption(
-                DecomposeCases(cases)
-              )
+              if (cases.nonEmpty) {
+                Some(DecomposeCases(cases))
+              } else {
+                None
+              }
             val caseDefsOpt = casesOptIRTs.map(IR.Match.CaseDefs(_))
             Some(IR.Try(DecomposeTree.orPure(tryBlock), caseDefsOpt, tryTerm.tpe, finallyBlock.map(DecomposeTree.orPure(_))))
 

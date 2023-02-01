@@ -22,7 +22,6 @@ import zio.direct.MonadSequence
 import zio.direct.core.util.F3Util
 import zio.direct.MonadSequenceParallel
 import zio.direct.core.metaprog.TypeUnion
-import zio.NonEmptyChunk
 
 trait WithResolver {
   self: WithF with WithIR with WithZioType =>
@@ -166,9 +165,11 @@ trait WithResolver {
       val (terms, names, types) = unliftTriples.unzip3
       val termsTotalType =
         // If the list of unlifts is non-empty then compose it to get the type, otherwise use the output-type of the full expression
-        NonEmptyChunk.fromIterableOption(terms.map(_.zpe)) match
-          case Some(v) => ZioType.composeN(v)
-          case None    => zpe
+        if (terms.nonEmpty)
+          val zpes = terms.map(_.zpe)
+          ZioType.composeN(zpes)
+        else
+          zpe
 
       val output =
         termsTotalType.asTypeTuple match
