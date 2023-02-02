@@ -2,7 +2,6 @@ package zio.direct.core.util.debug
 
 import scala.reflect.macros.whitebox.{Context => MacroContext}
 import zio.direct.core.util.WithFormat
-import zio.direct.core.metaprog.Trees
 
 class PrintMacMacro(val c: MacroContext) extends WithFormat {
   import c.universe._

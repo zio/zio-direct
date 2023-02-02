@@ -15,7 +15,7 @@ object Dependencies {
       )
   }
 
-  val ZioVersion = "2.0.2"
+  val ZioVersion = "2.0.6"
   val PPrintVersion = "0.6.6"
   val FansiVersion = "0.4.0"
   val SourceCodeVersion = "0.2.8"
@@ -24,6 +24,8 @@ object Dependencies {
   val QuillUtilVersion = "4.6.0"
 
   val zio               = "dev.zio" %% "zio"             % ZioVersion
+  val `zio-streams`     = "dev.zio" %% "zio-streams"     % ZioVersion
+  val `zio-prelude`     = "dev.zio" %% "zio-prelude"     % "1.0.0-RC16"
   val `zio-test`        = "dev.zio" %% "zio-test"        % ZioVersion % "test"
   val `zio-test-sbt`    = "dev.zio" %% "zio-test-sbt"    % ZioVersion % "test"
 

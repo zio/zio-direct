@@ -2,14 +2,20 @@ package zio.direct.core.metaprog
 
 import zio.direct.core.util.TraceType
 
-case class Instructions(info: InfoBehavior, collect: Collect, verify: Verify, typeUnion: TypeUnion, traceTypes: List[TraceType]) {
+case class Instructions(info: InfoBehavior, collect: Collect, verify: Verify, typeUnion: TypeUnion, linearity: Linearity, traceTypes: List[TraceType]) {
   // For debugging purposes, check if there is any visibility setting enabled
   // to know whether to print various ad-hoc things.
   def anyVis = info != InfoBehavior.Silent
 }
 
+sealed trait Linearity
+object Linearity {
+  case object Regular extends Linearity
+  case object Linear extends Linearity
+}
+
 object Instructions {
-  def default = new Instructions(InfoBehavior.default, Collect.default, Verify.default, TypeUnion.default, List())
+  def default = new Instructions(InfoBehavior.default, Collect.default, Verify.default, TypeUnion.default, Linearity.Regular, List())
 }
 
 sealed trait InfoBehavior {

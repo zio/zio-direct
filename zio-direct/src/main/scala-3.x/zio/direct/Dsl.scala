@@ -13,45 +13,88 @@ import zio.direct.core.NotDeferredException
 import zio.direct.core.util.TraceType
 import zio.direct.core.metaprog.TypeUnion
 import zio.direct.core.metaprog.RefineInstructions
+import zio.direct.core.metaprog.Linearity
+
+class directRunCall extends scala.annotation.StaticAnnotation
 
 def unsafe[T](value: T): T = NotDeferredException.fromNamed("unsafe")
 
-object defer {
-  @scala.reflect.macros.internal.macroImpl("nothing")
-  transparent inline def apply[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Silent }, '{ Use }) }
-  @scala.reflect.macros.internal.macroImpl("nothing")
-  transparent inline def info[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Info }, '{ Use }) }
-  @scala.reflect.macros.internal.macroImpl("nothing")
-  transparent inline def verbose[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Verbose }, '{ Use }) }
-  @scala.reflect.macros.internal.macroImpl("nothing")
-  transparent inline def verboseTree[T](inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.VerboseTree }, '{ Use }) }
+trait deferCall[F[_, _, _], F_out] {
+  transparent inline def impl[T](inline value: T, inline info: InfoBehavior, inline use: Use, inline linearity: Linearity) = ${ zio.direct.Dsl.impl[T, F, F_out]('value, 'info, 'use, 'linearity) }
 
-  @scala.reflect.macros.internal.macroImpl("nothing")
-  transparent inline def apply[T](inline params: Use)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Silent }, 'params) }
-  @scala.reflect.macros.internal.macroImpl("nothing")
-  transparent inline def info[T](inline params: Use)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Info }, 'params) }
-  @scala.reflect.macros.internal.macroImpl("nothing")
-  transparent inline def verbose[T](inline params: Use)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.Verbose }, 'params) }
-  @scala.reflect.macros.internal.macroImpl("nothing")
-  transparent inline def verboseTree[T](inline params: Use)(inline value: T): ZIO[?, ?, ?] = ${ Dsl.impl[T]('value, '{ InfoBehavior.VerboseTree }, 'params) }
+  import zio.direct.core.metaprog.Linearity.{Regular => LinReg, Linear => Lin}
+
+  // @scala.reflect.macros.internal.macroImpl("nothing")
+  transparent inline def apply[T](inline value: T): F_out = impl(value, InfoBehavior.Silent, Use, LinReg)
+  // @scala.reflect.macros.internal.macroImpl("nothing")
+  transparent inline def info[T](inline value: T): F_out = impl(value, InfoBehavior.Info, Use, LinReg)
+  // @scala.reflect.macros.internal.macroImpl("nothing")
+  transparent inline def verbose[T](inline value: T): F_out = impl(value, InfoBehavior.Verbose, Use, LinReg)
+  // @scala.reflect.macros.internal.macroImpl("nothing")
+  transparent inline def verboseTree[T](inline value: T): F_out = impl(value, InfoBehavior.VerboseTree, Use, LinReg)
+
+  // @scala.reflect.macros.internal.macroImpl("nothing")
+  transparent inline def apply[T](inline params: Use)(inline value: T): F_out = impl(value, InfoBehavior.Silent, params, LinReg)
+  // @scala.reflect.macros.internal.macroImpl("nothing")
+  transparent inline def info[T](inline params: Use)(inline value: T): F_out = impl(value, InfoBehavior.Info, params, LinReg)
+  // @scala.reflect.macros.internal.macroImpl("nothing")
+  transparent inline def verbose[T](inline params: Use)(inline value: T): F_out = impl(value, InfoBehavior.Verbose, params, LinReg)
+  // @scala.reflect.macros.internal.macroImpl("nothing")
+  transparent inline def verboseTree[T](inline params: Use)(inline value: T): F_out = impl(value, InfoBehavior.VerboseTree, params, LinReg)
+
+  object linear {
+    // @scala.reflect.macros.internal.macroImpl("nothing")
+    transparent inline def apply[T](inline value: T): F_out = impl(value, InfoBehavior.Silent, Use, Lin)
+    // @scala.reflect.macros.internal.macroImpl("nothing")
+    transparent inline def info[T](inline value: T): F_out = impl(value, InfoBehavior.Info, Use, Lin)
+    // @scala.reflect.macros.internal.macroImpl("nothing")
+    transparent inline def verbose[T](inline value: T): F_out = impl(value, InfoBehavior.Verbose, Use, Lin)
+    // @scala.reflect.macros.internal.macroImpl("nothing")
+    transparent inline def verboseTree[T](inline value: T): F_out = impl(value, InfoBehavior.VerboseTree, Use, Lin)
+
+    // @scala.reflect.macros.internal.macroImpl("nothing")
+    transparent inline def apply[T](inline params: Use)(inline value: T): F_out = impl(value, InfoBehavior.Silent, params, Lin)
+    // @scala.reflect.macros.internal.macroImpl("nothing")
+    transparent inline def info[T](inline params: Use)(inline value: T): F_out = impl(value, InfoBehavior.Info, params, Lin)
+    // @scala.reflect.macros.internal.macroImpl("nothing")
+    transparent inline def verbose[T](inline params: Use)(inline value: T): F_out = impl(value, InfoBehavior.Verbose, params, Lin)
+    // @scala.reflect.macros.internal.macroImpl("nothing")
+    transparent inline def verboseTree[T](inline params: Use)(inline value: T): F_out = impl(value, InfoBehavior.VerboseTree, params, Lin)
+  }
 }
 
+object defer extends deferCall[ZIO, ZIO[?, ?, ?]]
+
 extension [R, E, A](value: ZIO[R, E, A]) {
+  @directRunCall
   def run: A = NotDeferredException.fromNamed("run")
 }
 
 object Dsl {
   import InfoBehavior._
 
-  def impl[T: Type](value: Expr[T], infoExpr: Expr[InfoBehavior], useTree: Expr[Use])(using q: Quotes): Expr[ZIO[?, ?, ?]] =
-    import quotes.reflect._
-    val infoBehavior = Unliftables.unliftInfoBehavior(infoExpr.asTerm.underlyingArgument.asExprOf[InfoBehavior])
-    val instructionsRaw = Instructions.default.copy(info = infoBehavior)
-    val instructions = RefineInstructions.fromUseTree(useTree, instructionsRaw)
-    doTransform(value, instructions)
+  // def implZIO[T: Type](value: Expr[T], infoExpr: Expr[InfoBehavior], useTree: Expr[Use])(using q: Quotes) =
+  //   impl[T, ZIO, ZIO[?, ?, ?]](value, infoExpr, useTree)
 
-  def doTransform[T: Type](value: Expr[T], instructions: Instructions)(using q: Quotes): Expr[ZIO[?, ?, ?]] =
-    (new Transformer(q)).apply(value, instructions)
+  def impl[T: Type, F[_, _, _]: Type, F_out: Type](value: Expr[T], infoExpr: Expr[InfoBehavior], useTree: Expr[Use], linearityExpr: Expr[Linearity])(using q: Quotes): Expr[F_out] =
+    import quotes.reflect._
+    val linearity = Unliftables.unliftLinearity(linearityExpr.asTerm.underlyingArgument.asExprOf[Linearity])
+    val infoBehavior = Unliftables.unliftInfoBehavior(infoExpr.asTerm.underlyingArgument.asExprOf[InfoBehavior])
+    val instructionsRaw =
+      Instructions.default.copy(
+        info = infoBehavior,
+        linearity = linearity,
+        verify = {
+          linearity match
+            case Linearity.Regular => Instructions.default.verify
+            // since linear mode disables the IR.Parallel situation, we are safe to do lenient mode
+            case Linearity.Linear => Verify.Lenient
+        }
+      )
+    val instructions = RefineInstructions.fromUseTree(useTree, instructionsRaw)
+    (new Transformer[F, F_out](q)).apply(value, instructions)
+    // (new Transformer[ZIO, ZIO[?, ?, ?]](q)).apply(value, instructions)
+
 }
 
 object Internal {
@@ -66,8 +109,17 @@ object Internal {
   //  This is an important note to understand about metaprogramming in general,
   // you have to not be able to care about the structure of things transformed in other macros
   // in other parts of the application.)
-  def deferred[R, E, A](effect: ZIO[R, E, A]) = effect
+  // def deferred[F[_, _, _], A, B, C](effect: F[A, B, C]) = effect
+  // def deferred[A, B, C](effect: ZIO[A, B, C]) = effect
+  def deferred[T](effect: T): T = effect
 
   def ignore[T](code: T): T =
     throw new NotDeferredException(s"The construct `ignore` be used inside of a `defer { ... }` block and should only be used for testing purposes!")
+
+  // Artificial markers use to deconstruct types in the Transformer. Not necessary otherwise.
+  object Marker {
+    type A
+    type B
+    type C
+  }
 }

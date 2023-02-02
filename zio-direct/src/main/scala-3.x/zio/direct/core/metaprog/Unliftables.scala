@@ -11,6 +11,9 @@ object Unliftables {
   def unliftVerify(verify: Expr[Verify])(using Quotes) =
     Implicits.unliftVerify.unliftOrfail(verify)
 
+  def unliftLinearity(linearity: Expr[Linearity])(using Quotes) =
+    Implicits.unliftLinearity.unliftOrfail(linearity)
+
   def unliftInfoBehavior(info: Expr[InfoBehavior])(using Quotes) =
     Implicits.unliftInfoBehavior.unliftOrfail(info)
 
@@ -51,6 +54,13 @@ object Unliftables {
         case '{ Collect.Sequence } => Collect.Sequence
         case '{ Collect.Parallel } => Collect.Parallel
         case '{ Collect.default }  => Collect.default
+    }
+
+    given unliftLinearity: Unlifter[Linearity] with {
+      def tpe = Type.of[Linearity]
+      def unlift =
+        case '{ Linearity.Regular } => Linearity.Regular
+        case '{ Linearity.Linear }  => Linearity.Linear
     }
 
     given unliftVerify: Unlifter[Verify] with {

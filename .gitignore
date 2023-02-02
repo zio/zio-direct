@@ -3,6 +3,7 @@ nohup.out
 *.force_ignore*
 MyExample*.scala
 MyTest*.scala
+.sbtopts
 
 # Version file to point to a particular scala version, useful for working with metals
 .zd.scala.version

@@ -4,6 +4,7 @@ import scala.quoted._
 import zio.direct.core.util.Format
 import zio.direct.core.metaprog.Trees
 import zio.direct.core.metaprog.Extractors._
+import zio.direct.core.metaprog.WithZioType
 import zio.direct.core.util.PureTree
 import zio.direct.core.util.Unsupported
 import zio.direct.core.util.Messages
@@ -13,6 +14,7 @@ import zio.direct.core.util.ShowDetails
 import zio.direct.core.metaprog.InfoBehavior
 import zio.direct.Internal.deferred
 import zio.direct.Internal.ignore
+import zio.direct.core.util.Unsupported
 
 object Allowed {
 
@@ -30,29 +32,30 @@ object Allowed {
     }
   }
 
-  def finalValidtyCheck(expr: Expr[_], instructions: Instructions)(using Quotes) =
+  def finalValidityCheck(using Quotes)(instructions: Instructions, isEffectType: quotes.reflect.TypeRepr => Boolean)(expr: Expr[_]) =
     import quotes.reflect._
     given implicitInstr: Instructions = instructions
     Trees.traverse(expr.asTerm, Symbol.spliceOwner) {
       // If there are code blocks remaining that have arbitrary zio values it means that
       // they will be lost because the transformations for block-stmts to map/flatMap chains are already done.
       case Block(stmts, output) =>
-        stmts.foreach(Unsupported.Warn.checkUnmooredZio(_))
-      case tree @ RunCall(_) =>
+        stmts.foreach(Unsupported.Warn.checkUnmooredZio(isEffectType)(_))
+      case tree @ AnyRunCall.TypedAs(tpe) if (isEffectType(tpe)) =>
         Unsupported.Error.withTree(tree, Messages.RunRemainingAfterTransformer)
     }
 
-  def validateBlocksIn(using Quotes)(expr: Expr[_], instructions: Instructions): Unit =
+  def validateBlocksIn(using Quotes)(instructions: Instructions, isEffectType: quotes.reflect.TypeRepr => Boolean)(expr: Expr[_]): Unit =
     import quotes.reflect._
     given implicitInstr: Instructions = instructions
-    validateBlocksTree(expr.asTerm)
+    validateBlocksTree(isEffectType)(expr.asTerm)
 
-  private def validateRunClause(using qctx: Quotes, instructions: Instructions)(expr: quotes.reflect.Tree): Unit =
-    import quotes.reflect._
+  private def validateRunClause(using instructions: Instructions, qctx: Quotes)(expr: quotes.reflect.Tree): Unit =
+    import qctx.reflect._
     Trees.traverse(expr, Symbol.spliceOwner) {
       // Cannot have nested runs:
-      case tree @ RunCall(_) =>
+      case tree @ AnyRunCall(_) =>
         Unsupported.Error.withTree(tree, Messages.RunInRunError)
+      // TODO also check if the run call has wrong syntax
 
       // Assignment in an run allowed by not recommenteded
       case asi: Assign if (instructions.verify == Verify.Strict) =>
@@ -61,7 +64,8 @@ object Allowed {
 
   // TODO this way of traversing the tree is error prone not not very efficient. Re-write this
   // using the TreeTraverser directly and make `traverse` private.
-  private def validateBlocksTree(using qctx: Quotes, instructions: Instructions)(inputTree: quotes.reflect.Tree): Unit =
+  private def validateBlocksTree(using Instructions, Quotes)(isEffectType: quotes.reflect.TypeRepr => Boolean)(inputTree: quotes.reflect.Tree): Unit =
+    val instructions = summon[Instructions]
     import quotes.reflect._
 
     val declsErrorMsg =
@@ -93,11 +97,24 @@ object Allowed {
     }
 
     def validate(expr: Tree): Next =
+      import quotes.reflect._
       expr match {
         // if we have transformed the tree before then we can skip validation of the contents
         // because the whole block is treated an an effective unit
-        case Seal('{ deferred[r, e, a]($effect) }) =>
+        case Seal('{ deferred($effect) }) =>
           Next.Exit
+
+        // if we are inside a zio effect of any kind exit validation because
+        // everything further is zio-wrapped
+        // TODO Maybe just match the TPE on a term for better perf?
+        case Seal('{ $zioEffect: zio.ZIO[r, e, a] }) =>
+          Next.Exit
+
+        case term: Term if (isEffectType(term.tpe)) =>
+          Next.Exit
+
+        // case Seal((zio.ZIO.succeed($stuff))) =>
+        //   Next.Exit
 
         case Seal('{ ignore($code) }) =>
           Next.Exit
@@ -111,7 +128,7 @@ object Allowed {
           }
 
         // should be handled by the tree traverser but put here just in case
-        case tree @ RunCall(content) =>
+        case tree @ AnyRunCall(content) =>
           validateRunClause(content.asTerm)
           // Do not need other validations inside the run-clause
           Next.Exit
@@ -153,8 +170,9 @@ object Allowed {
         case asi: Assign =>
           Unsupported.Error.withTree(asi, Messages.AssignmentNotAllowed)
 
-        case _ if (FromMutablePackage.check(expr.tpe)) =>
-          Unsupported.Error.withTree(expr, Messages.MutableCollectionDetected)
+        // check if the statement is a mutable collect (if it is not a block)
+        case NotBlock.Term(_) if (FromMutablePackage.check(expr.tpe)) =>
+          Unsupported.Error.withTree(expr, Messages.MutableCollectionDetected(expr.tpe.typeSymbol.name))
 
         // All the kinds of valid things a Term can be in defer blocks
         // Originally taken from TreeMap.transformTerm in Quotes.scala
