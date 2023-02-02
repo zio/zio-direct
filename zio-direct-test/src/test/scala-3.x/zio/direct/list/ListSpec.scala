@@ -53,7 +53,8 @@ object ListSpec extends DeferRunSpec {
               }
             }
           }
-        assert(out)(equalTo(compare))
+        val expectedOutput = List(3, -3, -5, 4, -5, -8, 0, 1, -1, 0)
+        assert(out)(equalTo(compare)) && assert(out)(equalTo(expectedOutput))
       },
       test("Throws a real exception") {
         def out =
