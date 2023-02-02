@@ -51,7 +51,7 @@ trait WithDecomposeTree {
           // but as an optimization we can just roll up the thing into an IR.Monad
           // because we know it doesn't need to be transformed anymore
           case Seal('{ deferred($effect) }) =>
-            Some(IR.Monad('{ ${ monad.Failure }.attempt($effect) }.asTerm, IR.Monad.Source.PrevDefer))
+            Some(IR.Monad('{ ${ monad.Success }.unit($effect) }.asTerm, IR.Monad.Source.PrevDefer))
 
           // Since ValDef needs to be decomposed even if it's not a tree, need to do this before PureTree
           case block @ Block(parts, lastPart) =>

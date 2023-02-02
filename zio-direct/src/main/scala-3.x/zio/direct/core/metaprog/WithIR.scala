@@ -161,7 +161,11 @@ trait WithIR {
 
     private object MakePuresIntoAttemps extends StatelessTransformer {
       private def monadify(pure: IR.Pure) =
-        IR.Monad('{ ${ monad.Failure }.attempt(${ pure.code.asExpr }) }.asTerm)
+        monad.Failure match
+          case Some(monadFailure) =>
+            IR.Monad('{ ${ monadFailure }.attempt(${ pure.code.asExpr }) }.asTerm)
+          case None =>
+            IR.Monad('{ ${ monad.Success }.unit(${ pure.code.asExpr }) }.asTerm)
 
       // Monadify all top-level pure calls
       override def apply(ir: IR): IR =

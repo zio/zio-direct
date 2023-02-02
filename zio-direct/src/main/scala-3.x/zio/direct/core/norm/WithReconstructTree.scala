@@ -13,13 +13,14 @@ import zio.Exit.Failure
 import zio.direct.core.metaprog.Instructions
 import zio.direct.core.metaprog.Collect
 import zio.direct.core.metaprog.WithZioType
-import zio.direct.core.util.ZioUtil
 import zio.direct.core.util.Unsupported
 import org.scalafmt.util.LogLevel.info
 import zio.direct.core.metaprog.Collect.Sequence
 import zio.direct.core.metaprog.Collect.Parallel
 import java.lang.reflect.WildcardType
 import zio.direct.core.metaprog.TypeUnion
+import zio.direct.MonadFallible
+import scala.concurrent.java8.FuturesConvertersImpl.P
 
 trait WithReconstructTree {
   self: WithF with WithIR with WithZioType with WithComputeType with WithPrintIR with WithInterpolator with WithResolver =>
@@ -102,23 +103,7 @@ trait WithReconstructTree {
 
         case irt @ IRT.Monad(code, _) => code.toZioValue(irt.zpe)
 
-        case irt @ IRT.Fail(error) =>
-          error match {
-            case IRT.Pure(value) =>
-              error.zpe.a.widen.asType match
-                case '[a] =>
-                  '{ ${ self.monad.Failure }.fail[a](${ value.asExpr }.asInstanceOf[a]) }.asTerm.toZioValue(irt.zpe)
-
-            // TODO test the case where error is constructed via an run
-            case m: IRT.Monadic =>
-              val monad = apply(m)
-              // TODO use monad.zpe instead since that is the actual correct type
-              monad.term.tpe.asType match
-                case '[t] =>
-                  // normally irt.tpe is the value of the total expression as opposed to the head/body operations
-                  // (e.g. in a flatMap(head, body)) but in this case it is the same for both
-                  Resolve.applyFlatMap(monad, '{ (err: Any) => ${ self.monad.Failure }.fail(err) }.toZioValue(irt.zpe))
-          }
+        case irt: IRT.Fail => reconstructError(irt)
 
         case irt: IRT.Block =>
           val (stmts, term) = compressBlock(List(), irt)
@@ -217,29 +202,90 @@ trait WithReconstructTree {
           // apply(IRT.Block(newMethod, IRT.Monad(Apply(Ref(methSym), Nil))))
           Block(List(newMethod), Apply(Ref(methSym), Nil)).toZioValue(irWhile.zpe)
 
-        case irt @ IRT.Try(tryBlock, caseDefsOpt, _, finallyBlock) =>
-          // if there is actually a try-cases clause, the expand that and create a lambda for it, otherwise
-          // just embed the finally block (if it exists)
-          val (monadZioType, monadZioValue) =
-            caseDefsOpt match
-              case Some(caseDefs) =>
-                reconstructTryCases(irt.zpe, tryBlock, caseDefs)
-              case None =>
-                (tryBlock.zpe, apply(tryBlock))
+        case irt: IRT.Try => reconstructTry(irt)
 
-          finallyBlock match {
-            case Some(ir) =>
-              val finallyTerm = apply(ir)
-              Resolve.applyEnsuring(monadZioValue, finallyTerm)
-            case None =>
-              monadZioValue
-          }
-
-        case value: IRT.Parallel =>
-          reconstructParallel(value)
+        case value: IRT.Parallel => reconstructParallel(value)
     }
 
-    def reconstructTryCases(wholeTryZpe: ZioType, tryBlock: IRT, caseDefs: IRT.Match.CaseDefs) = {
+    def reconstructError(irt: IRT.Fail) = {
+      self.monad.Failure match
+        case Some(monadFailure) => reconstructErrorMonadic(monadFailure)(irt)
+        case None               => reconstructErrorPlain(irt)
+    }
+
+    def reconstructErrorPlain(irt: IRT.Fail) = {
+      val IRT.Fail(error) = irt
+      error match {
+        case IRT.Pure(value) =>
+          '{ throw ${ value.asExprOf[Throwable] } }.toZioValue(irt.zpe)
+
+        // TODO test the case where error is constructed via an run
+        case m: IRT.Monadic =>
+          val monad = apply(m)
+          ResolveWith(irt.zpe).applyFlatMap(monad, '{ (err: Any) => throw { err.asInstanceOf[Throwable] } }.toZioValue(irt.zpe))
+      }
+    }
+
+    def reconstructErrorMonadic(monadFailure: Expr[MonadFallible[F]])(irt: IRT.Fail) = {
+      val IRT.Fail(error) = irt
+      error match {
+        case IRT.Pure(value) =>
+          error.zpe.a.widen.asType match
+            case '[a] =>
+              '{ $monadFailure.fail[a](${ value.asExpr }.asInstanceOf[a]) }.asTerm.toZioValue(irt.zpe)
+
+        // TODO test the case where error is constructed via an run
+        case m: IRT.Monadic =>
+          val monad = apply(m)
+          // TODO use monad.zpe instead since that is the actual correct type
+          monad.term.tpe.asType match
+            case '[t] =>
+              // normally irt.tpe is the value of the total expression as opposed to the head/body operations
+              // (e.g. in a flatMap(head, body)) but in this case it is the same for both
+              ResolveWith(irt.zpe).applyFlatMap(monad, '{ (err: Any) => $monadFailure.fail(err) }.toZioValue(irt.zpe))
+      }
+    }
+
+    def reconstructTry(irt: IRT.Try) =
+      monad.Failure match
+        case Some(monadFailure) =>
+          reconstructTryMonadic(monadFailure)(irt)
+        case None =>
+          reconstructTryPlain(irt)
+
+    private def reconstructTryMonadic(monadFailure: Expr[MonadFallible[F]])(irt: IRT.Try) = {
+      val IRT.Try(tryBlock, caseDefsOpt, _, finallyBlock) = irt
+      // if there is actually a try-cases clause, the expand that and create a lambda for it, otherwise
+      // just embed the finally block (if it exists)
+      val (monadZioType, monadZioValue) =
+        caseDefsOpt match
+          case Some(caseDefs) =>
+            reconstructTryCases(monadFailure)(irt.zpe, tryBlock, caseDefs)
+          case None =>
+            (tryBlock.zpe, apply(tryBlock))
+
+      finallyBlock match {
+        case Some(ir) =>
+          val finallyTerm = apply(ir)
+          ResolveWith(irt.zpe).applyEnsuring(monadFailure)(monadZioValue, finallyTerm)
+        case None =>
+          monadZioValue
+      }
+    }
+
+    private def reconstructTryPlain(tryIRT: IRT.Try) = {
+      val IRT.Try(tryBody, caseDefsOpt, _, finallyOptIRT) = tryIRT
+      val tryTerm = apply(tryBody)
+      val finallyOptTerm = finallyOptIRT.map(apply(_).term)
+      val scalaCaseDefs =
+        caseDefsOpt match
+          case Some(caseDefs) => reconstructCaseDefs(caseDefs).toList
+          case None           => List()
+
+      Try(tryTerm.term, scalaCaseDefs, finallyOptTerm).toZioValue(tryIRT.zpe)
+    }
+
+    def reconstructTryCases(monadFailure: Expr[MonadFallible[F]])(wholeTryZpe: ZioType, tryBlock: IRT, caseDefs: IRT.Match.CaseDefs) = {
       val tryBlockType = tryBlock.zpe
       val tryTerm = apply(tryBlock)
       val scalaCaseDefs = reconstructCaseDefs(caseDefs).toList
@@ -282,7 +328,7 @@ trait WithReconstructTree {
 
           // Use the wholeTryZpe. The R, E should ahve been unified in the IRT type computation in WithComputeType
           // and the chosen A type should have been determined by scala and also used in WithComputeType (in the apply(ir: IR.Try) case there)
-          val monadZioValue = ResolveWith(wholeTryZpe).applyCatchSome(tryExpr.asTerm.toZioValue(tryBlock.zpe), functionBlock.toZioValue(caseDefs.zpe))
+          val monadZioValue = ResolveWith(wholeTryZpe).applyCatchSome(monadFailure)(tryExpr.asTerm.toZioValue(tryBlock.zpe), functionBlock.toZioValue(caseDefs.zpe))
           (wholeTryZpe, monadZioValue)
     }
 

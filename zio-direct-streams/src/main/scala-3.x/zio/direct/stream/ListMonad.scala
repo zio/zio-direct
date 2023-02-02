@@ -24,16 +24,6 @@ object ListMonadSuccess extends MonadSuccess[ThreeList] {
   inline def flatten[R, E, A, R1 <: R, E1 >: E](first: ThreeList[R, E, ThreeList[R1, E1, A]]): ThreeList[R1, E1, A] = first.flatten
 }
 
-implicit val listMonadFallible: MonadFallible[ThreeList] = new MonadFallible[ThreeList] {
-  def fail[E](e: => E): ThreeList[Any, E, Nothing] = ???
-  def attempt[A](a: => A): ThreeList[Any, Throwable, A] = List(a)
-  def catchSome[R, E, A](first: ThreeList[R, E, A])(andThen: PartialFunction[E, ThreeList[R, E, A]]): ThreeList[R, E, A] = ???
-  // finalizer here is a ZIO. How should this be encapsulated? does it need a special type?
-  def ensuring[R, E, A](f: ThreeList[R, E, A])(finalizer: ThreeList[R, Nothing, Any]): ThreeList[R, E, A] = ???
-  def mapError[R, E, A, E2](first: ThreeList[R, E, A])(f: E => E2): ThreeList[R, E2, A] = ???
-  def orDie[R, E <: Throwable, A](first: ThreeList[R, E, A]): ThreeList[R, Nothing, A] = ???
-}
-
 implicit inline def listMonadSequence: MonadSequence[ThreeList] = ListMonadSequence
 object ListMonadSequence extends MonadSequence[ThreeList] {
   inline def traverseThreeList[R, E, A, B](as: List[A], f: A => ThreeList[R, E, B]): ThreeList[R, E, List[B]] = {

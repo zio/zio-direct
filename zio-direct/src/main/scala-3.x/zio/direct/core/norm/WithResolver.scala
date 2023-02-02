@@ -11,7 +11,6 @@ import zio.direct.core.util.WithInterpolator
 import zio.direct.core.metaprog.Instructions
 import zio.direct.core.metaprog.Collect
 import zio.direct.core.metaprog.WithZioType
-import zio.direct.core.util.ZioUtil
 import zio.direct.core.util.Unsupported
 import org.scalafmt.util.LogLevel.info
 import zio.direct.core.metaprog.Collect.Sequence
@@ -76,28 +75,27 @@ trait WithResolver {
       applyMap(monad, applyLambdaTerm)
     }
 
-    def applyCatchSome(tryClause: ZioValue, body: ZioValue): ZioValue = {
+    def applyCatchSome(monadFailure: Expr[MonadFallible[F]])(tryClause: ZioValue, body: ZioValue): ZioValue = {
       val MonadFailure = directMonad.Failure
       (zpe.asTypeTuple) match
         case ('[or], '[oe], '[oa]) =>
           '{
-            $MonadFailure.catchSome[or, oe, oa](${ tryClause.term.asExprOf[F[or, oe, oa]] })( // .asInstanceOf[F[or, oe, oa]]
+            $monadFailure.catchSome[or, oe, oa](${ tryClause.term.asExprOf[F[or, oe, oa]] })( // .asInstanceOf[F[or, oe, oa]]
               ${ body.term.asExpr }.asInstanceOf[PartialFunction[oe, F[or, oe, oa]]])
           }.toZioValue(zpe)
         case _ =>
           notPossible()
     }
 
-    def applyEnsuring(monad: ZioValue, finalizer: ZioValue): ZioValue =
-      val MonadFailure = directMonad.Failure
+    def applyEnsuring(monadFailure: Expr[MonadFallible[F]])(monad: ZioValue, finalizer: ZioValue): ZioValue =
       monad.zpe.asTypeTuple match
         case ('[r], '[e], '[a]) =>
           // when generalizing to non-zio check there result-type and change ZIO[?, ?, ?] representation to the appropriate one for the given type
           '{
-            $MonadFailure.ensuring(${ monad.term.asExprOf[F[r, e, a]] })(
+            $monadFailure.ensuring(${ monad.term.asExprOf[F[r, e, a]] })(
               // TODO make a better check here, manually check if it's a subtype of throwable and cast it, otherwise make the macro fail
-              $MonadFailure.orDie(
-                F3Util.wrapWithThrowable[F, r, Nothing, Any](${ finalizer.term.asExprOf[F[r, Nothing, Any]] })($MonadFailure)
+              $monadFailure.orDie(
+                F3Util.wrapWithThrowable[F, r, Nothing, Any](${ finalizer.term.asExprOf[F[r, Nothing, Any]] })($monadFailure)
               )
             ) // .asInstanceOf[F[r, e, a]]
           }.asExprOf[F[r, e, a]].toZioValue(zpe)

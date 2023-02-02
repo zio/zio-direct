@@ -10,7 +10,7 @@ trait WithF {
 
   class DirectMonad[F[_, _, _]: Type](
       val Success: Expr[MonadSuccess[F]],
-      val Failure: Expr[MonadFallible[F]],
+      val Failure: Option[Expr[MonadFallible[F]]],
       val Sequence: Expr[MonadSequence[F]],
       val SequencePar: Expr[MonadSequenceParallel[F]]
   ) { self =>
@@ -36,10 +36,8 @@ trait WithF {
         Expr.summon[MonadSuccess[F]].getOrElse {
           report.errorAndAbort(s"Cannot perform map/flatMap/succeed on the type: ${TypeRepr.of[F].show}. A MonadSuccess typeclass was not found for it.")
         }
-      val monadFailure: Expr[MonadFallible[F]] =
-        Expr.summon[MonadFallible[F]].getOrElse {
-          report.errorAndAbort(s"Cannot perform catchSome/ensuring/mapError/die on the type: ${TypeRepr.of[F].show}. A MonadFallible typeclass was not found for it.")
-        }
+      val monadFailure: Option[Expr[MonadFallible[F]]] =
+        Expr.summon[MonadFallible[F]]
       val monadSequence: Expr[MonadSequence[F]] =
         Expr.summon[MonadSequence[F]].getOrElse {
           report.errorAndAbort(s"Cannot perform collect/foreach on the type: ${TypeRepr.of[F].show}. A SequencePar typeclass was not found for it.")
