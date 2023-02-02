@@ -87,6 +87,19 @@ object TrySpec extends DeferRunSpec {
           assertIsType[ZIO[Any, Exception, Int]](out) andAssert
             assertZIO(out)(equalTo(1))
         },
+        test("catch impure/impure") {
+          val out =
+            defer {
+              try {
+                throw (ZIO.succeed(e).run)
+              } catch {
+                case `e`          => 1
+                case _: Throwable => ZIO.succeed(2).run
+              }
+            }
+          assertIsType[ZIO[Any, Exception, Int]](out) andAssert
+            assertZIO(out)(equalTo(1))
+        },
         test("not caught error in parallel block (die-channel) - one side") {
           // even thought we create the exception inside a success block, the actual
           // 'throw' term is being used so a ZIO.fail(error) is called. therefore

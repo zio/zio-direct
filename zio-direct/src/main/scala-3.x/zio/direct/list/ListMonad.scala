@@ -26,17 +26,32 @@ object ListMonadSuccess extends MonadSuccess[ThreeList] {
 
 implicit inline def listMonadSequence: MonadSequence[ThreeList] = ListMonadSequence
 object ListMonadSequence extends MonadSequence[ThreeList] {
+  // This is really just an intersperse function. In many cases, A comes in as List[B] (same thing as ThreeList[R, E, B]) from
+  // so the f is not even used often. It reduces to the intersperse function commented-out below.
+  // I think Gen can also be used here something like this:
+  // `gens.foldRight[Gen[R, List[A]]](Gen.const(List.empty))(_.zipWith(_)(_ :: _))`
   inline def traverseThreeList[R, E, A, B](as: List[A], f: A => ThreeList[R, E, B]): ThreeList[R, E, List[B]] = {
     as.foldLeft(List(List.empty[B]): ThreeList[R, E, List[B]])((accum: ThreeList[R, E, List[B]], a: A) => {
       val optB: ThreeList[R, E, B] = f(a)
-      // println(s"--------------- ${a} -----> (${accum})")
-      // optB.flatMap((b: B) => accum.map((list: List[B]) => list :+ b))
       for {
         (list: List[B]) <- accum
         (b: B) <- optB
       } yield (list :+ b)
     })
   }
+
+  // ------ The traverseThreeList usually just doing this: -------
+  // inline def intersperse[B](as: List[List[B]]): List[List[B]] = {
+  //   as.foldLeft(List(List.empty[B]): List[List[B]])((accum: List[List[B]], a: List[B]) => {
+  //     for {
+  //       (list: List[B]) <- accum
+  //       (b: B) <- a
+  //     } yield (list :+ b)
+  //   })
+  // }
+  // ------ Which is really just this: -------
+  // def crossN[B](as: List[List[B]]): List[R, E, List[B]] =
+  //   as.foldLeft[List[List[A]]](ZStream.succeed(List.empty))(_.crossWith(_)(_ :+ _))
 
   inline def foreach[R, E, A, B, Collection[+Element] <: Iterable[Element]](
       in: Collection[A]
