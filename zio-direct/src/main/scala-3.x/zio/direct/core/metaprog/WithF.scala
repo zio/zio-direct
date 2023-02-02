@@ -2,17 +2,53 @@ package zio.direct.core.metaprog
 
 import scala.quoted._
 import zio.direct._
+import zio.direct.Dsl.DirectMonadInput
 
-trait WithF {
-
+trait MacroBase {
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._
 
-  class DirectMonad[F[_, _, _]: Type](
+  case class MonadModelData(
+      variancesListType: TypeRepr,
+      lettersListType: TypeRepr,
+      isFalliable: Boolean
+  )
+
+  def computeMonadModelData[MM <: MonadModel: Type]: MonadModelData = {
+    // dealias the type e.g. ZioMonadType to get the Variance/Letters variables underneath
+    val monadModelType = TypeRepr.of[MM].dealias
+
+    val monadModelVariancesList =
+      Type.of[MM] match
+        case '[MonadModel { type Variances = list }] => TypeRepr.of[list]
+
+    val monadModelLettersList =
+      Type.of[MM] match
+        case '[MonadModel { type Letters = list }] => TypeRepr.of[list]
+
+    val isFallible =
+      Type.of[MM] match
+        case '[MonadModel { type IsFallible = flag }] =>
+          val flagType = TypeRepr.of[flag]
+          if (flagType =:= TypeRepr.of[true]) true
+          else if (flagType =:= TypeRepr.of[false]) false
+          else report.errorAndAbort(s"The type IsFallible needs to be specified on the Monad-Model: ${monadModelType.show}. Currently: ${flagType.show}")
+
+    MonadModelData(monadModelVariancesList, monadModelLettersList, isFallible)
+  }
+}
+
+trait WithF extends MacroBase {
+  implicit val macroQuotes: Quotes
+  import macroQuotes.reflect._
+
+  class DirectMonad[F[_, _, _]: Type, S: Type, W: Type](
       val Success: Expr[MonadSuccess[F]],
       val Failure: Option[Expr[MonadFallible[F]]],
       val Sequence: Expr[MonadSequence[F]],
-      val SequencePar: Expr[MonadSequenceParallel[F]]
+      val SequencePar: Expr[MonadSequenceParallel[F]],
+      val MonadState: Option[Expr[MonadState[F, S]]],
+      val MonadLog: Option[Expr[MonadLog[F, W]]]
   ) { self =>
     object Value {
       def succeed(term: Term) =
@@ -31,23 +67,56 @@ trait WithF {
   }
 
   object DirectMonad {
-    def of[F[_, _, _]: Type] = {
-      val monadSuccess: Expr[MonadSuccess[F]] =
-        Expr.summon[MonadSuccess[F]].getOrElse {
-          report.errorAndAbort(s"Cannot perform map/flatMap/succeed on the type: ${TypeRepr.of[F].show}. A MonadSuccess typeclass was not found for it.")
-        }
+    def of[F[_, _, _]: Type, S: Type, W: Type](directMonadInput: DirectMonadInput[F, S, W], monadModelData: MonadModelData) = {
+      lazy val printEffect = Expr(TypeRepr.of[F].show)
+      lazy val printState = Expr(TypeRepr.of[S].show)
+      lazy val printLog = Expr(TypeRepr.of[W].show)
+
+      val monadSuccess: Expr[MonadSuccess[F]] = directMonadInput.success
       val monadFailure: Option[Expr[MonadFallible[F]]] =
-        Expr.summon[MonadFallible[F]]
-      val monadSequence: Expr[MonadSequence[F]] =
-        Expr.summon[MonadSequence[F]].getOrElse {
-          report.errorAndAbort(s"Cannot perform collect/foreach on the type: ${TypeRepr.of[F].show}. A SequencePar typeclass was not found for it.")
-        }
-      val monadSequencePar: Expr[MonadSequenceParallel[F]] =
-        Expr.summon[MonadSequenceParallel[F]].getOrElse {
-          report.errorAndAbort(s"Cannot perform collectPar/foreachPar on the type: ${TypeRepr.of[F].show}. A SequencePar typeclass was not found for it.")
-        }
-      DirectMonad[F](monadSuccess, monadFailure, monadSequence, monadSequencePar)
+        if (monadModelData.isFalliable)
+          Some('{
+            ${ directMonadInput.fallible }.getOrElse {
+              throw new IllegalArgumentException(ErrorForWithF.make($printEffect, "", "MonadFallible"))
+            }
+          })
+        else
+          None
+
+      val monadSequence: Expr[MonadSequence[F]] = directMonadInput.sequence
+      val monadSequencePar: Expr[MonadSequenceParallel[F]] = directMonadInput.sequencePar
+      val monadState: Option[Expr[MonadState[F, S]]] =
+        if (!(TypeRepr.of[S] =:= TypeRepr.of[Nothing]))
+          Some(
+            '{
+              ${ directMonadInput.state }.getOrElse {
+                throw new IllegalArgumentException(ErrorForWithF.make($printEffect, $printState, "MonadState"))
+              }
+            }
+          )
+        else
+          None
+
+      val monadLog: Option[Expr[MonadLog[F, W]]] =
+        if (!(TypeRepr.of[W] =:= TypeRepr.of[Nothing]))
+          Some(
+            '{
+              ${ directMonadInput.log }.getOrElse {
+                throw new IllegalArgumentException(ErrorForWithF.make($printEffect, $printLog, "MonadLog"))
+              }
+            }
+          )
+        else
+          None
+
+      DirectMonad[F, S, W](monadSuccess, monadFailure, monadSequence, monadSequencePar, monadState, monadLog)
     }
   }
 
+}
+
+object ErrorForWithF {
+  def make(effectType: String, otherType: String, monadStateOrLogName: String) =
+    val addition = if (otherType == "") "" else s", $otherType"
+    s"""Expected an input $monadStateOrLogName[$effectType$addition] to exist on the context but it was not found.""".stripMargin
 }

@@ -49,10 +49,24 @@ Consider doing something like this:
 
 val RunRemainingAfterTransformer =
 """
-Invocations of `run(...)` (or `op.run`) were detected even after all the transformations of zio-direct were completed.
-That means that zio-direct cannot successfully process the input you have passed into it. Try to use defer.verbose
-to examine the tree structure in order to understand what is wrong or submit a bug-report
+Invocations of an evaluation function e.g. `run(...)` (or `op.run`) were detected even after all the transformations
+of zio-direct were completed. That means that zio-direct cannot successfully process the input you have passed into it.
+Try to use defer.verbose to examine the tree structure in order to understand what is wrong or submit a bug-report
 at https://github.com/zio/zio-direct.
+""".trimLeft
+
+val ForeignRunRemainingAfterTransformer =
+"""
+Invocations of an evaluation function e.g. `run(...)` (or `op.run`) of a DIFFERENT kind of defer-function were detected even
+after all the transformations of zio-direct were completed. That means that zio-direct cannot successfully process the input
+you have passed into it. Make sure that you are using the correct evaluation function for the kind of defer that you are using,
+for example in zio-streams, the evaluation function is `.each` e.g. `ZStream(1,2,3).each`. For ZPure it is `.eval`.
+""".trimLeft
+
+val UtilityRemainingAfterTransformer =
+"""
+Invocations of a utility-call remained after all the transformations of zio-direct were completed. This typically
+means that an invalid function-call is invoked for the kind of `defer` that you are using.
 """.trimLeft
 
 val UnsafeRemainingAfterTransformer =

@@ -6,12 +6,12 @@ import zio.ZIO
 
 import MonadShape.Variance._
 import MonadShape.Letter._
-implicit val streamMonadModel: MonadModel[ZStream] {
+import zio.Chunk
+
+type StreamMonadModel = MonadModel {
   type Variances = MonadShape.Variances3[Contravariant, Covariant, Covariant]
   type Letters = MonadShape.Letters3[R, E, A]
-} = new MonadModel[ZStream] {
-  type Variances = MonadShape.Variances3[Contravariant, Covariant, Covariant]
-  type Letters = MonadShape.Letters3[R, E, A]
+  type IsFallible = true
 }
 
 implicit val zstreamMonadSuccess: MonadSuccess[ZStream] = new MonadSuccess[ZStream] {
@@ -32,11 +32,17 @@ implicit val zstreamMonadFallible: MonadFallible[ZStream] = new MonadFallible[ZS
 }
 
 implicit val zstreamMonadSequence: MonadSequence[ZStream] = new MonadSequence[ZStream] {
+  // basically the equivalent of `gens.foldRight[Gen[R, List[A]]](Gen.const(List.empty))(_.zipWith(_)(_ :: _))`
+  private def crossN[R, E, A, B, C](streams: Chunk[ZStream[R, E, A]]): ZStream[R, E, Chunk[A]] =
+    streams.foldLeft[ZStream[R, E, Chunk[A]]](ZStream.succeed(Chunk.empty)) { (left, right) => left.cross(right).map { case (l, r) => l :+ r } }
+
   def foreach[R, E, A, B, Collection[+Element] <: Iterable[Element]](
       in: Collection[A]
   )(f: A => ZStream[R, E, B])(implicit bf: scala.collection.BuildFrom[Collection[A], B, Collection[B]]): ZStream[R, E, Collection[B]] =
-    // TODO Same problem again. Need a different type for the finalization
-    ZStream.fromZIO(ZIO.foreach(in)((a: A) => f(a).runHead.map(_.get)))
+    // If exceptions thrown here, want to catch them when we wrap this
+    lazy val crossedChunks = crossN(Chunk.fromIterable(in.map(f)))
+    lazy val output = crossedChunks.map(chunk => bf.fromSpecific(in)(chunk))
+    ZStream(output).flatten
 }
 
 implicit val zstreamMonadSequencePar: MonadSequenceParallel[ZStream] = new MonadSequenceParallel[ZStream] {
@@ -44,5 +50,5 @@ implicit val zstreamMonadSequencePar: MonadSequenceParallel[ZStream] = new Monad
       in: Collection[A]
   )(f: A => ZStream[R, E, B])(implicit bf: scala.collection.BuildFrom[Collection[A], B, Collection[B]]): ZStream[R, E, Collection[B]] =
     // TODO Same problem again. Need a different type for the finalization
-    ZStream.fromZIO(ZIO.foreachPar(in)((a: A) => f(a).runHead.map(_.get)))
+    zstreamMonadSequence.foreach(in)(f)
 }

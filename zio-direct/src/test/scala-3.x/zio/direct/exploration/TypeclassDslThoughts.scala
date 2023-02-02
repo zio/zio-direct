@@ -1,4 +1,4 @@
-package zio.direct
+package zio.direct.exploration
 
 import zio.ZIO
 

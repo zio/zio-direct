@@ -16,11 +16,26 @@ import zio.direct.core.metaprog.RefineInstructions
 import zio.direct.core.metaprog.Linearity
 
 class directRunCall extends scala.annotation.StaticAnnotation
+class directSetCall extends scala.annotation.StaticAnnotation
+class directGetCall extends scala.annotation.StaticAnnotation
+class directLogCall extends scala.annotation.StaticAnnotation
 
 def unsafe[T](value: T): T = NotDeferredException.fromNamed("unsafe")
 
-trait deferCall[F[_, _, _], F_out] {
-  transparent inline def impl[T](inline value: T, inline info: InfoBehavior, inline use: Use, inline linearity: Linearity) = ${ zio.direct.Dsl.impl[T, F, F_out]('value, 'info, 'use, 'linearity) }
+trait deferCall[F[_, _, _], F_out, S, W, MM <: MonadModel](
+    success: MonadSuccess[F],
+    fallible: Option[MonadFallible[F]],
+    sequence: MonadSequence[F],
+    sequencePar: MonadSequenceParallel[F],
+    state: Option[MonadState[F, S]],
+    log: Option[MonadLog[F, W]]
+) {
+  transparent inline def impl[T](
+      inline value: T,
+      inline info: InfoBehavior,
+      inline use: Use,
+      inline linearity: Linearity
+  ) = ${ zio.direct.Dsl.impl[T, F, F_out, S, W, MM]('value, 'info, 'use, 'linearity, 'success, 'fallible, 'sequence, 'sequencePar, 'state, 'log) }
 
   import zio.direct.core.metaprog.Linearity.{Regular => LinReg, Linear => Lin}
 
@@ -63,7 +78,7 @@ trait deferCall[F[_, _, _], F_out] {
   }
 }
 
-object defer extends deferCall[ZIO, ZIO[?, ?, ?]]
+object defer extends deferCall[ZIO, ZIO[?, ?, ?], Nothing, Nothing, ZioMonadModel](zioMonadSuccess, Some(zioMonadFallible), zioMonadSequence, zioMonadSequenceParallel, None, None)
 
 extension [R, E, A](value: ZIO[R, E, A]) {
   @directRunCall
@@ -76,7 +91,27 @@ object Dsl {
   // def implZIO[T: Type](value: Expr[T], infoExpr: Expr[InfoBehavior], useTree: Expr[Use])(using q: Quotes) =
   //   impl[T, ZIO, ZIO[?, ?, ?]](value, infoExpr, useTree)
 
-  def impl[T: Type, F[_, _, _]: Type, F_out: Type](value: Expr[T], infoExpr: Expr[InfoBehavior], useTree: Expr[Use], linearityExpr: Expr[Linearity])(using q: Quotes): Expr[F_out] =
+  case class DirectMonadInput[F[_, _, _]: Type, S: Type, W: Type](
+      success: Expr[MonadSuccess[F]],
+      fallible: Expr[Option[MonadFallible[F]]],
+      sequence: Expr[MonadSequence[F]],
+      sequencePar: Expr[MonadSequenceParallel[F]],
+      state: Expr[Option[MonadState[F, S]]],
+      log: Expr[Option[MonadLog[F, W]]]
+  )
+
+  def impl[T: Type, F[_, _, _]: Type, F_out: Type, S: Type, W: Type, MM <: MonadModel: Type](
+      value: Expr[T],
+      infoExpr: Expr[InfoBehavior],
+      useTree: Expr[Use],
+      linearityExpr: Expr[Linearity],
+      success: Expr[MonadSuccess[F]],
+      fallible: Expr[Option[MonadFallible[F]]],
+      sequence: Expr[MonadSequence[F]],
+      sequencePar: Expr[MonadSequenceParallel[F]],
+      state: Expr[Option[MonadState[F, S]]],
+      log: Expr[Option[MonadLog[F, W]]]
+  )(using q: Quotes): Expr[F_out] =
     import quotes.reflect._
     val linearity = Unliftables.unliftLinearity(linearityExpr.asTerm.underlyingArgument.asExprOf[Linearity])
     val infoBehavior = Unliftables.unliftInfoBehavior(infoExpr.asTerm.underlyingArgument.asExprOf[InfoBehavior])
@@ -91,8 +126,11 @@ object Dsl {
             case Linearity.Linear => Verify.Lenient
         }
       )
+
+    val input = DirectMonadInput(success, fallible, sequence, sequencePar, state, log)
+
     val instructions = RefineInstructions.fromUseTree(useTree, instructionsRaw)
-    (new Transformer[F, F_out](q)).apply(value, instructions)
+    (new Transformer[F, F_out, S, W, MM](q)).apply(value, instructions, input)
     // (new Transformer[ZIO, ZIO[?, ?, ?]](q)).apply(value, instructions)
 
 }

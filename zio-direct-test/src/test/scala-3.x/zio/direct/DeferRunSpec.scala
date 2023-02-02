@@ -72,8 +72,8 @@ trait DeferRunSpec extends ZIOSpecDefault {
   val errorMsg =
     "Detected an `run` call inside of an unsupported structure"
 
-  transparent inline def isType[T](inline input: Any) = ${ DeferRunSpec.isType[T]('input) }
-  transparent inline def assertIsType[T](inline input: Any) = {
+  inline def isType[T](inline input: Any) = ${ DeferRunSpec.isType[T]('input) }
+  inline def assertIsType[T](inline input: Any) = {
     assertTrue(isType[T](input))
   }
 

@@ -58,6 +58,8 @@ object SyntaxHighlight {
  * happens when there is some kind of upstream problem which is the cause of the real issue e.g. a foo.bar call where the `bar` doesn't
  * actually exist. That means that the NoDenotation.owner error is just noise. Therefore the show___ methods
  * now return a try that catches a custom NoDenotationException which callers of this object can deal with.
+ * A similar story happens with match-failures in extractors etc... in the original version of this class written for Dotty.
+ * Therefore the errors are being captured without the use of report.errorAndAbort.
  */
 object SourceCode {
 
@@ -1469,22 +1471,31 @@ object SourceCode {
       bounds.low match {
         case Inferred() =>
         case low =>
-          this += " >: "
-          printTypeTree(low)
+          if (showDetails.showBoundsTypes)
+            this += " >: "
+            printTypeTree(low)
+          else
+            this += "_"
       }
       bounds.hi match {
         case Inferred() => this
         case hi =>
-          this += " <: "
-          printTypeTree(hi)
+          if (showDetails.showBoundsTypes)
+            this += " <: "
+            printTypeTree(hi)
+          else
+            this += "_"
       }
     }
 
     private def printBounds(bounds: TypeBounds)(using elideThis: Option[Symbol]): this.type = {
-      this += " >: "
-      printType(bounds.low)
-      this += " <: "
-      printType(bounds.hi)
+      if (showDetails.showBoundsTypes)
+        this += " >: "
+        printType(bounds.low)
+        this += " <: "
+        printType(bounds.hi)
+      else
+        this += "_"
     }
 
     private def printProtectedOrPrivate(definition: Definition): Boolean = {

@@ -29,15 +29,15 @@ trait WithReconstructTree {
   import macroQuotes.reflect._
 
   protected object ReconstructTree {
-    def apply[F[_, _, _]: Type](monad: DirectMonad[F], effectType: ZioEffectType, instructions: Instructions) =
-      new ReconstructTree[F](monad, effectType, instructions)
+    def apply[F[_, _, _]: Type, S: Type, W: Type](monad: DirectMonad[F, S, W], effectType: ZioEffectType, instructions: Instructions) =
+      new ReconstructTree[F, S, W](monad, effectType, instructions)
   }
 
-  protected class ReconstructTree[F[_, _, _]: Type] private (monad: DirectMonad[F], et: ZioEffectType, instructions: Instructions) { self =>
+  protected class ReconstructTree[F[_, _, _]: Type, S: Type, W: Type] private (monad: DirectMonad[F, S, W], et: ZioEffectType, instructions: Instructions) { self =>
     implicit val instructionsInst: Instructions = instructions
     // so that we can do IRT.Compute
     implicit val typeUnion: TypeUnion = instructions.typeUnion
-    case class ResolveWith(zpe: ZioType) extends Resolver[F](zpe, monad)
+    case class ResolveWith(zpe: ZioType) extends Resolver[F, S, W](zpe, monad)
 
     def fromIR(irt: IRT) = apply(irt, true).term
 
@@ -49,7 +49,7 @@ trait WithReconstructTree {
           (accum :+ block.head, apply(otherMonad).term)
 
     private def apply(ir: IRT, isTopLevel: Boolean = false): ZioValue = {
-      object Resolve extends Resolver[F](ir.zpe, monad)
+      object Resolve extends Resolver[F, S, W](ir.zpe, monad)
       ir match
         case irt: IRT.Pure =>
           ZioValue(monad.Value.succeed(irt.code), irt.zpe)
@@ -130,8 +130,7 @@ trait WithReconstructTree {
               val rightExpr = '{ (r: Any) => r match { case true => ${ apply(b).expr }; case false => ${ monad.Value.False } } }
               Resolve.applyFlatMap(apply(a), rightExpr.toZioValue(b.zpe))
             case (a: IRT.Monadic, IRT.Pure(b)) =>
-              val rightExpr = '{ (r: Any) => r match { case true => ${ b.asExpr }; case false => ${ monad.Value.False } } }
-              Resolve.applyMap(apply(a), rightExpr.asTerm)
+              Resolve.applyMap(apply(a), '{ (r: Boolean) => r && ${ b.asExprOf[Boolean] } }.asTerm)
             case (IRT.Pure(a), b: IRT.Monadic) =>
               '{
                 if (${ a.asExprOf[Boolean] }) ${ apply(b).expr }
@@ -150,7 +149,7 @@ trait WithReconstructTree {
             case (a: IRT.Monadic, b: IRT.Monadic) =>
               Resolve.applyFlatMap(apply(a), '{ (r: Any) => r match { case true => ${ monad.Value.True }; case false => ${ apply(b).expr } } }.toZioValue(right.zpe))
             case (a: IRT.Monadic, IRT.Pure(b)) =>
-              Resolve.applyMap(apply(a), '{ (r: Any) => r match { case true => ${ monad.Value.True }; case false => ${ b.asExpr } } }.asTerm)
+              Resolve.applyMap(apply(a), '{ (r: Boolean) => r || ${ b.asExprOf[Boolean] } }.asTerm)
             case (IRT.Pure(a), b: IRT.Monadic) =>
               '{
                 if (${ a.asExprOf[Boolean] }) ${ monad.Value.True }
@@ -288,7 +287,12 @@ trait WithReconstructTree {
     def reconstructTryCases(monadFailure: Expr[MonadFallible[F]])(wholeTryZpe: ZioType, tryBlock: IRT, caseDefs: IRT.Match.CaseDefs) = {
       val tryBlockType = tryBlock.zpe
       val tryTerm = apply(tryBlock)
-      val scalaCaseDefs = reconstructCaseDefs(caseDefs).toList
+      val scalaCaseDefs =
+        caseDefs.cases.map { caseDef =>
+          val rhsRaw = apply(caseDef.rhs)
+          CaseDef(caseDef.pattern, caseDef.guard, rhsRaw.term)
+        }.toList
+
       (tryBlockType.toZioType.asType, tryBlockType.e.asType, wholeTryZpe.toZioType.asType) match
         case ('[zioTry], '[zioTry_E], '[zioOut]) =>
           // A normal lambda looks something like:

@@ -93,13 +93,13 @@ object VariaSpec extends DeferRunSpec {
         class Blah(val value: Int)
         val out =
           defer {
-            val (a, a1) = each(ZStream.succeed((1, 2)))
+            val (a, a1) = each(ZStream((1, 2), (3, 4)))
             val blah = new Blah(3)
             import blah._
-            val b = each(ZStream.succeed(value))
+            val b = each(ZStream(value, value))
             a + b
           }
-        assertZIO(out.runCollect)(equalTo(Chunk(4)))
+        assertZIO(out.runCollect)(equalTo(Chunk(4, 4, 6, 6)))
       },
       test("deconstruct and multiple import") {
         class Blah(val value: Int)
@@ -111,13 +111,13 @@ object VariaSpec extends DeferRunSpec {
             import blah0._
             val blah1 = new Blah1(2)
             import blah1._
-            val (a, a1) = ZStream.succeed((value0, value1)).each
+            val (a, a1) = ZStream((value0, value1), (value0 + 1, value1 + 1)).each
             val blah = new Blah(3)
             import blah._
-            val b = ZStream.succeed(value).each
+            val b = ZStream(value, value + 1).each
             a + a1 + b
           }
-        assertZIO(out.runCollect)(equalTo(Chunk(6)))
+        assertZIO(out.runCollect)(equalTo(Chunk(6, 7, 8, 9)))
       }
     )
   )

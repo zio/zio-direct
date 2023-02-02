@@ -75,7 +75,7 @@ trait WithZioType extends MacroBase {
         // case tq"ZIO[$r, $e, $a]" =>
         //   (r.tpe, e.tpe, a.tpe)
         case _ =>
-          // TODO show raw on a ghigh level of verbosity
+          // TODO when moving to custom effect type, need to print the effect name here instead of "ZIO"
           report.errorAndAbort(s"The type of ${Format.Tree(zioTree)} is not a ZIO. It is: ${Format.Type(zioTree.tpe)}")
       }
 

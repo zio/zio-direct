@@ -144,9 +144,9 @@ trait WithIR {
    *   { collect(Chunk(foo, bar)).flatMap(iter => attempt { val par1 = iter.next; var par2 = iter.next; (par1, 4/0, bar) }
    */
   object WrapUnsafes {
-    def apply[F[_, _, _]: Type](monad: DirectMonad[F]) = new WrapUnsafes[F](monad)
+    def apply[F[_, _, _]: Type, S: Type, W: Type](monad: DirectMonad[F, S, W]) = new WrapUnsafes[F, S, W](monad)
   }
-  class WrapUnsafes[F[_, _, _]: Type](monad: DirectMonad[F]) extends StatelessTransformer {
+  class WrapUnsafes[F[_, _, _]: Type, S: Type, W: Type](monad: DirectMonad[F, S, W]) extends StatelessTransformer {
     override def apply(ir: IR.Monadic): IR.Monadic =
       ir match
         case IR.Unsafe(body) =>

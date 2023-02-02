@@ -20,16 +20,16 @@ import zio.direct.core.util.WithInterpolator
 import zio.direct.core.util.Messages
 
 trait WithDecomposeTree {
-  self: WithF with WithIR with WithZioType =>
+  self: WithF with WithPrintIR with WithIR with WithZioType =>
 
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._
 
   protected object Decompose:
-    def apply[F[_, _, _]: Type](monad: DirectMonad[F], effectType: ZioEffectType, instr: Instructions) =
+    def apply[F[_, _, _]: Type, S: Type, W: Type](monad: DirectMonad[F, S, W], effectType: ZioEffectType, instr: Instructions) =
       new Decompose(monad, effectType, instr)
 
-  protected class Decompose[F[_, _, _]: Type](monad: DirectMonad[F], et: ZioEffectType, instr: Instructions):
+  protected class Decompose[F[_, _, _]: Type, S: Type, W: Type](monad: DirectMonad[F, S, W], et: ZioEffectType, instr: Instructions):
     def apply(value: Term) = DecomposeTree.orPure(value)
     // object RunCall extends RunCallExtractor[F]
 
@@ -214,6 +214,8 @@ trait WithDecomposeTree {
               Some(IR.Monad(monad.Value.succeed(code.asTerm).asTerm, IR.Monad.Source.IgnoreCall))
             }
 
+          case DecomposeUtilityCall(utilityIR) => Some(utilityIR)
+
           case tryTerm @ Try(tryBlock, cases, finallyBlock) =>
             // Don't need the above terms
             // val tryBlockIR = DecomposeTree.orPure(tryBlock)
@@ -225,7 +227,11 @@ trait WithDecomposeTree {
                 None
               }
             val caseDefsOpt = casesOptIRTs.map(IR.Match.CaseDefs(_))
-            Some(IR.Try(DecomposeTree.orPure(tryBlock), caseDefsOpt, tryTerm.tpe, finallyBlock.map(DecomposeTree.orPure(_))))
+
+            val tryDecomposed = DecomposeTree.orPure(tryBlock)
+            // println(s"--------- Try Type: ${PrintIR(tryDecomposed)}")
+
+            Some(IR.Try(tryDecomposed, caseDefsOpt, tryTerm.tpe, finallyBlock.map(DecomposeTree.orPure(_))))
 
           case Seal('{ throw $e }) =>
             Some(IR.Fail(DecomposeTree.orPure(e.asTerm)))
@@ -321,5 +327,52 @@ trait WithDecomposeTree {
         // If at least one of the match-cases need to be transformed, transform all of them
         Some(applyMark(cases))
     }
+
+    private object DecomposeUtilityCall {
+      implicit val implicitInsr: Instructions = instr
+      private def typicalError(effectName: String, term: Tree) =
+        Unsupported.Error.withTree(
+          term,
+          s"""|Cannot call a ${effectName}-effect on the effect-type ${Format.TypeRepr(et.tpe)}.
+              |There is no instance of a MonadState defined for it. Perhaps you need to import a context?
+              |For example, for zio-direct-pure:
+              |  import zio.direct.pure._
+              |""".stripMargin
+        )
+
+      def unapply(term: Tree) =
+        term match {
+          case term @ AnyGetCall() =>
+            // NOTE interesting that getting SBase is not needed here
+            monad.MonadState match
+              case Some(stateMonad) => Some(IR.Monad('{ $stateMonad.get }.asTerm))
+              case None             => typicalError("State get", term)
+
+          case term @ AnySetCall(setValue) =>
+            monad.MonadState match
+              case Some(stateMonad) =>
+                Some(IR.Monad('{ ${ stateMonad.asExprOf[MonadState[F, S]] }.set(${ setValue.asExprOf[S] }) }.asTerm))
+
+              // Note that if this whole approach with casting to MonadState[F, ...] doesn't work,
+              // we could always try to cast stateMonad to MonadState[F, Any] or some other value
+              // and also cast setValue as that same Any (or some other value). However this is
+              // a less type-full solution so it should only be used in last-resort.
+              // setValue.asTerm.tpe.asType match
+              //   case '[l] =>
+              //     Some(IR.Monad('{ ${ stateMonad.asExprOf[MonadState[F]] }.set(${ setValue.asExprOf[l] }) }.asTerm))
+              case None =>
+                typicalError("State set", term)
+
+          case term @ AnyLogCall(logValue) =>
+            monad.MonadLog match
+              case Some(logMonad) =>
+                Some(IR.Monad('{ ${ logMonad.asExprOf[MonadLog[F, W]] }.log(${ logValue.asExprOf[W] }) }.asTerm))
+              case None =>
+                typicalError("logging", term)
+          case _ =>
+            None
+        }
+    }
+
   end Decompose
 }

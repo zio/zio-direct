@@ -82,34 +82,82 @@ object Extractors {
     def unapply(using Quotes)(term: quotes.reflect.Term) = Some(recurse(term))
   }
 
+  object AnyGetCall {
+    def unapply(using Quotes)(tree: quotes.reflect.Tree): Boolean =
+      import quotes.reflect._
+
+      // val isZeroArg =
+      //   tree match {
+      //     case DottyFunctionCall.ZeroArg(invocation) =>
+      //       s"invocation-match: ${Printer.TreeStructure.show(invocation)}\n" +
+      //         s"Annotations:\n${invocation.tpe.termSymbol.annotations.map(annot => Printer.TreeStructure.show(annot))}\n"
+
+      //     case _ =>
+      //       "invocation-fail"
+      //   }
+      // println(
+      //   s"----------- here: ${Printer.TreeStructure.show(tree)} - ${isZeroArg} -------------"
+      // )
+
+      tree match
+        case DottyFunctionCall.ZeroArg(invocation @ DirectGetCallAnnotated.Term()) =>
+          // println("match")
+          true
+        case _ =>
+          // println("fail")
+          false
+  }
+  object AnySetCall {
+    def unapply(using Quotes)(tree: quotes.reflect.Tree): Option[Expr[_]] =
+      tree match
+        case DottyFunctionCall.OneArg(invocation @ DirectSetCallAnnotated.Term(), arg) => Some(arg.asExpr)
+        case _                                                                         => None
+  }
+  object AnyLogCall {
+    def unapply(using Quotes)(tree: quotes.reflect.Tree): Option[Expr[_]] =
+      tree match
+        case DottyFunctionCall.OneArg(invocation @ DirectLogCallAnnotated.Term(), arg) => Some(arg.asExpr)
+        case _                                                                         => None
+  }
+  object AnyUtilityCall {
+    def unapply(using Quotes)(tree: quotes.reflect.Tree): Boolean =
+      tree match
+        case DirectGetCallAnnotated.TermPlain() => true
+        case DirectSetCallAnnotated.TermPlain() => true
+        case DirectLogCallAnnotated.TermPlain() => true
+        case _                                  => false
+  }
+
   object AnyRunCall {
     def unapply(using Quotes)(tree: quotes.reflect.Tree): Option[Expr[_]] = {
       tree match
-        case DottyExtensionCall(invocation @ DirectRunCallAnnotated.Term(), effect) =>
+        case DottyExtensionCall.OneArg(invocation @ DirectRunCallAnnotated.Term(), effect) =>
           Some(effect.asExpr)
         case _ =>
           None
     }
-
-    object TypedAs {
-      def unapply(using Quotes)(tree: quotes.reflect.Tree): Option[quotes.reflect.TypeRepr] = {
-        tree match
-          case DottyExtensionCall(invocation @ DirectRunCallAnnotated.Term(), effect) =>
-            Some(effect.tpe)
-          case _ =>
-            None
-      }
-    }
   }
 
   /* Completely specific therefore maximally efficient match of directRunCall */
-  object DirectRunCallAnnotated {
+  object DirectRunCallAnnotated extends AnnotatedCall("directRunCall")
+  object DirectSetCallAnnotated extends AnnotatedCall("directSetCall")
+  object DirectGetCallAnnotated extends AnnotatedCall("directGetCall")
+  object DirectLogCallAnnotated extends AnnotatedCall("directLogCall")
+
+  class AnnotatedCall(annotationName: String) { self =>
     object Term {
       def unapply(using Quotes)(term: quotes.reflect.Term): Boolean = {
         import quotes.reflect._
         // early-exist if it's the wrong effect-type
         val termUntyped = Untype(term)
-        DirectRunCallAnnotated.Symbol.unapply(termUntyped.tpe.termSymbol)
+        self.Symbol.unapply(termUntyped.tpe.termSymbol)
+      }
+    }
+
+    object TermPlain {
+      def unapply(using Quotes)(term: quotes.reflect.Term): Boolean = {
+        import quotes.reflect._
+        self.Symbol.unapply(term.tpe.termSymbol)
       }
     }
 
@@ -118,7 +166,7 @@ object Extractors {
         import quotes.reflect._
         symbol.annotations.exists { annot =>
           annot match {
-            case v @ Apply(Select(New(typeId), "<init>"), argss) if (typeId.symbol.name == "directRunCall") =>
+            case v @ Apply(Select(New(typeId), "<init>"), argss) if (typeId.symbol.name == annotationName) =>
               true
             case _ =>
               false
@@ -128,7 +176,21 @@ object Extractors {
     }
   }
 
-  object DottyExtensionCall {
+  object DottyExtensionCall extends DottyCall(true)
+  object DottyFunctionCall extends DottyCall(false)
+
+  object SelectOrIdent {
+    def unapply(using Quotes)(term: quotes.reflect.Term): Option[quotes.reflect.Term] =
+      import quotes.reflect._
+      term match
+        case _: Select => Some(term)
+        case _: Ident  => Some(term)
+        case _         => None
+  }
+
+  class DottyCall(mustBeExtension: Boolean) {
+    private val matchNonExtension = !mustBeExtension
+
     private object SelectOrIdent {
       def unapply(using Quotes)(term: quotes.reflect.Term): Boolean =
         import quotes.reflect._
@@ -138,16 +200,38 @@ object Extractors {
           case _         => false
     }
 
-    def unapply(using Quotes)(term: quotes.reflect.Term) =
-      import quotes.reflect._
-      term match
-        case Apply(
-              UntypeApply(invocation @ SelectOrIdent()),
-              List(arg)
-            ) if (invocation.tpe.termSymbol.flags.is(Flags.ExtensionMethod)) =>
-          Some((invocation, arg))
-        case _ =>
-          None
+    object OneArg {
+      def unapply(using Quotes)(term: quotes.reflect.Term) =
+        import quotes.reflect._
+        term match
+          case Apply(
+                UntypeApply(invocation @ SelectOrIdent()),
+                List(arg)
+              )
+              if (matchNonExtension || invocation.tpe.termSymbol.flags.is(Flags.ExtensionMethod)) =>
+            Some((invocation, arg))
+          case _ =>
+            None
+    }
+    object ZeroArg {
+      def unapply(using Quotes)(term: quotes.reflect.Term) =
+        import quotes.reflect._
+        term match
+          // Invoke with zero-args and apply e.g. State.get() and possibly a type-param e.g. State.get[T]
+          case Apply(
+                UntypeApply(invocation @ SelectOrIdent()),
+                Nil
+              )
+              if (matchNonExtension || invocation.tpe.termSymbol.flags.is(Flags.ExtensionMethod)) =>
+            Some(invocation)
+
+          // Invoke with zero-args and without apply e.g. State.get() and possibly a type-param e.g. State.get[T]()
+          case UntypeApply(invocation @ SelectOrIdent())
+              if (matchNonExtension || invocation.tpe.termSymbol.flags.is(Flags.ExtensionMethod)) =>
+            Some(invocation)
+          case _ =>
+            None
+    }
   }
 
   object NotBlock {
