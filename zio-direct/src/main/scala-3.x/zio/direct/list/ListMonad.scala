@@ -1,4 +1,4 @@
-package zio.direct.stream
+package zio.direct.list
 
 import zio.direct._
 import zio.ZIO

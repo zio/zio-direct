@@ -1,8 +1,7 @@
-package zio.direct.stream
+package zio.direct.list
 
 import zio.direct.deferCall
 import zio.direct.directRunCall
-import zio.stream.ZStream
 import zio.direct.core.NotDeferredException
 
 object select extends deferCall[[R, E, A] =>> List[A], List[?]]
