@@ -30,9 +30,11 @@ object Format {
     // (unless lampepfl/dotty#10689 is resolved) to create a global module that does TypeRepr formatting. This is a bit
     // of a hacky way around that that just requires the element to be an inner class of a Quotes instance
     // and the casts it to the specific Quotes insance. Should reconsider this when lampepfl/dotty#10689 is fixed.
-    def apply(typeRepr: Quotes#reflectModule#TypeRepr)(using qctx: Quotes) =
+    def apply(typeRepr: Quotes#reflectModule#TypeRepr, mode: Mode = Mode.ScalaFmt())(using qctx: Quotes) =
       import qctx.reflect._
-      Printer.TypeReprShortCode.show(typeRepr.asInstanceOf[qctx.reflect.TypeRepr])
+      printShortType(typeRepr.asInstanceOf[qctx.reflect.TypeRepr], mode)
+      // SourceCode.showType(code)(details, SyntaxHighlight.plain, false)
+      // Printer.TypeReprShortCode.show(typeRepr.asInstanceOf[qctx.reflect.TypeRepr])
   }
 
   object Term:
@@ -51,10 +53,10 @@ object Format {
       Printer.TreeStructure.show(term.asInstanceOf[qctx.reflect.Term])
 
   object Type {
-    def apply(tpe: scala.quoted.Type[_])(using Quotes) =
+    def apply(tpe: scala.quoted.Type[_], mode: Mode = Mode.ScalaFmt())(using Quotes) =
       import quotes.reflect._
       tpe match
-        case '[tt] => Printer.TypeReprShortCode.show(quotes.reflect.TypeRepr.of[tt])
+        case '[tt] => printShortType(quotes.reflect.TypeRepr.of[tt], mode)
         case _     => tpe
   }
 
@@ -64,20 +66,30 @@ object Format {
       Format(printShortCode(using q)(expr.asTerm, mode), showErrorTrace)
   }
 
+  private def choosePrintMode(mode: Mode) =
+    mode match
+      case Mode.DottyColor(details) =>
+        (details, SyntaxHighlight.ANSI, false)
+      case Mode.DottyPlain(details) =>
+        (details, SyntaxHighlight.plain, false)
+      case Mode.ScalaFmt(details) =>
+        (details, SyntaxHighlight.plain, false)
+      case Mode.None(details) =>
+        (details, SyntaxHighlight.plain, false)
+
+  private def printShortType(using Quotes)(code: quotes.reflect.TypeRepr, mode: Mode): String =
+    import quotes.reflect._
+    val (showDetails, syntaxHightlight, flag) = choosePrintMode(mode)
+    val printedCode = SourceCode.showType(code)(showDetails, syntaxHightlight, flag)
+    printedCode match {
+      case Success(v) => v
+      case Failure(e) => s"""CannotPrintSourceCode(${e.getMessage()})"""
+    }
+
   private def printShortCode(using Quotes)(code: quotes.reflect.Tree, mode: Mode): String =
     import quotes.reflect._
-    val printedCode =
-      mode match {
-        case Mode.DottyColor(details) =>
-          SourceCode.showTree(code)(details, SyntaxHighlight.ANSI, false)
-        case Mode.DottyPlain(details) =>
-          SourceCode.showTree(code)(details, SyntaxHighlight.plain, false)
-        case Mode.ScalaFmt(details) =>
-          SourceCode.showTree(code)(details, SyntaxHighlight.plain, false)
-            .map(code => Format(code))
-        case Mode.None(details) =>
-          SourceCode.showTree(code)(details, SyntaxHighlight.plain, false)
-      }
+    val (showDetails, syntaxHightlight, flag) = choosePrintMode(mode)
+    val printedCode = SourceCode.showTree(code)(showDetails, syntaxHightlight, flag)
     printedCode match {
       case Success(v) => v
       case Failure(e) => s"""CannotPrintSourceCode(${e.getMessage()})"""

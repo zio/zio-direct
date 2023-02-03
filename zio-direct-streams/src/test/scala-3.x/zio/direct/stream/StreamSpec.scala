@@ -17,6 +17,18 @@ object StreamSpec extends DeferRunSpec {
   val e1 = new Exception("blahblah")
 
   val spec = suite("VariaSpec")(
+    test("Simple Sequence") {
+      val out =
+        defer {
+          val a = ZStream(1, 2, 3)
+          val b = ZStream("foo", "bar")
+          (a.each, b.each)
+        }
+      assertIsType[ZStream[Any, Nothing, (Int, String)]](out) andAssert
+        assertZIO(out.runCollect)(equalTo(
+          Chunk((1, "foo"), (1, "bar"), (2, "foo"), (2, "bar"), (3, "foo"), (3, "bar"))
+        ))
+    },
     test("Try/Catch succeed") {
       val out =
         defer {
