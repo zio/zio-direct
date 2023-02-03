@@ -29,6 +29,27 @@ object StreamSpec extends DeferRunSpec {
           Chunk((1, "foo"), (1, "bar"), (2, "foo"), (2, "bar"), (3, "foo"), (3, "bar"))
         ))
     },
+    test("Impure/Impure If-statement") {
+      val out =
+        defer {
+          if (ZStream(1, 2).each == 2) ZStream("foo", "bar").each else ZStream("x", "y").each
+        }
+      assertZIO(out.runCollect)(equalTo(
+        Chunk("x", "y", "foo", "bar")
+      ))
+    },
+    test("Impure/Impure Pat-match") {
+      val out =
+        defer {
+          ZStream("a", "b").each match {
+            case "a" => ZStream(1, 2).each
+            case "b" => ZStream(3, 4).each
+          }
+        }
+      assertZIO(out.runCollect)(equalTo(
+        Chunk(1, 2, 3, 4)
+      ))
+    },
     test("Try/Catch succeed") {
       val out =
         defer {
@@ -55,6 +76,51 @@ object StreamSpec extends DeferRunSpec {
           throwFoo()
         }
       assertZIO(out.runCollect.exit)(dies(isSubtype[FooError](anything)))
+    },
+    test("List Impure, body Impure") {
+      var v = 1
+      val out =
+        defer(Use.withLenientCheck) {
+          for (i <- ZStream(List(1, 2, 3), List(4, 5, 6)).each) {
+            ZStream(v += i).each
+          }
+        }
+      assertZIO(out.runCollect)(equalTo(Chunk((), ()))) andAssert
+        assert(v)(equalTo(22))
+    },
+    test("Complex Example Case") {
+      val x = ZStream(1, -2, -3)
+      val y = ZStream("ab", "cde")
+      val out =
+        defer {
+          val xx = x.each
+          xx + (
+            if xx > 0 then y.each.length() * x.each
+            else y.each.length()
+          )
+        }
+      // the above statement does not actually expand to this but they should be equivalent
+      val compare =
+        x.flatMap { xx =>
+          if (xx > 0) {
+            y.flatMap { yEach =>
+              x.map { xEach =>
+                xx + yEach.length * xEach
+              }
+            }
+          } else {
+            y.map { yEach =>
+              xx + yEach.length
+            }
+          }
+        }
+      val expectedOutput = Chunk(3, -3, -5, 4, -5, -8, 0, 1, -1, 0)
+      for {
+        a <- out.runCollect
+        b <- compare.runCollect
+      } yield {
+        assert(a)(equalTo(b)) && assert(a)(equalTo(expectedOutput))
+      }
     }
   )
 }

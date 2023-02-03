@@ -122,7 +122,7 @@ object BooleanSpec extends DeferRunSpec {
           assertZIO(out)(equalTo(True))
         },
         test("True/NotExpected") {
-          val out = defer.verbose {
+          val out = defer {
             runBlock(ZIO.succeed(True)) || NotExpected
           }
           assertZIO(out.debug)(equalTo(True))
