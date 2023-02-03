@@ -58,6 +58,8 @@ object SyntaxHighlight {
  * happens when there is some kind of upstream problem which is the cause of the real issue e.g. a foo.bar call where the `bar` doesn't
  * actually exist. That means that the NoDenotation.owner error is just noise. Therefore the show___ methods
  * now return a try that catches a custom NoDenotationException which callers of this object can deal with.
+ * A similar story happens with match-failures in extractors etc... in the original version of this class written for Dotty.
+ * Therefore the errors are being captured without the use of report.errorAndAbort.
  */
 object SourceCode {
 

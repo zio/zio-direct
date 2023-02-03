@@ -130,8 +130,7 @@ trait WithReconstructTree {
               val rightExpr = '{ (r: Any) => r match { case true => ${ apply(b).expr }; case false => ${ monad.Value.False } } }
               Resolve.applyFlatMap(apply(a), rightExpr.toZioValue(b.zpe))
             case (a: IRT.Monadic, IRT.Pure(b)) =>
-              val rightExpr = '{ (r: Any) => r match { case true => ${ b.asExpr }; case false => ${ monad.Value.False } } }
-              Resolve.applyMap(apply(a), rightExpr.asTerm)
+              Resolve.applyMap(apply(a), '{ (r: Boolean) => r && ${ b.asExprOf[Boolean] } }.asTerm)
             case (IRT.Pure(a), b: IRT.Monadic) =>
               '{
                 if (${ a.asExprOf[Boolean] }) ${ apply(b).expr }
@@ -150,7 +149,7 @@ trait WithReconstructTree {
             case (a: IRT.Monadic, b: IRT.Monadic) =>
               Resolve.applyFlatMap(apply(a), '{ (r: Any) => r match { case true => ${ monad.Value.True }; case false => ${ apply(b).expr } } }.toZioValue(right.zpe))
             case (a: IRT.Monadic, IRT.Pure(b)) =>
-              Resolve.applyMap(apply(a), '{ (r: Any) => r match { case true => ${ monad.Value.True }; case false => ${ b.asExpr } } }.asTerm)
+              Resolve.applyMap(apply(a), '{ (r: Boolean) => r || ${ b.asExprOf[Boolean] } }.asTerm)
             case (IRT.Pure(a), b: IRT.Monadic) =>
               '{
                 if (${ a.asExprOf[Boolean] }) ${ monad.Value.True }
