@@ -80,6 +80,23 @@ object StreamSpec extends DeferRunSpec {
       assertIsType[ZStream[Any, FooError, Int]](out) andAssert
         assertZIO(out.runCollect)(equalTo(Chunk(1, 2, 33, 44, 55)))
     },
+    test("Try/Catch NOT caught") {
+      val out =
+        defer {
+          try {
+            val num = ZStream(1, 2, 3, 4).each
+            if (num == 3) {
+              throw new FooError
+            } else {
+              num
+            }
+          } catch {
+            case _: BarError => ZStream(33, 44, 55).each
+          }
+        }
+      assertIsType[ZStream[Any, FooError, Int]](out) andAssert
+        assertZIO(out.runCollect.exit)(fails(isSubtype[FooError](anything)))
+    },
     test("Throw-fail") {
       val out =
         defer(Use.withNoCheck) {

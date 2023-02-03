@@ -5,11 +5,15 @@ import zio.direct.directRunCall
 import zio.prelude.fx.ZPure
 import zio.direct.core.NotDeferredException
 
-class deferFactory[W, S] extends deferCall[[R, E, A] =>> ZPure[W, S, S, R, E, A], ZPure[?, ?, ?, ?, ?, ?]]
+class deferWith[W, S] extends deferCall[[R, E, A] =>> ZPure[W, S, S, R, E, A], ZPure[?, ?, ?, ?, ?, ?]]
+
+class alwaysDeferWith[W, S] {
+  def defer = deferWith[W, S]
+}
 
 type ZPureProxy[R, E, A] = ZPure[_, _, _, R, E, A]
 
 extension [R, E, A](value: ZPureProxy[R, E, A]) {
   @directRunCall
-  def runPure: A = NotDeferredException.fromNamed("runPure")
+  def eval: A = NotDeferredException.fromNamed("eval")
 }
