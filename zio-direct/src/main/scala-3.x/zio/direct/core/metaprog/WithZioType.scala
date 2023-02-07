@@ -43,7 +43,7 @@ trait WithZioType {
   // }
 
   // TODO At least check that the A type exists, it has to since it's a value
-  class ZioEffectType private (val tpe: TypeRepr, val variances: Array[(MonadShape.Letter, MonadShape.Variance)]) {
+  class ZioEffectType private (val tpe: TypeRepr, val markerAppliedTyped: TypeRepr, val variances: Array[(MonadShape.Letter, MonadShape.Variance)]) {
     if (!variances.exists(_._1 == MonadShape.Letter.A))
       report.errorAndAbort("List of MonadShape letters must at least include an A i.e. value-type.")
 
@@ -99,19 +99,21 @@ trait WithZioType {
       }
 
     // array size of arrays if they need to be reconstructed with elements inside
-    private def oneIfExists(index: Int) = if (index != -1) 1 else 0
-    val lettersArraySize =
-      oneIfExists(indexStrictOfR) + oneIfExists(indexStrictOfE) + oneIfExists(indexStrictOfA)
-    private def ifExistFillElement(index: Int, element: TypeRepr, arr: Array[Any]) =
-      if (index != -1) arr(index) = element
+    // private def oneIfExists(index: Int) = if (index != -1) 1 else 0
+    // val lettersArraySize =
+    //   oneIfExists(indexStrictOfR) + oneIfExists(indexStrictOfE) + oneIfExists(indexStrictOfA)
+    // private def ifExistFillElement(index: Int, element: TypeRepr, arr: Array[Any]) =
+    //   if (index != -1) arr(index) = element
 
     def reconstruct(r: TypeRepr, e: TypeRepr, a: TypeRepr) =
-      val arr = new Array[Any](lettersArraySize)
-      ifExistFillElement(indexStrictOfR, r, arr)
-      ifExistFillElement(indexStrictOfE, e, arr)
-      ifExistFillElement(indexStrictOfA, a, arr)
+      // val arr = new Array[Any](lettersArraySize)
+      // ifExistFillElement(indexStrictOfR, r, arr)
+      // ifExistFillElement(indexStrictOfE, e, arr)
+      // ifExistFillElement(indexStrictOfA, a, arr)
       // println(s"---------------- Fill Arr (${lettersArraySize}): ${arr.asInstanceOf[Array[TypeRepr]].toList}")
-      AppliedType(tpe, arr.asInstanceOf[Array[TypeRepr]].toList)
+      val out = makeTypeRepr(r, e, a)
+      // println(s"********** RECONSTRUCT: ${out.show}")
+      out
 
     // assumes lengths of variances and types list are the same, things that calls this needs to check that
     private def extractTypes(tpes: List[TypeRepr]) =
@@ -139,6 +141,26 @@ trait WithZioType {
           Some(extractTypes(typeArgs))
         case _ =>
           None
+
+    /**
+     * Re-create the effect type. This works even if the effect-type is a type-lambda (as is the case for ZPure etc...)
+     *  Does not need to be as performant because this is for reconstruction, not matching
+     */
+    def makeTypeRepr(r: TypeRepr, e: TypeRepr, a: TypeRepr): TypeRepr =
+      markerAppliedTyped match
+        case AppliedType(root, args) => // List(a, b, c) (TODO should have some kind of way to specify # params used?)
+          // Based on the example type we created in the expression: '{ ???.asInstanceOf[F[Marker.A, Marker.B, Marker.C]] }
+          val newArgs =
+            args.map { arg =>
+              if (arg =:= TypeRepr.of[Marker.A]) r
+              else if (arg =:= TypeRepr.of[Marker.B]) e
+              else if (arg =:= TypeRepr.of[Marker.C]) a
+              else arg
+            }
+          AppliedType(root, newArgs)
+        case _ =>
+          report.errorAndAbort(s"Could not reconstruct the effect type of: ${tpe.show}")
+
   }
   object ZioEffectType {
     def of[F[_, _, _]: Type]: ZioEffectType = {
@@ -156,6 +178,7 @@ trait WithZioType {
 
       new ZioEffectType(
         rootType,
+        tpe,
         monadModel.toArray
         // Array(
         //   (MonadShape.Letter.R, MonadShape.Variance.Contravariant),

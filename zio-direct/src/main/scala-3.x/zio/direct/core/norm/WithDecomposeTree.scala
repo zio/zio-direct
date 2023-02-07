@@ -20,7 +20,7 @@ import zio.direct.core.util.WithInterpolator
 import zio.direct.core.util.Messages
 
 trait WithDecomposeTree {
-  self: WithF with WithIR with WithZioType =>
+  self: WithF with WithPrintIR with WithIR with WithZioType =>
 
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._
@@ -227,7 +227,11 @@ trait WithDecomposeTree {
                 None
               }
             val caseDefsOpt = casesOptIRTs.map(IR.Match.CaseDefs(_))
-            Some(IR.Try(DecomposeTree.orPure(tryBlock), caseDefsOpt, tryTerm.tpe, finallyBlock.map(DecomposeTree.orPure(_))))
+
+            val tryDecomposed = DecomposeTree.orPure(tryBlock)
+            println(s"--------- Try Type: ${PrintIR(tryDecomposed)}")
+
+            Some(IR.Try(tryDecomposed, caseDefsOpt, tryTerm.tpe, finallyBlock.map(DecomposeTree.orPure(_))))
 
           case Seal('{ throw $e }) =>
             Some(IR.Fail(DecomposeTree.orPure(e.asTerm)))
