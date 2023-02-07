@@ -66,12 +66,16 @@ object PureSpec extends DeferRunSpec {
     },
     test("Impure/Impure If-statement") {
       val out = defer {
-        if (ZPure.succeed(2).eval == 2) ZPure.succeed[MyState, String]("foo").eval else ???
+        if (ZPure.succeed(2).eval == 2)
+          val v = ZPure.succeed[MyState, String]("foo").eval
+          State.set(MyState(v))
+          v
+        else
+          val v = ZPure.succeed[MyState, String]("bar").eval
+          State.set(MyState(v))
+          v
       }
-      // assertZIO(out.runCollect)(equalTo(
-      //   Chunk("x", "y", "foo", "bar")
-      // ))
-      assertTrue(true)
+      assert(out.run(MyState("init")))(equalTo((MyState("foo"), "foo")))
     }
     // test("Impure/Impure Pat-match") {
     //   val out =
