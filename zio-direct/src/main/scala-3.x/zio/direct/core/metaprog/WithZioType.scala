@@ -10,6 +10,7 @@ import zio.direct.core.util.ThrowableOps
 import zio.direct.MonadShape
 import zio.direct.MonadModel
 import zio.direct.core.metaprog.Embedder.Compose
+import scala.runtime.Arrays
 
 trait WithZioType {
   implicit val macroQuotes: Quotes
@@ -43,11 +44,12 @@ trait WithZioType {
   // }
 
   // TODO At least check that the A type exists, it has to since it's a value
-  class ZioEffectType private (val tpe: TypeRepr, val markerAppliedTyped: TypeRepr, val variances: Array[(MonadShape.Letter, MonadShape.Variance)]) {
+  class ZioEffectType private (val tpe: TypeRepr, val typesWithMarkers: Array[TypeRepr], val variances: Array[(MonadShape.Letter, MonadShape.Variance)]) {
     if (!variances.exists(_._1 == MonadShape.Letter.A))
       report.errorAndAbort("List of MonadShape letters must at least include an A i.e. value-type.")
 
     private val variancesLetters: Array[MonadShape.Letter] = variances.map(_._1)
+    // TODO Verify the positions of these against the typesWithMarkers because they also have TypeReprs with indexes
     private val indexOfR = variancesLetters.indexOf(MonadShape.Letter.R)
     private val indexOfE = variancesLetters.indexOf(MonadShape.Letter.E)
     private val indexOfA = variancesLetters.indexOf(MonadShape.Letter.A)
@@ -102,16 +104,19 @@ trait WithZioType {
     // private def oneIfExists(index: Int) = if (index != -1) 1 else 0
     // val lettersArraySize =
     //   oneIfExists(indexStrictOfR) + oneIfExists(indexStrictOfE) + oneIfExists(indexStrictOfA)
-    // private def ifExistFillElement(index: Int, element: TypeRepr, arr: Array[Any]) =
-    //   if (index != -1) arr(index) = element
+    private def ifExistFillElement(index: Int, element: TypeRepr, arr: Array[TypeRepr]) =
+      if (index != -1) arr(index) = element
 
     def reconstruct(r: TypeRepr, e: TypeRepr, a: TypeRepr) =
       // val arr = new Array[Any](lettersArraySize)
-      // ifExistFillElement(indexStrictOfR, r, arr)
-      // ifExistFillElement(indexStrictOfE, e, arr)
-      // ifExistFillElement(indexStrictOfA, a, arr)
+      // NOTE: CANNOT use pattern matching, mapping, etc... for this method. Performance requirements are just too high.
+      //       if perf here is even a little bad, auto-complete takes forever.
+      val arr = typesWithMarkers.clone()
+      ifExistFillElement(indexOfR, r, arr)
+      ifExistFillElement(indexOfE, e, arr)
+      ifExistFillElement(indexOfA, a, arr)
       // println(s"---------------- Fill Arr (${lettersArraySize}): ${arr.asInstanceOf[Array[TypeRepr]].toList}")
-      val out = makeTypeRepr(r, e, a)
+      val out = AppliedType(tpe, arr.toList)
       // println(s"********** RECONSTRUCT: ${out.show}")
       out
 
@@ -142,43 +147,24 @@ trait WithZioType {
         case _ =>
           None
 
-    /**
-     * Re-create the effect type. This works even if the effect-type is a type-lambda (as is the case for ZPure etc...)
-     *  Does not need to be as performant because this is for reconstruction, not matching
-     */
-    def makeTypeRepr(r: TypeRepr, e: TypeRepr, a: TypeRepr): TypeRepr =
-      markerAppliedTyped match
-        case AppliedType(root, args) => // List(a, b, c) (TODO should have some kind of way to specify # params used?)
-          // Based on the example type we created in the expression: '{ ???.asInstanceOf[F[Marker.A, Marker.B, Marker.C]] }
-          val newArgs =
-            args.map { arg =>
-              if (arg =:= TypeRepr.of[Marker.A]) r
-              else if (arg =:= TypeRepr.of[Marker.B]) e
-              else if (arg =:= TypeRepr.of[Marker.C]) a
-              else arg
-            }
-          AppliedType(root, newArgs)
-        case _ =>
-          report.errorAndAbort(s"Could not reconstruct the effect type of: ${tpe.show}")
-
   }
   object ZioEffectType {
     def of[F[_, _, _]: Type]: ZioEffectType = {
       val stmt = '{ ???.asInstanceOf[F[Marker.A, Marker.B, Marker.C]] }
       val tpe = stmt.asTerm.tpe
-      val rootType =
+      val (rootType, args) =
         tpe match
-          case AppliedType(root, args) => // List(a, b, c) (TODO should have some kind of way to specify # params used?)
-            root
+          case AppliedType(root, args) =>
+            (root, args)
           case _ =>
             report.errorAndAbort(s"Could not identify the effect type of: ${tpe.show}")
 
       val monadModel = computeMonadModel[F](tpe)
       // println(s"============== Letters and variances: ${monadModel}")
-
       new ZioEffectType(
         rootType,
-        tpe,
+        // No class-tag for TypeRepr
+        args.map(_.asInstanceOf[Any]).toArray.asInstanceOf[Array[TypeRepr]],
         monadModel.toArray
         // Array(
         //   (MonadShape.Letter.R, MonadShape.Variance.Contravariant),
