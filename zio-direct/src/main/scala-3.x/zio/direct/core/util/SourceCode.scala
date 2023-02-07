@@ -1471,22 +1471,31 @@ object SourceCode {
       bounds.low match {
         case Inferred() =>
         case low =>
-          this += " >: "
-          printTypeTree(low)
+          if (showDetails.showBoundsTypes)
+            this += " >: "
+            printTypeTree(low)
+          else
+            this += "_"
       }
       bounds.hi match {
         case Inferred() => this
         case hi =>
-          this += " <: "
-          printTypeTree(hi)
+          if (showDetails.showBoundsTypes)
+            this += " <: "
+            printTypeTree(hi)
+          else
+            this += "_"
       }
     }
 
     private def printBounds(bounds: TypeBounds)(using elideThis: Option[Symbol]): this.type = {
-      this += " >: "
-      printType(bounds.low)
-      this += " <: "
-      printType(bounds.hi)
+      if (showDetails.showBoundsTypes)
+        this += " >: "
+        printType(bounds.low)
+        this += " <: "
+        printType(bounds.hi)
+      else
+        this += "_"
     }
 
     private def printProtectedOrPrivate(definition: Definition): Boolean = {

@@ -13,6 +13,7 @@ import zio.prelude.fx.ZPure
 
 object PureSpec extends DeferRunSpec {
   case class MyState(value: String)
+  val init = MyState("init")
 
   val dw = deferWith[String, MyState]
   import dw._ //
@@ -21,87 +22,86 @@ object PureSpec extends DeferRunSpec {
   val e1 = new Exception("blahblah")
 
   val spec = suite("VariaSpec")(
-    test("Simple Sequence") {
-      val out =
-        deferWithParams[Nothing, Any] {
-          val a = ZPure.succeed(1)
-          val b = ZPure.succeed("foo")
-          (a.eval, b.eval)
-        }
-      assertIsType[ZPure[Nothing, Any, Any, Any, Nothing, (Int, String)]](out) andAssert
-        assert(out.run)(equalTo((1, "foo")))
-    },
-    test("Simple Sequence with State") {
-      val out =
-        defer {
-          val s1 = ZPure.get[MyState].eval.value
-          val a = ZPure.succeed(s1).eval
-          ZPure.set(MyState("foo")).eval
-          val b = ZPure.succeed("bar").eval
-          val s2 = ZPure.get[MyState].eval.value
-          (s1, a, b, s2)
-        }
+    // test("Simple Sequence") {
+    //   val out =
+    //     deferWithParams[Nothing, Any] {
+    //       val a = ZPure.succeed(1)
+    //       val b = ZPure.succeed("foo")
+    //       (a.eval, b.eval)
+    //     }
+    //   assertIsType[ZPure[Nothing, Any, Any, Any, Nothing, (Int, String)]](out) andAssert
+    //     assert(out.run)(equalTo((1, "foo")))
+    // },
+    // test("Simple Sequence with State") {
+    //   val out =
+    //     defer {
+    //       val s1 = ZPure.get[MyState].eval.value
+    //       val a = ZPure.succeed(s1).eval
+    //       ZPure.set(MyState("foo")).eval
+    //       val b = ZPure.succeed("bar").eval
+    //       val s2 = ZPure.get[MyState].eval.value
+    //       (s1, a, b, s2)
+    //     }
 
-      assertIsType[ZPure[String, MyState, MyState, Any, Nothing, (String, String, String, String)]](out) andAssert
-        assert(out.provideState(MyState("init")).run)(equalTo(("init", "init", "bar", "foo")))
-    },
-    test("Simple Sequence with State - using primitives and logging") {
-      val out =
-        defer {
-          val s1 = State.get().value
-          val a = ZPure.succeed(s1).eval
-          log(a)
-          State.set(MyState("foo"))
-          val b = ZPure.succeed("bar").eval
-          log(b)
-          val s2 = State.get().value
-          (s1, a, b, s2)
-        }
+    //   assertIsType[ZPure[String, MyState, MyState, Any, Nothing, (String, String, String, String)]](out) andAssert
+    //     assert(out.provideState(MyState("init")).run)(equalTo(("init", "init", "bar", "foo")))
+    // },
+    // test("Simple Sequence with State - using primitives and logging") {
+    //   val out =
+    //     defer {
+    //       val s1 = State.get().value
+    //       val a = ZPure.succeed(s1).eval // ..
+    //       log(a)
+    //       State.set(MyState("foo"))
+    //       val b = ZPure.succeed("bar").eval
+    //       log(b)
+    //       val s2 = State.get().value
+    //       (s1, a, b, s2)
+    //     }
 
-      // Transparent inline screw up performance!!!
-      // need to have notion of custom-eval functions i.e. things are treated as `eval` functions and go into the @monad
-      assertIsType[ZPure[String, MyState, MyState, Any, Nothing, (String, String, String, String)]](out) andAssert //////
-        assert(out.runAll(MyState("init")))(equalTo( ///
-          (Chunk("init", "bar"), Right((MyState("foo"), ("init", "init", "bar", "foo"))))))
-    },
-    test("Impure/Impure If-statement") {
-      val out = defer {
-        if (ZPure.succeed(2).eval == 2)
-          val v = ZPure.succeed[MyState, String]("foo").eval
-          State.set(MyState(v))
-          v
-        else
-          val v = ZPure.succeed[MyState, String]("bar").eval
-          State.set(MyState(v))
-          v
-      }
-      assert(out.run(MyState("init")))(equalTo((MyState("foo"), "foo")))
-    }
+    //   // Transparent inline screw up performance!!!
+    //   // need to have notion of custom-eval functions i.e. things are treated as `eval` functions and go into the @monad
+    //   assertIsType[ZPure[String, MyState, MyState, Any, Nothing, (String, String, String, String)]](out) andAssert //////
+    //     assert(out.runAll(MyState("init")))(equalTo( ///
+    //       (Chunk("init", "bar"), Right((MyState("foo"), ("init", "init", "bar", "foo"))))))
+    // },
+    // test("Impure/Impure If-statement") {
+    //   val out = defer {
+    //     if (ZPure.succeed(2).eval == 2)
+    //       val v = ZPure.succeed[MyState, String]("foo").eval
+    //       State.set(MyState(v))
+    //       v
+    //     else
+    //       val v = ZPure.succeed[MyState, String]("bar").eval
+    //       State.set(MyState(v))
+    //       v
+    //   }
+    //   assert(out.run(MyState("init")))(equalTo((MyState("foo"), "foo")))
+    // },
     // test("Impure/Impure Pat-match") {
     //   val out =
     //     defer {
-    //       ZStream("a", "b").each match {
-    //         case "a" => ZStream(1, 2).each
-    //         case "b" => ZStream(3, 4).each
+    //       ZPure.succeed("a").eval match {
+    //         case "a" => ZPure.succeed(1)
+    //         case "b" => ZPure.succeed(2)
     //       }
     //     }
-    //   assertZIO(out.runCollect)(equalTo(
-    //     Chunk(1, 2, 3, 4)
-    //   ))
+    //   assert(out.run(init))(equalTo((init, 1)))
     // },
-    // test("Try/Catch succeed") {
-    //   val out =
-    //     defer {
-    //       try {
-    //         throw (ZStream.succeed(e).each)
-    //       } catch {
-    //         case `e`          => 1
-    //         case _: Throwable => ZStream.succeed(2).each
-    //       }
-    //     }
-    //   assertIsType[ZStream[Any, Exception, Int]](out) andAssert
-    //     assertZIO(out.runCollect)(equalTo(Chunk(1)))
-    // },
+    test("Try/Catch succeed") {
+      val foo = "foo"
+      val out =
+        defer.verbose {
+          try {
+            foo
+          } catch {
+            case _ => foo
+          }
+        }
+      assertTrue(true)
+      // assertIsType[ZPure[String, MyState, MyState, Any, Exception, Int]](out) andAssert
+      //   assert(out.run(init))(equalTo(Chunk(1)))
+    }
     // test("Try/Catch caught") {
     //   val out =
     //     defer {

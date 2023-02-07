@@ -80,8 +80,10 @@ trait WithResolver {
       (zpe.asTypeTuple) match
         case ('[or], '[oe], '[oa]) =>
           '{
-            $monadFailure.catchSome[or, oe, oa](${ tryClause.term.asExprOf[F[or, oe, oa]] })( // .asInstanceOf[F[or, oe, oa]]
-              ${ body.term.asExpr }.asInstanceOf[PartialFunction[oe, F[or, oe, oa]]])
+            {
+              $monadFailure.catchSome[or, oe, oa](${ tryClause.term.asExpr }.asInstanceOf[F[or, oe, oa]])( // .asInstanceOf[F[or, oe, oa]]
+                ${ body.term.asExpr }.asInstanceOf[PartialFunction[oe, F[or, oe, oa]]])
+            }
           }.toZioValue(zpe)
         case _ =>
           notPossible()

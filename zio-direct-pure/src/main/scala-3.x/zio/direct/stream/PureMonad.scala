@@ -8,6 +8,8 @@ import zio.ZIO
 import MonadShape.Variance._
 import MonadShape.Letter._
 
+
+
 implicit def pureMonadModel[W, S]: MonadModel[[R, E, A] =>> ZPure[W, S, S, R, E, A]] {
   type Variances = MonadShape.Variances6[Unused, Unused, Unused, Contravariant, Covariant, Covariant]
   type Letters = MonadShape.Letters6[Other, Other, Other, R, E, A]
