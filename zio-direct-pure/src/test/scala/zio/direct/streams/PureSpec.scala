@@ -16,7 +16,7 @@ object PureSpec extends DeferRunSpec {
   val init = MyState("init")
 
   val dw = deferWith[String, MyState]
-  import dw._ //
+  import dw._
 
   val e = new Exception("blah")
   val e1 = new Exception("blahblah")
@@ -90,17 +90,26 @@ object PureSpec extends DeferRunSpec {
     // },
     test("Try/Catch succeed") {
       val foo = "foo"
+
+      // Further Up:
+      // val dw = deferWith[String, MyState]
+      // import dw._
+
       val out =
         defer.verbose {
-          try {
-            foo
-          } catch {
-            case _ => foo
-          }
+          ZPure.set("blah").eval
+
+          val ms = State.get()
+          // try {
+          //   foo
+          // } catch {
+          //   case _ => foo
+          // }
+          "foo"
         }
-      assertTrue(true)
-      // assertIsType[ZPure[String, MyState, MyState, Any, Exception, Int]](out) andAssert
-      //   assert(out.run(init))(equalTo(Chunk(1)))
+      // assertTrue(true)
+      assertIsType[ZPure[String, MyState, MyState, Any, Exception, Int]](out) andAssert
+        assert(out.run(init))(equalTo(Chunk(1)))
     }
     // test("Try/Catch caught") {
     //   val out =
