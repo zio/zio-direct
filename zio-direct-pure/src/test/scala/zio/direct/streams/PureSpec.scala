@@ -78,16 +78,17 @@ object PureSpec extends DeferRunSpec {
     //   }
     //   assert(out.run(MyState("init")))(equalTo((MyState("foo"), "foo")))
     // },
-    // test("Impure/Impure Pat-match") {
-    //   val out =
-    //     defer {
-    //       ZPure.succeed("a").eval match {
-    //         case "a" => ZPure.succeed(1)
-    //         case "b" => ZPure.succeed(2)
-    //       }
-    //     }
-    //   assert(out.run(init))(equalTo((init, 1)))
-    // },
+    test("Impure/Impure Pat-match") {
+      val out =
+        defer {
+          // TODO test correct errors of the [MyState, _] are removed?
+          ZPure.succeed[MyState, String]("a").eval match {
+            case "a" => ZPure.succeed[MyState, Int](1).eval
+            case "b" => ZPure.succeed[MyState, Int](2).eval
+          }
+        }
+      assert(out.run(init))(equalTo((init, 1)))
+    },
     test("Try/Catch succeed") {
       val foo = "foo"
 

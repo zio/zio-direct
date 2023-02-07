@@ -89,8 +89,8 @@ class Transformer[F[_, _, _]: Type, F_out: Type](inputQuotes: Quotes)
     if (instructions.info.showComputedTypeDetail)
       println(
         s"""-------------
-        |Computed-Type: ${zioType}
-        |Discovered-Type: ${output.tpe}
+        |Computed-Type: ${Format.TypeRepr(zioType)}
+        |Discovered-Type: ${Format.TypeRepr(output.tpe)}
         |Is Subtype: ${zioType <:< output.tpe}
         |""".stripMargin
       )

@@ -35,12 +35,24 @@ trait WithResolver {
     val inf = Inferred(anyToNothing)
   }
 
+  extension (expr: Expr[_])
+    def asExprOfOrFail[T: Type]: Expr[T] =
+      Type.of[T] match
+        case '[t] =>
+          if (!(expr.asTerm.tpe <:< TypeRepr.of[t]))
+            report.errorAndAbort(
+              s"The type of the expression `${Format.Expr(expr)}`\n===== Was: ==================\n${Format.TypeRepr(expr.asTerm.tpe)}\n===== But Expected: =========\n${Format.TypeRepr(TypeRepr.of[t])}\n-----------------------------"
+            )
+          else
+            expr.asExprOf[T]
   extension (term: Term)
     def asExprOfOrFail[T: Type]: Expr[T] =
       Type.of[T] match
         case '[t] =>
           if (!(term.tpe <:< TypeRepr.of[t]))
-            report.errorAndAbort(s"The type of the expression ${Format.Term(term)} was:\n${Format.TypeRepr(term.tpe)}\nBut Expected:\n${Format.TypeRepr(TypeRepr.of[t])}")
+            report.errorAndAbort(
+              s"The type of the expression `${Format.Term(term)}`\n===== Was: ==================\n${Format.TypeRepr(term.tpe)}\n===== But Expected: =========\n${Format.TypeRepr(TypeRepr.of[t])}\n-----------------------------"
+            )
           else
             term.asExprOf[T]
 
@@ -72,7 +84,7 @@ trait WithResolver {
       (monad.zpe.asTypeTuple, zpe.asTypeTuple) match
         case (('[r], '[e], '[a]), ('[or], '[oe], '[b])) =>
           val out = '{
-            $MonadSuccess.map[r, e, a, b](${ monad.term.asExprOf[F[r, e, a]] })( // .asInstanceOf[F[r, e, a]]
+            $MonadSuccess.map[r, e, a, b](${ monad.term.asExprOfOrFail[F[r, e, a]] })( // .asInstanceOf[F[r, e, a]]
               ${ applyLambdaTerm.asExpr }.asInstanceOf[a => b])
           }
           out.toZioValue(zpe)
@@ -103,13 +115,13 @@ trait WithResolver {
         case ('[r], '[e], '[a]) =>
           // when generalizing to non-zio check there result-type and change ZIO[?, ?, ?] representation to the appropriate one for the given type
           '{
-            $monadFailure.ensuring(${ monad.term.asExprOf[F[r, e, a]] })(
+            $monadFailure.ensuring(${ monad.term.asExprOfOrFail[F[r, e, a]] })(
               // TODO make a better check here, manually check if it's a subtype of throwable and cast it, otherwise make the macro fail
               $monadFailure.orDie(
-                F3Util.wrapWithThrowable[F, r, Nothing, Any](${ finalizer.term.asExprOf[F[r, Nothing, Any]] })($monadFailure)
+                F3Util.wrapWithThrowable[F, r, Nothing, Any](${ finalizer.term.asExprOfOrFail[F[r, Nothing, Any]] })($monadFailure)
               )
             ) // .asInstanceOf[F[r, e, a]]
-          }.asExprOf[F[r, e, a]].toZioValue(zpe)
+          }.asExprOfOrFail[F[r, e, a]].toZioValue(zpe)
 
     def applyForeach(monadExpr: ZioValue, elementSymbol: Symbol, bodyMonad: ZioValue)(implicit collectStrategy: Collect) =
       val elementType = elementSymbol.termRef.widenTermRefByName.asType
