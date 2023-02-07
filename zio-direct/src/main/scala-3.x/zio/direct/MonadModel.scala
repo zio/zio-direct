@@ -27,12 +27,7 @@ trait MonadSuccess[F[_, _, _]] {
 }
 
 trait MonadFallible[F[_, _, _]] {
-
   def fail[E](e: => E): F[Any, E, Nothing]
-  // TODO Maybe for this level of API we should not care about variance?
-  // TODO errors should be throwable types enforce via an implicit constrait since E <: Throwable doesn't work with type-matching
-  // Trying to unify the two e-parameters (i.e. generalize the two into one another because otherwise it's difficult for the type-matching in Resolver)
-
   def attempt[A](a: => A): F[Any, Throwable, A]
   def catchSome[R, E, A](first: F[R, E, A])(andThen: PartialFunction[E, F[R, E, A]]): F[R, E, A]
   def ensuring[R, E, A](f: F[R, E, A])(finalizer: F[R, Nothing, Any]): F[R, E, A]
@@ -40,8 +35,16 @@ trait MonadFallible[F[_, _, _]] {
   def orDie[R, E <: Throwable, A](first: F[R, E, A]): F[R, Nothing, A]
 }
 
+trait MonadState[F[_, _, _], S] {
+  def set(s: S): F[Any, Nothing, Unit]
+  def get: F[Any, Nothing, S]
+}
+
+trait MonadLog[F[_, _, _], W] {
+  def log(w: W): F[Any, Nothing, Unit]
+}
+
 trait MonadSequence[F[_, _, _]] {
-  // Should BuildFrom go here? Should we even allow multiple ZIOs on the same line? (which would require this)
   def foreach[R, E, A, B, Collection[+Element] <: Iterable[Element]](in: Collection[A])(f: A => F[R, E, B])(
       implicit bf: scala.collection.BuildFrom[Collection[A], B, Collection[B]]
   ): F[R, E, Collection[B]]
@@ -51,7 +54,6 @@ trait MonadSequence[F[_, _, _]] {
 }
 
 trait MonadSequenceParallel[F[_, _, _]] {
-  // Should BuildFrom go here? Should we even allow multiple ZIOs on the same line? (which would require this)
   def foreachPar[R, E, A, B, Collection[+Element] <: Iterable[Element]](in: Collection[A])(f: A => F[R, E, B])(
       implicit bf: scala.collection.BuildFrom[Collection[A], B, Collection[B]]
   ): F[R, E, Collection[B]]

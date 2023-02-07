@@ -16,6 +16,9 @@ import zio.direct.core.metaprog.RefineInstructions
 import zio.direct.core.metaprog.Linearity
 
 class directRunCall extends scala.annotation.StaticAnnotation
+class directSetCall extends scala.annotation.StaticAnnotation
+class directGetCall extends scala.annotation.StaticAnnotation
+class directLogCall extends scala.annotation.StaticAnnotation
 
 def unsafe[T](value: T): T = NotDeferredException.fromNamed("unsafe")
 

@@ -40,8 +40,14 @@ object Allowed {
       // they will be lost because the transformations for block-stmts to map/flatMap chains are already done.
       case Block(stmts, output) =>
         stmts.foreach(Unsupported.Warn.checkUnmooredZio(isEffectType)(_))
-      case tree @ AnyRunCall.TypedAs(tpe) if (isEffectType(tpe)) =>
-        Unsupported.Error.withTree(tree, Messages.RunRemainingAfterTransformer)
+      case tree @ AnyRunCall(effect) =>
+        if (isEffectType(effect.asTerm.tpe))
+          Unsupported.Error.withTree(tree, Messages.RunRemainingAfterTransformer)
+        else
+          Unsupported.Error.withTree(tree, Messages.ForeignRunRemainingAfterTransformer)
+      case tree @ AnyUtilityCall() =>
+        Unsupported.Error.withTree(tree, Messages.UtilityRemainingAfterTransformer)
+
     }
 
   def validateBlocksIn(using Quotes)(instructions: Instructions, isEffectType: quotes.reflect.TypeRepr => Boolean)(expr: Expr[_]): Unit =

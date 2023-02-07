@@ -12,7 +12,9 @@ trait WithF {
       val Success: Expr[MonadSuccess[F]],
       val Failure: Option[Expr[MonadFallible[F]]],
       val Sequence: Expr[MonadSequence[F]],
-      val SequencePar: Expr[MonadSequenceParallel[F]]
+      val SequencePar: Expr[MonadSequenceParallel[F]],
+      val MonadState: Option[Expr[MonadState[F, ?]]],
+      val MonadLog: Option[Expr[MonadLog[F, ?]]]
   ) { self =>
     object Value {
       def succeed(term: Term) =
@@ -46,7 +48,12 @@ trait WithF {
         Expr.summon[MonadSequenceParallel[F]].getOrElse {
           report.errorAndAbort(s"Cannot perform collectPar/foreachPar on the type: ${TypeRepr.of[F].show}. A SequencePar typeclass was not found for it.")
         }
-      DirectMonad[F](monadSuccess, monadFailure, monadSequence, monadSequencePar)
+      val monadState: Option[Expr[MonadState[F, ?]]] =
+        Expr.summon[MonadState[F, ?]]
+      val monadLog: Option[Expr[MonadLog[F, ?]]] =
+        Expr.summon[MonadLog[F, ?]]
+
+      DirectMonad[F](monadSuccess, monadFailure, monadSequence, monadSequencePar, monadState, monadLog)
     }
   }
 

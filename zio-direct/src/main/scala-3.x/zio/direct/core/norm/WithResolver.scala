@@ -45,7 +45,7 @@ trait WithResolver {
       (monad.zpe.asTypeTuple, zpe.valueType) match
         case (('[r], '[e], '[a]), '[b]) =>
           '{
-            $MonadSuccess.flatMap[r, e, a, b](${ monad.term.asExprOf[F[r, e, a]] })( // .asInstanceOf[F[r, e, a]]
+            $MonadSuccess.flatMap[r, e, a, b](${ monad.term.asExpr }.asInstanceOf[F[r, e, a]])( // .asInstanceOf[F[r, e, a]]
               ${ applyLambda.term.asExpr }.asInstanceOf[a => F[r, e, b]])
           }.toZioValue(zpe)
 
@@ -63,7 +63,7 @@ trait WithResolver {
       (monad.zpe.asTypeTuple, zpe.asTypeTuple) match
         case (('[r], '[e], '[a]), ('[or], '[oe], '[b])) =>
           val out = '{
-            $MonadSuccess.map[r, e, a, b](${ monad.term.asExprOf[F[r, e, a]] })( // .asInstanceOf[F[r, e, a]]
+            $MonadSuccess.map[r, e, a, b](${ monad.term.asExpr }.asInstanceOf[F[r, e, a]])( // .asInstanceOf[F[r, e, a]]
               ${ applyLambdaTerm.asExpr }.asInstanceOf[a => b])
           }
           out.toZioValue(zpe)

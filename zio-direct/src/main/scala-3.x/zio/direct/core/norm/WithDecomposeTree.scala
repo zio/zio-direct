@@ -214,6 +214,8 @@ trait WithDecomposeTree {
               Some(IR.Monad(monad.Value.succeed(code.asTerm).asTerm, IR.Monad.Source.IgnoreCall))
             }
 
+          case DecomposeUtilityCall(utilityIR) => Some(utilityIR)
+
           case tryTerm @ Try(tryBlock, cases, finallyBlock) =>
             // Don't need the above terms
             // val tryBlockIR = DecomposeTree.orPure(tryBlock)
@@ -321,5 +323,49 @@ trait WithDecomposeTree {
         // If at least one of the match-cases need to be transformed, transform all of them
         Some(applyMark(cases))
     }
+
+    private object DecomposeUtilityCall {
+      implicit val implicitInsr: Instructions = instr
+      private def typicalError(effectName: String, term: Tree) =
+        Unsupported.Error.withTree(
+          term,
+          s"""|Cannot call a ${effectName}-effect on the effect-type ${Format.TypeRepr(et.tpe)}.
+              |There is no instance of a MonadState defined for it. Perhaps you need to import a context?
+              |For example, for zio-direct-pure:
+              |  import zio.direct.pure._
+              |""".stripMargin
+        )
+
+      def unapply(term: Tree) =
+        term match {
+          case term @ AnyGetCall() =>
+            monad.MonadState match
+              case Some(stateMonad) => Some(IR.Monad('{ $stateMonad.get }.asTerm))
+              case None             => typicalError("State get", term)
+          case term @ AnySetCall(setValue) =>
+            monad.MonadState match
+              case Some(stateMonad) =>
+                // Note that if this whole approach with casting to MonadState[F, ...] doesn't work,
+                // we could always try to cast stateMonad to MonadState[F, Any] or some other value
+                // and also cast setValue as that same Any (or some other value). However this is
+                // a less type-full solution so it should only be used in last-resort.
+                stateMonad.asTerm.tpe.asType match
+                  case '[MonadState[F, l]] =>
+                    Some(IR.Monad('{ ${ stateMonad.asExprOf[MonadState[F, l]] }.set(${ setValue.asExprOf[l] }) }.asTerm))
+              case None =>
+                typicalError("State set", term)
+          case term @ AnyLogCall(logValue) =>
+            monad.MonadLog match
+              case Some(logMonad) =>
+                logMonad.asTerm.tpe.asType match
+                  case '[MonadLog[F, l]] =>
+                    Some(IR.Monad('{ ${ logMonad.asExprOf[MonadLog[F, l]] }.log(${ logValue.asExprOf[l] }) }.asTerm))
+              case None =>
+                typicalError("logging", term)
+          case _ =>
+            None
+        }
+    }
+
   end Decompose
 }

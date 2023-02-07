@@ -54,3 +54,12 @@ implicit def zpureMonadSequencePar[W, S]: MonadSequenceParallel[[R, E, A] =>> ZP
   )(f: A => ZPure[W, S, S, R, E, B])(implicit bf: scala.collection.BuildFrom[Collection[A], B, Collection[B]]): ZPure[W, S, S, R, E, Collection[B]] =
     zpureMonadSequence.foreach(in)(f)
 }
+
+implicit def monadState[W, S]: MonadState[[R, E, A] =>> ZPure[W, S, S, R, E, A], S] = new MonadState[[R, E, A] =>> ZPure[W, S, S, R, E, A], S] {
+  override def set(s: S): ZPure[W, S, S, Any, Nothing, Unit] = ZPure.set[S](s)
+  override def get: ZPure[W, S, S, Any, Nothing, S] = ZPure.get
+}
+
+implicit def monadLog[W, S]: MonadLog[[R, E, A] =>> ZPure[W, S, S, R, E, A], W] = new MonadLog[[R, E, A] =>> ZPure[W, S, S, R, E, A], W] {
+  def log(w: W): ZPure[W, S, S, Any, Nothing, Unit] = ZPure.log[S, W](w)
+}
