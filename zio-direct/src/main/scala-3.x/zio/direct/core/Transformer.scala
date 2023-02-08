@@ -4,6 +4,7 @@ import scala.quoted._
 import zio.direct.core.metaprog.Extractors._
 import zio.direct.core.metaprog._
 import zio.direct._
+import zio.direct.Dsl.DirectMonadInput
 import zio.direct.core.util.Format
 import scala.collection.mutable
 import zio.Chunk
@@ -39,7 +40,7 @@ class Transformer[F[_, _, _]: Type, F_out: Type, S: Type, W: Type](inputQuotes: 
     val path = pos.sourceFile.path
     s"$path:${pos.startLine + 1}:${pos.startColumn}"
 
-  def apply[T: Type](valueRaw: Expr[T], instructions: Instructions): Expr[F_out] = {
+  def apply[T: Type](valueRaw: Expr[T], instructions: Instructions, directMonadInput: DirectMonadInput[F, S, W]): Expr[F_out] = {
     val value = valueRaw.asTerm.underlyingArgument
 
     val monadModel = Expr.summon[MonadModel[F]].getOrElse {
@@ -47,7 +48,7 @@ class Transformer[F[_, _, _]: Type, F_out: Type, S: Type, W: Type](inputQuotes: 
     }
 
     val effectType = ZioEffectType.of[F, S, W](monadModel)
-    val directMonad = DirectMonad.of[F, S, W]
+    val directMonad = DirectMonad.of[F, S, W](directMonadInput)
 
     // Do a top-level transform to check that there are no invalid constructs
     if (instructions.verify != Verify.None)

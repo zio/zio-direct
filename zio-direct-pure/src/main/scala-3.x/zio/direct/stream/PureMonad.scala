@@ -55,11 +55,11 @@ implicit def zpureMonadSequencePar[W, S]: MonadSequenceParallel[[R, E, A] =>> ZP
     zpureMonadSequence.foreach(in)(f)
 }
 
-implicit def monadState[W, S]: MonadState[[R, E, A] =>> ZPure[W, S, S, R, E, A], S] = new MonadState[[R, E, A] =>> ZPure[W, S, S, R, E, A], S] {
+implicit def zpureMonadState[W, S]: MonadState[[R, E, A] =>> ZPure[W, S, S, R, E, A], S] = new MonadState[[R, E, A] =>> ZPure[W, S, S, R, E, A], S] {
   override def set(s: S): ZPure[W, S, S, Any, Nothing, Unit] = ZPure.set(s)
   override def get: ZPure[W, S, S, Any, Nothing, S] = ZPure.get[S]
 }
 
-implicit def monadLog[W, S]: MonadLog[[R, E, A] =>> ZPure[W, S, S, R, E, A], W] = new MonadLog[[R, E, A] =>> ZPure[W, S, S, R, E, A], W] {
+implicit def zpureMonadLog[W, S]: MonadLog[[R, E, A] =>> ZPure[W, S, S, R, E, A], W] = new MonadLog[[R, E, A] =>> ZPure[W, S, S, R, E, A], W] {
   def log(w: W): ZPure[W, S, S, Any, Nothing, Unit] = ZPure.log[S, W](w)
 }

@@ -35,7 +35,7 @@ object PureSpec extends DeferRunSpec {
         defer {
           val s1 = ZPure.get[MyState].eval.value
           val a = ZPure.succeed[MyState, String](s1).eval
-          ZPure.set(MyState("foooooooooooooooooo")).eval
+          ZPure.set(MyState("foo")).eval
           val b = ZPure.succeed[MyState, String]("bar").eval
           val s2 = ZPure.get[MyState].eval.value
           (s1, a, b, s2)

@@ -2,6 +2,7 @@ package zio.direct.core.metaprog
 
 import scala.quoted._
 import zio.direct._
+import zio.direct.Dsl.DirectMonadInput
 
 trait WithF {
 
@@ -33,44 +34,28 @@ trait WithF {
   }
 
   object DirectMonad {
-    def of[F[_, _, _]: Type, S: Type, W: Type] = {
-      val monadSuccess: Expr[MonadSuccess[F]] =
-        Expr.summon[MonadSuccess[F]].getOrElse {
-          report.errorAndAbort(s"Cannot perform map/flatMap/succeed on the type: ${TypeRepr.of[F].show}. A MonadSuccess typeclass was not found for it.")
-        }
+    def of[F[_, _, _]: Type, S: Type, W: Type](directMonadInput: DirectMonadInput[F, S, W]) = {
+      val monadSuccess: Expr[MonadSuccess[F]] = directMonadInput.success
       val monadFailure: Option[Expr[MonadFallible[F]]] =
         Expr.summon[MonadFallible[F]]
-      val monadSequence: Expr[MonadSequence[F]] =
-        Expr.summon[MonadSequence[F]].getOrElse {
-          report.errorAndAbort(s"Cannot perform collect/foreach on the type: ${TypeRepr.of[F].show}. A SequencePar typeclass was not found for it.")
-        }
-      val monadSequencePar: Expr[MonadSequenceParallel[F]] =
-        Expr.summon[MonadSequenceParallel[F]].getOrElse {
-          report.errorAndAbort(s"Cannot perform collectPar/foreachPar on the type: ${TypeRepr.of[F].show}. A SequencePar typeclass was not found for it.")
-        }
+
+      val monadSequence: Expr[MonadSequence[F]] = directMonadInput.sequence
+      val monadSequencePar: Expr[MonadSequenceParallel[F]] = directMonadInput.sequencePar
       val monadState: Option[Expr[MonadState[F, S]]] =
         if (!(TypeRepr.of[S] =:= TypeRepr.of[Nothing]))
-          Some(Expr.summon[MonadState[F, S]].getOrElse {
-            report.errorAndAbort(
-              s"""|Expected an implicit MonadState[${TypeRepr.of[F].show}, ${TypeRepr.of[S].show}] to exist on the context but it was not found.
-                  |For zio-direct-streams: `import zio.direct.stream._`
-                  |For zio-direct-pure:    `import zio.direct.pure._`
-                  |""".stripMargin
-            )
-          })
+          Some(
+            // TODO Better error
+            '{ ${ directMonadInput.state }.get }
+          )
         else
           None
 
       val monadLog: Option[Expr[MonadLog[F, W]]] =
         if (!(TypeRepr.of[W] =:= TypeRepr.of[Nothing]))
-          Some(Expr.summon[MonadLog[F, W]].getOrElse {
-            report.errorAndAbort(
-              s"""|Expected an implicit MonadLog[${TypeRepr.of[F].show}, ${TypeRepr.of[W].show}] to exist on the context but it was not found.
-                  |For zio-direct-streams: `import zio.direct.stream._`
-                  |For zio-direct-pure:    `import zio.direct.pure._`
-                  |""".stripMargin
-            )
-          })
+          Some(
+            // TODO Better error
+            '{ ${ directMonadInput.log }.get }
+          )
         else
           None
 
