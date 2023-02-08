@@ -50,9 +50,9 @@ object PureSpec extends DeferRunSpec {
       val out =
         defer {
           val s1 = State.get().value
-          val a = ZPure.succeed[MyState, String](s1).eval // ..........,,,
+          val a = ZPure.succeed[MyState, String](s1).eval
           log(a)
-          State.set(MyState("foo"))
+          State.set(MyState("foodddsdfsddddfdddddddddddddddddd"))
           val b = ZPure.succeed[MyState, String]("bar").eval
           log(b)
           val s2 = State.get().value
@@ -62,8 +62,9 @@ object PureSpec extends DeferRunSpec {
       // Transparent inline screw up performance!!!
       // need to have notion of custom-eval functions i.e. things are treated as `eval` functions and go into the @monad
       assertIsType[ZPure[String, MyState, MyState, Any, Nothing, (String, String, String, String)]](out) andAssert //////
-        assert(out.runAll(MyState("init")))(equalTo( ///
-          (Chunk("init", "bar"), Right((MyState("foo"), ("init", "init", "bar", "foo"))))))
+        assert(out.runAll(MyState("init")))(equalTo(
+          (Chunk("init", "bar"), Right((MyState("foo"), ("init", "init", "bar", "foo"))))
+        ))
     },
     test("Impure/Impure If-statement") {
       val out = defer {

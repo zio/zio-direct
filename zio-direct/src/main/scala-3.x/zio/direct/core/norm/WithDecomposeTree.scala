@@ -351,9 +351,7 @@ trait WithDecomposeTree {
           case term @ AnySetCall(setValue) =>
             monad.MonadState match
               case Some(stateMonad) =>
-                stateMonad.asTerm.tpe.asType match
-                  case '[MonadState[F] { type SBase = sbase }] =>
-                    Some(IR.Monad('{ ${ stateMonad.asExprOf[MonadState[F] { type SBase = sbase }] }.set(${ setValue.asExprOf[sbase] }) }.asTerm))
+                Some(IR.Monad('{ ${ stateMonad.asExprOf[MonadState[F]] }.set(${ setValue }.asInstanceOf[Nothing]) }.asTerm))
 
               // Note that if this whole approach with casting to MonadState[F, ...] doesn't work,
               // we could always try to cast stateMonad to MonadState[F, Any] or some other value
@@ -368,9 +366,7 @@ trait WithDecomposeTree {
           case term @ AnyLogCall(logValue) =>
             monad.MonadLog match
               case Some(logMonad) =>
-                logMonad.asTerm.tpe.asType match
-                  case '[MonadLog[F] { type WBase = wbase }] =>
-                    Some(IR.Monad('{ ${ logMonad.asExprOf[MonadLog[F] { type WBase = wbase }] }.log(${ logValue.asExprOf[wbase] }) }.asTerm))
+                Some(IR.Monad('{ ${ logMonad.asExprOf[MonadLog[F]] }.log(${ logValue }.asInstanceOf[Nothing]) }.asTerm))
               case None =>
                 typicalError("logging", term)
           case _ =>
