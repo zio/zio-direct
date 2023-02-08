@@ -12,7 +12,8 @@ import zio.direct.MonadModel
 import zio.direct.core.metaprog.Embedder.Compose
 import scala.runtime.Arrays
 
-trait WithZioType {
+trait WithZioType extends MacroBase {
+
   implicit val macroQuotes: Quotes
   import macroQuotes.reflect._
 
@@ -144,7 +145,7 @@ trait WithZioType {
 
   }
   object ZioEffectType {
-    def of[F[_, _, _]: Type, S: Type, W: Type, MM <: MonadModel: Type]: ZioEffectType = {
+    def of[F[_, _, _]: Type, S: Type, W: Type](mmd: MonadModelData): ZioEffectType = {
       val stmt = '{ ???.asInstanceOf[F[Marker.A, Marker.B, Marker.C]] }
       val tpe = stmt.asTerm.tpe
       val (rootType, args) =
@@ -154,7 +155,7 @@ trait WithZioType {
           case _ =>
             report.errorAndAbort(s"Could not identify the effect type of: ${tpe.show}")
 
-      val monadModel = computeMonadModel[F, MM](tpe)
+      val monadModel = computeMonadModel[F](tpe, mmd)
       // println(s"============== Letters and variances: ${monadModel}")
       new ZioEffectType(
         rootType,
@@ -169,55 +170,20 @@ trait WithZioType {
       )
     }
 
-    private def computeMonadModel[F[_, _, _]: Type, MM <: MonadModel: Type](tpe: TypeRepr) = {
-      // dealias the type e.g. ZioMonadType to get the Variance/Letters variables underneath
-      val monadModelType = TypeRepr.of[MM].dealias
-
-      // val monadModelVariancesMemberSymbol = moandModelType.typeSymbol.typeMembers.find(_.name == "Variances").getOrElse {
-      //   report.errorAndAbort(s"""Did not find a `Variances` property on the type `${tpe.show}`""")
-      //   // term: ${monadModel.asTerm.tpe.termSymbol.typeMembers}
-      //   // type: ${monadModel.asTerm.tpe.typeSymbol.typeMembers}
-      // }
-      // val monadModelLettersMemberSymbol = moandModelType.typeSymbol.typeMembers.find(_.name == "Letters").getOrElse {
-      //   report.errorAndAbort(s"Did not find a `Letters` property on the type `${tpe.show}`")
-      // }
-
-      val monadModelVariancesList =
-        Type.of[MM] match
-          case '[MonadModel { type Variances = list }] => TypeRepr.of[list]
-
-      val monadModelLettersList =
-        Type.of[MM] match
-          case '[MonadModel { type Letters = list }] => TypeRepr.of[list]
+    private def computeMonadModel[F[_, _, _]: Type](tpe: TypeRepr, mmd: MonadModelData) = {
 
       // println(s"------------- Variances List: ${monadModelVariancesList}")
 
       val monadShapeVariances =
-        monadModelVariancesList match
+        mmd.variancesListType match
           case AppliedType(variances /* todo check name of this? */, args) => args
 
-      //     // case '[MonadShape.Variances1[a]]                   => List(TypeRepr.of[a])
-      //     // case '[MonadShape.Variances2[a, b]]                => List(TypeRepr.of[a], TypeRepr.of[b])
-      //     // case '[MonadShape.Variances3[a, b, c]]             => List(TypeRepr.of[a], TypeRepr.of[b], TypeRepr.of[c])
-      //     // case '[MonadShape.Variances4[a, b, c, d]]          => List(TypeRepr.of[a], TypeRepr.of[b], TypeRepr.of[c], TypeRepr.of[d])
-      //     // case '[MonadShape.Variances5[a, b, c, d, e]]       => List(TypeRepr.of[a], TypeRepr.of[b], TypeRepr.of[c], TypeRepr.of[d], TypeRepr.of[e])
-      //     // case '[MonadShape.Variances6[a, b, c, d, e, f]]    => List(TypeRepr.of[a], TypeRepr.of[b], TypeRepr.of[c], TypeRepr.of[d], TypeRepr.of[e], TypeRepr.of[f])
-      //     // case '[MonadShape.Variances7[a, b, c, d, e, f, g]] => List(TypeRepr.of[a], TypeRepr.of[b], TypeRepr.of[c], TypeRepr.of[d], TypeRepr.of[e], TypeRepr.of[f], TypeRepr.of[g])
-
       val monadShapeLetters =
-        monadModelLettersList match
+        mmd.lettersListType match
           case AppliedType(letters /* todo check name of this? */, args) => args
 
-      //     // case '[MonadShape.Letters1[a]]                   => List(TypeRepr.of[a])
-      //     // case '[MonadShape.Letters2[a, b]]                => List(TypeRepr.of[a], TypeRepr.of[b])
-      //     // case '[MonadShape.Letters3[a, b, c]]             => List(TypeRepr.of[a], TypeRepr.of[b], TypeRepr.of[c])
-      //     // case '[MonadShape.Letters4[a, b, c, d]]          => List(TypeRepr.of[a], TypeRepr.of[b], TypeRepr.of[c], TypeRepr.of[d])
-      //     // case '[MonadShape.Letters5[a, b, c, d, e]]       => List(TypeRepr.of[a], TypeRepr.of[b], TypeRepr.of[c], TypeRepr.of[d], TypeRepr.of[e])
-      //     // case '[MonadShape.Letters6[a, b, c, d, e, f]]    => List(TypeRepr.of[a], TypeRepr.of[b], TypeRepr.of[c], TypeRepr.of[d], TypeRepr.of[e], TypeRepr.of[f])
-      //     // case '[MonadShape.Letters7[a, b, c, d, e, f, g]] => List(TypeRepr.of[a], TypeRepr.of[b], TypeRepr.of[c], TypeRepr.of[d], TypeRepr.of[e], TypeRepr.of[f], TypeRepr.of[g])
-
-      // // println(s"============ MonadModelTypes: ${monadShapeTypes.map(_.show)}")
-      // // println(s"============ MonadModelLetters: ${monadShapeLetters.map(_.show)}")
+      // println(s"============ MonadModelTypes: ${monadShapeTypes.map(_.show)}")
+      // println(s"============ MonadModelLetters: ${monadShapeLetters.map(_.show)}")
 
       if (monadShapeVariances.length != monadShapeLetters.length)
         report.errorAndAbort(s"The type `${tpe.show}` does not have an equally sized list of Letters and Variances but needs to. (${monadShapeLetters.map(_.show)} vs ${monadShapeVariances.map(_.show)})")

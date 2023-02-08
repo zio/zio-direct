@@ -43,16 +43,13 @@ class Transformer[F[_, _, _]: Type, F_out: Type, S: Type, W: Type, MM <: MonadMo
   def apply[T: Type](valueRaw: Expr[T], instructions: Instructions, directMonadInput: DirectMonadInput[F, S, W]): Expr[F_out] = {
     val value = valueRaw.asTerm.underlyingArgument
 
-    // val monadModel = Expr.summon[MonadModel[F]].getOrElse {
-    //   report.errorAndAbort(s"Could not summon a MonadModel for: ${TypeRepr.of[F].show}")
-    // }
-
-    val effectType = ZioEffectType.of[F, S, W, MM]
-    val directMonad = DirectMonad.of[F, S, W](directMonadInput)
+    val monadModelData = computeMonadModelData[MM]
+    val effectType = ZioEffectType.of[F, S, W](monadModelData)
+    val directMonad = DirectMonad.of[F, S, W](directMonadInput, monadModelData)
 
     // Do a top-level transform to check that there are no invalid constructs
-    if (instructions.verify != Verify.None)
-      Allowed.validateBlocksIn(instructions, effectType.isEffectOf)(value.asExpr)
+    // if (instructions.verify != Verify.None)
+    //   Allowed.validateBlocksIn(instructions, effectType.isEffectOf)(value.asExpr)
 
     // // Do the main transformation
     val transformedRaw = Decompose[F, S, W](directMonad, effectType, instructions).apply(value)
@@ -105,7 +102,7 @@ class Transformer[F[_, _, _]: Type, F_out: Type, S: Type, W: Type, MM <: MonadMo
 
     // If there are any remaining run-calls in the tree then fail
     // TODO need to figure out a way to test this
-    Allowed.finalValidityCheck(instructions, effectType.isEffectOf)(output.asExpr)
+    // Allowed.finalValidityCheck(instructions, effectType.isEffectOf)(output.asExpr)
 
     computedType.asTypeTuple match {
       case ('[r], '[e], '[a]) =>

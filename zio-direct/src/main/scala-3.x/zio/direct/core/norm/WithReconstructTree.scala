@@ -290,18 +290,7 @@ trait WithReconstructTree {
       val scalaCaseDefs =
         caseDefs.cases.map { caseDef =>
           val rhsRaw = apply(caseDef.rhs)
-          val rhs = {
-            // ========== Actually seems like my fault, was doing wrong logic in ZioEffectType.reconstruct ==========
-            /// Somehow this is needed when doing ZPure which doesn't even make sense because you can't apply a ZPure to 3 arguments
-            // however if it's not there, the following error happens:
-            // Found:    zio.prelude.fx.ZPure[String, zio.direct.pure.PureSpec.MyState, zio.direct.pure.PureSpec.MyState, Any, Nothing, (foo : String)]
-            // Required: zio.prelude.fx.ZPure[Any, Nothing, String]
-            // val appTpe = AppliedType(et.tpe, List(wholeTryZpe.r, wholeTryZpe.e, wholeTryZpe.a)).asType
-            // appTpe match
-            //  case '[t] => '{ ${ rhsRaw.expr }.asInstanceOf[t] } // .asInstanceOf[F[r, e, a]]
-            rhsRaw.expr
-          }
-          CaseDef(caseDef.pattern, caseDef.guard, rhs.asTerm)
+          CaseDef(caseDef.pattern, caseDef.guard, rhsRaw.term)
         }.toList
 
       (tryBlockType.toZioType.asType, tryBlockType.e.asType, wholeTryZpe.toZioType.asType) match

@@ -11,6 +11,7 @@ import zio.Chunk
 type StreamMonadModel = MonadModel {
   type Variances = MonadShape.Variances3[Contravariant, Covariant, Covariant]
   type Letters = MonadShape.Letters3[R, E, A]
+  type IsFallible = true
 }
 
 implicit val zstreamMonadSuccess: MonadSuccess[ZStream] = new MonadSuccess[ZStream] {
