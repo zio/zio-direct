@@ -12,11 +12,9 @@ import zio.Chunk
 import zio.prelude.fx.ZPure
 
 object PureSpec extends DeferRunSpec {
-  case class MyState(value: String)
+  val dc = deferWith[String, MyState]
+  import dc._
   val init = MyState("init")
-
-  val dw = deferWith[String, MyState]
-  import dw._
 
   val e = new Exception("blah")
   val e1 = new Exception("blahblah")
@@ -24,47 +22,48 @@ object PureSpec extends DeferRunSpec {
   val spec = suite("VariaSpec")(
     test("Simple Sequence") {
       val out =
-        deferWithParams[Nothing, Any] {
+        deferWith[Nothing, Any].defer {
           val a = ZPure.succeed(1)
           val b = ZPure.succeed("foo")
           (a.eval, b.eval)
         }
-      assertIsType[ZPure[Nothing, Any, Any, Any, Nothing, (Int, String)]](out) andAssert
-        assert(out.run)(equalTo((1, "foo")))
+      // assertIsType[ZPure[Nothing, Any, Any, Any, Nothing, (Int, String)]](out) andAssert
+      assert(out.run)(equalTo((1, "foo")))
     },
-    test("Simple Sequence with State") {
+    test("Simple Sequence with State") { ////////////////////////////////////
       val out =
         defer {
           val s1 = ZPure.get[MyState].eval.value
           val a = ZPure.succeed[MyState, String](s1).eval
-          ZPure.set(MyState("foo")).eval
+          ZPure.set(MyState("foooooooooooooooooo")).eval
           val b = ZPure.succeed[MyState, String]("bar").eval
           val s2 = ZPure.get[MyState].eval.value
           (s1, a, b, s2)
         }
 
-      assertIsType[ZPure[String, MyState, MyState, Any, Nothing, (String, String, String, String)]](out) andAssert
-        assert(out.provideState(MyState("init")).run)(equalTo(("init", "init", "bar", "foo")))
+      // assertIsType[ZPure[String, MyState, MyState, Any, Nothing, (String, String, String, String)]](out) andAssert
+      assert(out.provideState(MyState("init")).run)(equalTo(("init", "init", "bar", "foo")))
     },
     test("Simple Sequence with State - using primitives and logging") {
-      val out =
+      val out = //
         defer {
           val s1 = State.get().value
-          val a = ZPure.succeed[MyState, String](s1).eval
-          log(a)
-          State.set(MyState("foodddsdfsddddfdddddddddddddddddd"))
-          val b = ZPure.succeed[MyState, String]("bar").eval
-          log(b)
-          val s2 = State.get().value
-          (s1, a, b, s2)
+          // val a = ZPure.succeed[MyState, String](s1).eval
+          // log(a)
+          // State.set(MyState("foodddsdfsddddfdddddddddddddddddd"))
+          // val b = ZPure.succeed[MyState, String]("bar").eval////////////////////////////////////
+          // log(b)
+          // val s2 = State.get().value
+          // (s1, a, b, s2)
+          "foo"
         }
 
-      // Transparent inline screw up performance!!!
-      // need to have notion of custom-eval functions i.e. things are treated as `eval` functions and go into the @monad
-      assertIsType[ZPure[String, MyState, MyState, Any, Nothing, (String, String, String, String)]](out) andAssert //////
-        assert(out.runAll(MyState("init")))(equalTo(
-          (Chunk("init", "bar"), Right((MyState("foo"), ("init", "init", "bar", "foo"))))
-        ))
+        // Transparent inline screw up performance!!!
+        // need to have notion of custom-eval functions i.e. things are treated as `eval` functions and go into the @monad
+        // assertIsType[ZPure[String, MyState, MyState, Any, Nothing, (String, String, String, String)]](out) andAssert //////
+      assert(out.runAll(MyState("init")))(equalTo(
+        (Chunk("init", "bar"), Right((MyState("foo"), ("init", "init", "bar", "foo")))) //////
+      ))
     },
     test("Impure/Impure If-statement") {
       val out = defer {

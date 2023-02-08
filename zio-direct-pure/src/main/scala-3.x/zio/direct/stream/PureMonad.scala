@@ -55,19 +55,11 @@ implicit def zpureMonadSequencePar[W, S]: MonadSequenceParallel[[R, E, A] =>> ZP
     zpureMonadSequence.foreach(in)(f)
 }
 
-implicit def monadState[W, S0]: MonadState[[R, E, A] =>> ZPure[W, S0, S0, R, E, A]] { type SBase = S0 } = new MonadState[[R, E, A] =>> ZPure[W, S0, S0, R, E, A]] {
-  type SBase = S0
-  override def set(s: S0): ZPure[W, S0, S0, Any, Nothing, Unit] = ZPure.set(s)
-  override def get: ZPure[W, S0, S0, Any, Nothing, S0] = ZPure.get
-
-  // override def set(s: S0): ZPure[W, S0, S0, Any, Nothing, Unit] = ???
-  // override def get: ZPure[W, S0, S0, Any, Nothing, SBase] = ???
-
-  // override def set[S](s: S): ZPure[W, S, S, Any, Nothing, Unit] = ZPure.set[S](s)
-  // override def get[S]: ZPure[W, S, S, Any, Nothing, S] = ZPure.get
+implicit def monadState[W, S]: MonadState[[R, E, A] =>> ZPure[W, S, S, R, E, A], S] = new MonadState[[R, E, A] =>> ZPure[W, S, S, R, E, A], S] {
+  override def set(s: S): ZPure[W, S, S, Any, Nothing, Unit] = ZPure.set(s)
+  override def get: ZPure[W, S, S, Any, Nothing, S] = ZPure.get[S]
 }
 
-implicit def monadLog[W0, S]: MonadLog[[R, E, A] =>> ZPure[W0, S, S, R, E, A]] { type WBase = W0 } = new MonadLog[[R, E, A] =>> ZPure[W0, S, S, R, E, A]] {
-  type WBase = W0
-  def log(w: W0): ZPure[W0, S, S, Any, Nothing, Unit] = ZPure.log[S, W0](w)
+implicit def monadLog[W, S]: MonadLog[[R, E, A] =>> ZPure[W, S, S, R, E, A], W] = new MonadLog[[R, E, A] =>> ZPure[W, S, S, R, E, A], W] {
+  def log(w: W): ZPure[W, S, S, Any, Nothing, Unit] = ZPure.log[S, W](w)
 }

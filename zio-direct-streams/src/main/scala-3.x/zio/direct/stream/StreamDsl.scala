@@ -5,7 +5,7 @@ import zio.direct.directRunCall
 import zio.stream.ZStream
 import zio.direct.core.NotDeferredException
 
-object defer extends deferCall[ZStream, ZStream[?, ?, ?]]
+object defer extends deferCall[ZStream, ZStream[?, ?, ?], Nothing, Nothing]
 
 extension [R, E, A](value: ZStream[R, E, A]) {
   @directRunCall

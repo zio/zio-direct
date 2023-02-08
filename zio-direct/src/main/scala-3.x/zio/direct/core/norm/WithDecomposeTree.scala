@@ -26,10 +26,10 @@ trait WithDecomposeTree {
   import macroQuotes.reflect._
 
   protected object Decompose:
-    def apply[F[_, _, _]: Type](monad: DirectMonad[F], effectType: ZioEffectType, instr: Instructions) =
+    def apply[F[_, _, _]: Type, S: Type, W: Type](monad: DirectMonad[F, S, W], effectType: ZioEffectType, instr: Instructions) =
       new Decompose(monad, effectType, instr)
 
-  protected class Decompose[F[_, _, _]: Type](monad: DirectMonad[F], et: ZioEffectType, instr: Instructions):
+  protected class Decompose[F[_, _, _]: Type, S: Type, W: Type](monad: DirectMonad[F, S, W], et: ZioEffectType, instr: Instructions):
     def apply(value: Term) = DecomposeTree.orPure(value)
     // object RunCall extends RunCallExtractor[F]
 
@@ -351,7 +351,7 @@ trait WithDecomposeTree {
           case term @ AnySetCall(setValue) =>
             monad.MonadState match
               case Some(stateMonad) =>
-                Some(IR.Monad('{ ${ stateMonad.asExprOf[MonadState[F]] }.set(${ setValue }.asInstanceOf[Nothing]) }.asTerm))
+                Some(IR.Monad('{ ${ stateMonad.asExprOf[MonadState[F, S]] }.set(${ setValue.asExprOf[S] }) }.asTerm))
 
               // Note that if this whole approach with casting to MonadState[F, ...] doesn't work,
               // we could always try to cast stateMonad to MonadState[F, Any] or some other value
@@ -366,7 +366,7 @@ trait WithDecomposeTree {
           case term @ AnyLogCall(logValue) =>
             monad.MonadLog match
               case Some(logMonad) =>
-                Some(IR.Monad('{ ${ logMonad.asExprOf[MonadLog[F]] }.log(${ logValue }.asInstanceOf[Nothing]) }.asTerm))
+                Some(IR.Monad('{ ${ logMonad.asExprOf[MonadLog[F, W]] }.log(${ logValue.asExprOf[W] }) }.asTerm))
               case None =>
                 typicalError("logging", term)
           case _ =>

@@ -144,7 +144,7 @@ trait WithZioType {
 
   }
   object ZioEffectType {
-    def of[F[_, _, _]: Type](monadModelGiven: Expr[MonadModel[F]]): ZioEffectType = {
+    def of[F[_, _, _]: Type, S: Type, W: Type](monadModelGiven: Expr[MonadModel[F]]): ZioEffectType = {
       val stmt = '{ ???.asInstanceOf[F[Marker.A, Marker.B, Marker.C]] }
       val tpe = stmt.asTerm.tpe
       val (rootType, args) =

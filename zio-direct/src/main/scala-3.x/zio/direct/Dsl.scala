@@ -22,8 +22,8 @@ class directLogCall extends scala.annotation.StaticAnnotation
 
 def unsafe[T](value: T): T = NotDeferredException.fromNamed("unsafe")
 
-trait deferCall[F[_, _, _], F_out] {
-  transparent inline def impl[T](inline value: T, inline info: InfoBehavior, inline use: Use, inline linearity: Linearity) = ${ zio.direct.Dsl.impl[T, F, F_out]('value, 'info, 'use, 'linearity) }
+trait deferCall[F[_, _, _], F_out, S, W] {
+  transparent inline def impl[T](inline value: T, inline info: InfoBehavior, inline use: Use, inline linearity: Linearity) = ${ zio.direct.Dsl.impl[T, F, F_out, S, W]('value, 'info, 'use, 'linearity) }
 
   import zio.direct.core.metaprog.Linearity.{Regular => LinReg, Linear => Lin}
 
@@ -66,7 +66,7 @@ trait deferCall[F[_, _, _], F_out] {
   }
 }
 
-object defer extends deferCall[ZIO, ZIO[?, ?, ?]]
+object defer extends deferCall[ZIO, ZIO[?, ?, ?], Nothing, Nothing]
 
 extension [R, E, A](value: ZIO[R, E, A]) {
   @directRunCall
@@ -79,7 +79,7 @@ object Dsl {
   // def implZIO[T: Type](value: Expr[T], infoExpr: Expr[InfoBehavior], useTree: Expr[Use])(using q: Quotes) =
   //   impl[T, ZIO, ZIO[?, ?, ?]](value, infoExpr, useTree)
 
-  def impl[T: Type, F[_, _, _]: Type, F_out: Type](value: Expr[T], infoExpr: Expr[InfoBehavior], useTree: Expr[Use], linearityExpr: Expr[Linearity])(using q: Quotes): Expr[F_out] =
+  def impl[T: Type, F[_, _, _]: Type, F_out: Type, S: Type, W: Type](value: Expr[T], infoExpr: Expr[InfoBehavior], useTree: Expr[Use], linearityExpr: Expr[Linearity])(using q: Quotes): Expr[F_out] =
     import quotes.reflect._
     val linearity = Unliftables.unliftLinearity(linearityExpr.asTerm.underlyingArgument.asExprOf[Linearity])
     val infoBehavior = Unliftables.unliftInfoBehavior(infoExpr.asTerm.underlyingArgument.asExprOf[InfoBehavior])
@@ -95,7 +95,7 @@ object Dsl {
         }
       )
     val instructions = RefineInstructions.fromUseTree(useTree, instructionsRaw)
-    (new Transformer[F, F_out](q)).apply(value, instructions)
+    (new Transformer[F, F_out, S, W](q)).apply(value, instructions)
     // (new Transformer[ZIO, ZIO[?, ?, ?]](q)).apply(value, instructions)
 
 }

@@ -29,15 +29,15 @@ trait WithReconstructTree {
   import macroQuotes.reflect._
 
   protected object ReconstructTree {
-    def apply[F[_, _, _]: Type](monad: DirectMonad[F], effectType: ZioEffectType, instructions: Instructions) =
-      new ReconstructTree[F](monad, effectType, instructions)
+    def apply[F[_, _, _]: Type, S: Type, W: Type](monad: DirectMonad[F, S, W], effectType: ZioEffectType, instructions: Instructions) =
+      new ReconstructTree[F, S, W](monad, effectType, instructions)
   }
 
-  protected class ReconstructTree[F[_, _, _]: Type] private (monad: DirectMonad[F], et: ZioEffectType, instructions: Instructions) { self =>
+  protected class ReconstructTree[F[_, _, _]: Type, S: Type, W: Type] private (monad: DirectMonad[F, S, W], et: ZioEffectType, instructions: Instructions) { self =>
     implicit val instructionsInst: Instructions = instructions
     // so that we can do IRT.Compute
     implicit val typeUnion: TypeUnion = instructions.typeUnion
-    case class ResolveWith(zpe: ZioType) extends Resolver[F](zpe, monad)
+    case class ResolveWith(zpe: ZioType) extends Resolver[F, S, W](zpe, monad)
 
     def fromIR(irt: IRT) = apply(irt, true).term
 
@@ -49,7 +49,7 @@ trait WithReconstructTree {
           (accum :+ block.head, apply(otherMonad).term)
 
     private def apply(ir: IRT, isTopLevel: Boolean = false): ZioValue = {
-      object Resolve extends Resolver[F](ir.zpe, monad)
+      object Resolve extends Resolver[F, S, W](ir.zpe, monad)
       ir match
         case irt: IRT.Pure =>
           ZioValue(monad.Value.succeed(irt.code), irt.zpe)

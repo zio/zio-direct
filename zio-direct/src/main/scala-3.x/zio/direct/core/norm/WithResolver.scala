@@ -57,7 +57,7 @@ trait WithResolver {
             term.asExprOf[T]
 
   // Right now typing this at WithReconstructTree but really will need to get it from input signatures
-  class Resolver[F[_, _, _]: Type](zpe: ZioType, directMonad: DirectMonad[F]) {
+  class Resolver[F[_, _, _]: Type, S: Type, W: Type](zpe: ZioType, directMonad: DirectMonad[F, S, W]) {
     private def notPossible() =
       report.errorAndAbort("Invalid match case, this shuold not be possible")
 

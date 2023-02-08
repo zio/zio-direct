@@ -8,13 +8,14 @@ import zio.direct.directLogCall
 import zio.prelude.fx.ZPure
 import zio.direct.core.NotDeferredException
 
-class deferWithParams[W, S] extends deferCall[[R, E, A] =>> ZPure[W, S, S, R, E, A], ZPure[?, ?, ?, ?, ?, ?]]
-object deferWithParams {
-  def apply[W, S] = new deferWithParams[W, S]
-}
+// Using this plainly can possibly case a cyclical macro error? Not sure why
+// class deferWithParams[W, S] extends deferCall[[R, E, A] =>> ZPure[W, S, S, R, E, A], ZPure[?, ?, ?, ?, ?, ?], S, W]
+// object deferWithParams {
+//   def apply[W, S] = new deferWithParams[W, S]
+// }
 
 class deferWith[W, S] {
-  def defer = deferWithParams[W, S]
+  object defer extends deferCall[[R, E, A] =>> ZPure[W, S, S, R, E, A], ZPure[?, ?, ?, ?, ?, ?], S, W]
   object State {
     // Note that initially it was attempted to implement these things using `transparent inline def`
     // (just `inline def` does not work) however that implementation significantly slowed down

@@ -179,8 +179,9 @@ object BuildHelper {
 
   def extraOptions(scalaVersion: String) =
     CrossVersion.partialVersion(scalaVersion) match {
-      case Some((3, 0))  =>
+      case Some((3, 2))  =>
         Seq(
+          //"-Xprint-suspension"
           // "-language:implicitConversions",
           // "-Xignore-scala2-macros"
         )
