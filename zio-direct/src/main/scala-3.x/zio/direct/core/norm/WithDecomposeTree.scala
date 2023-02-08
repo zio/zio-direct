@@ -343,27 +343,34 @@ trait WithDecomposeTree {
       def unapply(term: Tree) =
         term match {
           case term @ AnyGetCall() =>
+            // NOTE interesting that getting SBase is not needed here
             monad.MonadState match
               case Some(stateMonad) => Some(IR.Monad('{ $stateMonad.get }.asTerm))
               case None             => typicalError("State get", term)
+
           case term @ AnySetCall(setValue) =>
             monad.MonadState match
               case Some(stateMonad) =>
-                // Note that if this whole approach with casting to MonadState[F, ...] doesn't work,
-                // we could always try to cast stateMonad to MonadState[F, Any] or some other value
-                // and also cast setValue as that same Any (or some other value). However this is
-                // a less type-full solution so it should only be used in last-resort.
-                setValue.asTerm.tpe.asType match
-                  case '[l] =>
-                    Some(IR.Monad('{ ${ stateMonad.asExprOf[MonadState[F]] }.set(${ setValue.asExprOf[l] }) }.asTerm))
+                stateMonad.asTerm.tpe.asType match
+                  case '[MonadState[F] { type SBase = sbase }] =>
+                    Some(IR.Monad('{ ${ stateMonad.asExprOf[MonadState[F] { type SBase = sbase }] }.set(${ setValue.asExprOf[sbase] }) }.asTerm))
+
+              // Note that if this whole approach with casting to MonadState[F, ...] doesn't work,
+              // we could always try to cast stateMonad to MonadState[F, Any] or some other value
+              // and also cast setValue as that same Any (or some other value). However this is
+              // a less type-full solution so it should only be used in last-resort.
+              // setValue.asTerm.tpe.asType match
+              //   case '[l] =>
+              //     Some(IR.Monad('{ ${ stateMonad.asExprOf[MonadState[F]] }.set(${ setValue.asExprOf[l] }) }.asTerm))
               case None =>
                 typicalError("State set", term)
+
           case term @ AnyLogCall(logValue) =>
             monad.MonadLog match
               case Some(logMonad) =>
-                logValue.asTerm.tpe.asType match
-                  case '[l] =>
-                    Some(IR.Monad('{ ${ logMonad.asExprOf[MonadLog[F]] }.log(${ logValue.asExprOf[l] }) }.asTerm))
+                logMonad.asTerm.tpe.asType match
+                  case '[MonadLog[F] { type WBase = wbase }] =>
+                    Some(IR.Monad('{ ${ logMonad.asExprOf[MonadLog[F] { type WBase = wbase }] }.log(${ logValue.asExprOf[wbase] }) }.asTerm))
               case None =>
                 typicalError("logging", term)
           case _ =>

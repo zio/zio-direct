@@ -36,12 +36,14 @@ trait MonadFallible[F[_, _, _]] {
 }
 
 trait MonadState[F[_, _, _]] {
-  def set[S](s: S): F[Any, Nothing, Unit]
-  def get[S]: F[Any, Nothing, S]
+  type SBase
+  def set(s: SBase): F[Any, Nothing, Unit]
+  def get: F[Any, Nothing, SBase]
 }
 
 trait MonadLog[F[_, _, _]] {
-  def log[W](w: W): F[Any, Nothing, Unit]
+  type WBase
+  def log(w: WBase): F[Any, Nothing, Unit]
 }
 
 trait MonadSequence[F[_, _, _]] {
