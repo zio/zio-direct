@@ -4,10 +4,8 @@ import zio.ZIO
 
 import MonadShape.Variance._
 import MonadShape.Letter._
-implicit val zioMonadModel: MonadModel[ZIO] {
-  type Variances = MonadShape.Variances3[Contravariant, Covariant, Covariant]
-  type Letters = MonadShape.Letters3[R, E, A]
-} = new MonadModel[ZIO] {
+
+type ZioMonadModel = MonadModel {
   type Variances = MonadShape.Variances3[Contravariant, Covariant, Covariant]
   type Letters = MonadShape.Letters3[R, E, A]
 }

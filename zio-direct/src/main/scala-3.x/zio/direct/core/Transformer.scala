@@ -22,7 +22,7 @@ import zio.direct.Internal.deferred
 import zio.direct.core.util.Announce
 import zio.direct.Internal.Marker
 
-class Transformer[F[_, _, _]: Type, F_out: Type, S: Type, W: Type](inputQuotes: Quotes)
+class Transformer[F[_, _, _]: Type, F_out: Type, S: Type, W: Type, MM <: MonadModel: Type](inputQuotes: Quotes)
     extends WithF
     with WithIR
     with WithComputeType
@@ -43,11 +43,11 @@ class Transformer[F[_, _, _]: Type, F_out: Type, S: Type, W: Type](inputQuotes: 
   def apply[T: Type](valueRaw: Expr[T], instructions: Instructions, directMonadInput: DirectMonadInput[F, S, W]): Expr[F_out] = {
     val value = valueRaw.asTerm.underlyingArgument
 
-    val monadModel = Expr.summon[MonadModel[F]].getOrElse {
-      report.errorAndAbort(s"Could not summon a MonadModel for: ${TypeRepr.of[F].show}")
-    }
+    // val monadModel = Expr.summon[MonadModel[F]].getOrElse {
+    //   report.errorAndAbort(s"Could not summon a MonadModel for: ${TypeRepr.of[F].show}")
+    // }
 
-    val effectType = ZioEffectType.of[F, S, W](monadModel)
+    val effectType = ZioEffectType.of[F, S, W, MM]
     val directMonad = DirectMonad.of[F, S, W](directMonadInput)
 
     // Do a top-level transform to check that there are no invalid constructs

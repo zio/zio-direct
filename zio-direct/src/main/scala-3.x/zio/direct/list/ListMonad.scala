@@ -3,14 +3,12 @@ package zio.direct.list
 import zio.direct._
 import zio.ZIO
 
-type ThreeList[R, E, A] = List[A]
-
 import MonadShape.Variance._
 import MonadShape.Letter._
-implicit val listMonadModel: MonadModel[ThreeList] {
-  type Variances = MonadShape.Variances1[Covariant]
-  type Letters = MonadShape.Letters1[A]
-} = new MonadModel[ThreeList] {
+
+type ThreeList[R, E, A] = List[A]
+
+type ListMonadModel = MonadModel {
   type Variances = MonadShape.Variances1[Covariant]
   type Letters = MonadShape.Letters1[A]
 }

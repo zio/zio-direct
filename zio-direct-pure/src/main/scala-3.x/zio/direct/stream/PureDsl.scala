@@ -15,7 +15,7 @@ import zio.direct.core.NotDeferredException
 // }
 
 class deferWith[W, S] {
-  object defer extends deferCall[[R, E, A] =>> ZPure[W, S, S, R, E, A], ZPure[?, ?, ?, ?, ?, ?], S, W](
+  object defer extends deferCall[[R, E, A] =>> ZPure[W, S, S, R, E, A], ZPure[?, ?, ?, ?, ?, ?], S, W, PureMonadModel](
         zpureMonadSuccess[W, S],
         Some(zpureMonadFallible[W, S]),
         zpureMonadSequence[W, S],

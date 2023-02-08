@@ -81,7 +81,7 @@ object PureSpec extends DeferRunSpec {
     test("Impure/Impure Pat-match") {
       val out =
         defer {
-          ZPure.succeed[MyState, String]("asdfsdfsdsdfsdfsdfsdf").eval match {
+          ZPure.succeed[MyState, String]("a").eval match {
             case "a" => ZPure.succeed[MyState, Int](1).eval
             case "b" => ZPure.succeed[MyState, Int](2).eval
           }

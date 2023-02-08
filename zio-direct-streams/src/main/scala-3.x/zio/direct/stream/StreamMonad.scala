@@ -7,10 +7,8 @@ import zio.ZIO
 import MonadShape.Variance._
 import MonadShape.Letter._
 import zio.Chunk
-implicit val streamMonadModel: MonadModel[ZStream] {
-  type Variances = MonadShape.Variances3[Contravariant, Covariant, Covariant]
-  type Letters = MonadShape.Letters3[R, E, A]
-} = new MonadModel[ZStream] {
+
+type StreamMonadModel = MonadModel {
   type Variances = MonadShape.Variances3[Contravariant, Covariant, Covariant]
   type Letters = MonadShape.Letters3[R, E, A]
 }

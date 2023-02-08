@@ -14,7 +14,7 @@ import zio.direct.core.util.TraceType
 import zio.direct.core.metaprog.TypeUnion
 import zio.direct.core.metaprog.RefineInstructions
 
-trait MonadModel[F[_, _, _]] {
+trait MonadModel {
   type Variances <: MonadShape.Variances
   type Letters <: MonadShape.Letters
 }

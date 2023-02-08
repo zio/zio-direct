@@ -144,7 +144,7 @@ trait WithZioType {
 
   }
   object ZioEffectType {
-    def of[F[_, _, _]: Type, S: Type, W: Type](monadModelGiven: Expr[MonadModel[F]]): ZioEffectType = {
+    def of[F[_, _, _]: Type, S: Type, W: Type, MM <: MonadModel: Type]: ZioEffectType = {
       val stmt = '{ ???.asInstanceOf[F[Marker.A, Marker.B, Marker.C]] }
       val tpe = stmt.asTerm.tpe
       val (rootType, args) =
@@ -154,7 +154,7 @@ trait WithZioType {
           case _ =>
             report.errorAndAbort(s"Could not identify the effect type of: ${tpe.show}")
 
-      val monadModel = computeMonadModel[F](tpe, monadModelGiven)
+      val monadModel = computeMonadModel[F, MM](tpe)
       // println(s"============== Letters and variances: ${monadModel}")
       new ZioEffectType(
         rootType,
@@ -169,24 +169,32 @@ trait WithZioType {
       )
     }
 
-    private def computeMonadModel[F[_, _, _]: Type](tpe: TypeRepr, monadModel: Expr[MonadModel[F]]) = {
-      val monadModelVariancesMemberSymbol = monadModel.asTerm.tpe.typeSymbol.typeMembers.find(_.name == "Variances").getOrElse {
-        report.errorAndAbort(s"""Did not found a `Variances` property on the type `${tpe.show}`""")
-        // term: ${monadModel.asTerm.tpe.termSymbol.typeMembers}
-        // type: ${monadModel.asTerm.tpe.typeSymbol.typeMembers}
-      }
-      val monadModelLettersMemberSymbol = monadModel.asTerm.tpe.typeSymbol.typeMembers.find(_.name == "Letters").getOrElse {
-        report.errorAndAbort(s"Did not found a `Letters` property on the type `${tpe.show}`")
-      }
+    private def computeMonadModel[F[_, _, _]: Type, MM <: MonadModel: Type](tpe: TypeRepr) = {
+      // dealias the type e.g. ZioMonadType to get the Variance/Letters variables underneath
+      val monadModelType = TypeRepr.of[MM].dealias
 
-      val monadModelVariancesList = monadModel.asTerm.select(monadModelVariancesMemberSymbol).tpe.widen
-      val monadModelLettersList = monadModel.asTerm.select(monadModelLettersMemberSymbol).tpe.widen
+      // val monadModelVariancesMemberSymbol = moandModelType.typeSymbol.typeMembers.find(_.name == "Variances").getOrElse {
+      //   report.errorAndAbort(s"""Did not find a `Variances` property on the type `${tpe.show}`""")
+      //   // term: ${monadModel.asTerm.tpe.termSymbol.typeMembers}
+      //   // type: ${monadModel.asTerm.tpe.typeSymbol.typeMembers}
+      // }
+      // val monadModelLettersMemberSymbol = moandModelType.typeSymbol.typeMembers.find(_.name == "Letters").getOrElse {
+      //   report.errorAndAbort(s"Did not find a `Letters` property on the type `${tpe.show}`")
+      // }
 
-      // // println(s"------------- Types: ${monadModelVariancesList}")
+      val monadModelVariancesList =
+        Type.of[MM] match
+          case '[MonadModel { type Variances = list }] => TypeRepr.of[list]
+
+      val monadModelLettersList =
+        Type.of[MM] match
+          case '[MonadModel { type Letters = list }] => TypeRepr.of[list]
+
+      // println(s"------------- Variances List: ${monadModelVariancesList}")
 
       val monadShapeVariances =
         monadModelVariancesList match
-          case TypeBounds(AppliedType(variances /* todo check name of this? */, args), _) => args
+          case AppliedType(variances /* todo check name of this? */, args) => args
 
       //     // case '[MonadShape.Variances1[a]]                   => List(TypeRepr.of[a])
       //     // case '[MonadShape.Variances2[a, b]]                => List(TypeRepr.of[a], TypeRepr.of[b])
@@ -198,7 +206,7 @@ trait WithZioType {
 
       val monadShapeLetters =
         monadModelLettersList match
-          case TypeBounds(AppliedType(letters /* todo check name of this? */, args), _) => args
+          case AppliedType(letters /* todo check name of this? */, args) => args
 
       //     // case '[MonadShape.Letters1[a]]                   => List(TypeRepr.of[a])
       //     // case '[MonadShape.Letters2[a, b]]                => List(TypeRepr.of[a], TypeRepr.of[b])
