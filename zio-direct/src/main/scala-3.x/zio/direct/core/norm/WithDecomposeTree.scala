@@ -353,17 +353,17 @@ trait WithDecomposeTree {
                 // we could always try to cast stateMonad to MonadState[F, Any] or some other value
                 // and also cast setValue as that same Any (or some other value). However this is
                 // a less type-full solution so it should only be used in last-resort.
-                stateMonad.asTerm.tpe.asType match
-                  case '[MonadState[F, l]] =>
-                    Some(IR.Monad('{ ${ stateMonad.asExprOf[MonadState[F, l]] }.set(${ setValue.asExprOf[l] }) }.asTerm))
+                setValue.asTerm.tpe.asType match
+                  case '[l] =>
+                    Some(IR.Monad('{ ${ stateMonad.asExprOf[MonadState[F]] }.set(${ setValue.asExprOf[l] }) }.asTerm))
               case None =>
                 typicalError("State set", term)
           case term @ AnyLogCall(logValue) =>
             monad.MonadLog match
               case Some(logMonad) =>
-                logMonad.asTerm.tpe.asType match
-                  case '[MonadLog[F, l]] =>
-                    Some(IR.Monad('{ ${ logMonad.asExprOf[MonadLog[F, l]] }.log(${ logValue.asExprOf[l] }) }.asTerm))
+                logValue.asTerm.tpe.asType match
+                  case '[l] =>
+                    Some(IR.Monad('{ ${ logMonad.asExprOf[MonadLog[F]] }.log(${ logValue.asExprOf[l] }) }.asTerm))
               case None =>
                 typicalError("logging", term)
           case _ =>

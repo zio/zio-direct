@@ -35,13 +35,13 @@ trait MonadFallible[F[_, _, _]] {
   def orDie[R, E <: Throwable, A](first: F[R, E, A]): F[R, Nothing, A]
 }
 
-trait MonadState[F[_, _, _], S] {
-  def set(s: S): F[Any, Nothing, Unit]
-  def get: F[Any, Nothing, S]
+trait MonadState[F[_, _, _]] {
+  def set[S](s: S): F[Any, Nothing, Unit]
+  def get[S]: F[Any, Nothing, S]
 }
 
-trait MonadLog[F[_, _, _], W] {
-  def log(w: W): F[Any, Nothing, Unit]
+trait MonadLog[F[_, _, _]] {
+  def log[W](w: W): F[Any, Nothing, Unit]
 }
 
 trait MonadSequence[F[_, _, _]] {
