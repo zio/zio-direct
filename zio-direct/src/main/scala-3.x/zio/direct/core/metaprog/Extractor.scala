@@ -122,10 +122,10 @@ object Extractors {
   object AnyUtilityCall {
     def unapply(using Quotes)(tree: quotes.reflect.Tree): Boolean =
       tree match
-        case AnyGetCall()  => true
-        case AnySetCall(_) => true
-        case AnyLogCall(_) => true
-        case _             => false
+        case DirectGetCallAnnotated.TermPlain() => true
+        case DirectSetCallAnnotated.TermPlain() => true
+        case DirectLogCallAnnotated.TermPlain() => true
+        case _                                  => false
   }
 
   object AnyRunCall {
@@ -154,6 +154,13 @@ object Extractors {
       }
     }
 
+    object TermPlain {
+      def unapply(using Quotes)(term: quotes.reflect.Term): Boolean = {
+        import quotes.reflect._
+        self.Symbol.unapply(term.tpe.termSymbol)
+      }
+    }
+
     object Symbol {
       def unapply(using Quotes)(symbol: quotes.reflect.Symbol): Boolean = {
         import quotes.reflect._
@@ -171,6 +178,15 @@ object Extractors {
 
   object DottyExtensionCall extends DottyCall(true)
   object DottyFunctionCall extends DottyCall(false)
+
+  object SelectOrIdent {
+    def unapply(using Quotes)(term: quotes.reflect.Term): Option[quotes.reflect.Term] =
+      import quotes.reflect._
+      term match
+        case _: Select => Some(term)
+        case _: Ident  => Some(term)
+        case _         => None
+  }
 
   class DottyCall(mustBeExtension: Boolean) {
     private val matchNonExtension = !mustBeExtension

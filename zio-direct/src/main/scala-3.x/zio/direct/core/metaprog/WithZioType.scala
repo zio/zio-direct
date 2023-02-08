@@ -56,11 +56,6 @@ trait WithZioType {
 
     private val defaultType = TypeRepr.of[Nothing]
 
-    private val variancesLettersStrict: Array[MonadShape.Letter] = variances.filter(_._1 != MonadShape.Letter.Other).map(_._1)
-    private val indexStrictOfR = variancesLettersStrict.indexOf(MonadShape.Letter.R)
-    private val indexStrictOfE = variancesLettersStrict.indexOf(MonadShape.Letter.E)
-    private val indexStrictOfA = variancesLettersStrict.indexOf(MonadShape.Letter.A)
-
     private val monadShapeR: MonadShape.Variance = variances.find(_._1 == MonadShape.Letter.R).map(_._2).getOrElse(MonadShape.Variance.Unused)
     private val monadShapeE: MonadShape.Variance = variances.find(_._1 == MonadShape.Letter.E).map(_._2).getOrElse(MonadShape.Variance.Unused)
     private val monadShapeA: MonadShape.Variance = variances.find(_._1 == MonadShape.Letter.A).map(_._2).getOrElse(MonadShape.Variance.Unused)
@@ -149,7 +144,7 @@ trait WithZioType {
 
   }
   object ZioEffectType {
-    def of[F[_, _, _]: Type]: ZioEffectType = {
+    def of[F[_, _, _]: Type](monadModelGiven: Expr[MonadModel[F]]): ZioEffectType = {
       val stmt = '{ ???.asInstanceOf[F[Marker.A, Marker.B, Marker.C]] }
       val tpe = stmt.asTerm.tpe
       val (rootType, args) =
@@ -159,7 +154,7 @@ trait WithZioType {
           case _ =>
             report.errorAndAbort(s"Could not identify the effect type of: ${tpe.show}")
 
-      val monadModel = computeMonadModel[F](tpe)
+      val monadModel = computeMonadModel[F](tpe, monadModelGiven)
       // println(s"============== Letters and variances: ${monadModel}")
       new ZioEffectType(
         rootType,
@@ -174,10 +169,7 @@ trait WithZioType {
       )
     }
 
-    private def computeMonadModel[F[_, _, _]: Type](tpe: TypeRepr) = {
-      val monadModel = Expr.summon[MonadModel[F]].getOrElse {
-        report.errorAndAbort(s"Could not summon a MonadModel for: ${tpe.show}")
-      }
+    private def computeMonadModel[F[_, _, _]: Type](tpe: TypeRepr, monadModel: Expr[MonadModel[F]]) = {
       val monadModelVariancesMemberSymbol = monadModel.asTerm.tpe.typeSymbol.typeMembers.find(_.name == "Variances").getOrElse {
         report.errorAndAbort(s"""Did not found a `Variances` property on the type `${tpe.show}`""")
         // term: ${monadModel.asTerm.tpe.termSymbol.typeMembers}

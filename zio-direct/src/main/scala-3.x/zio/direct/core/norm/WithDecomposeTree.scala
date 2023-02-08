@@ -229,7 +229,7 @@ trait WithDecomposeTree {
             val caseDefsOpt = casesOptIRTs.map(IR.Match.CaseDefs(_))
 
             val tryDecomposed = DecomposeTree.orPure(tryBlock)
-            println(s"--------- Try Type: ${PrintIR(tryDecomposed)}")
+            // println(s"--------- Try Type: ${PrintIR(tryDecomposed)}")
 
             Some(IR.Try(tryDecomposed, caseDefsOpt, tryTerm.tpe, finallyBlock.map(DecomposeTree.orPure(_))))
 

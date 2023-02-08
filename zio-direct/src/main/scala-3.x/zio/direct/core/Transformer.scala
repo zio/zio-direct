@@ -42,7 +42,11 @@ class Transformer[F[_, _, _]: Type, F_out: Type](inputQuotes: Quotes)
   def apply[T: Type](valueRaw: Expr[T], instructions: Instructions): Expr[F_out] = {
     val value = valueRaw.asTerm.underlyingArgument
 
-    val effectType = ZioEffectType.of[F]
+    val monadModel = Expr.summon[MonadModel[F]].getOrElse {
+      report.errorAndAbort(s"Could not summon a MonadModel for: ${TypeRepr.of[F].show}")
+    }
+
+    val effectType = ZioEffectType.of[F](monadModel)
     val directMonad = DirectMonad.of[F]
 
     // Do a top-level transform to check that there are no invalid constructs

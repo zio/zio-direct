@@ -40,11 +40,21 @@ object Allowed {
       // they will be lost because the transformations for block-stmts to map/flatMap chains are already done.
       case Block(stmts, output) =>
         stmts.foreach(Unsupported.Warn.checkUnmooredZio(isEffectType)(_))
-      case tree @ AnyRunCall(effect) =>
-        if (isEffectType(effect.asTerm.tpe))
-          Unsupported.Error.withTree(tree, Messages.RunRemainingAfterTransformer)
-        else
-          Unsupported.Error.withTree(tree, Messages.ForeignRunRemainingAfterTransformer)
+
+      // do as light-as-possible of a check here since it is on any term
+      case SelectOrIdent(tree @ DirectRunCallAnnotated.Term()) =>
+        Unsupported.Error.withTree(tree, Messages.RunRemainingAfterTransformer)
+
+      // TODO Should get more precise matching here. Not sure why it doesn't work
+      // then once we know it's either a select or ident, then do a more involved check
+      // tree match
+      //   case AnyRunCall(effect) =>
+      //     if (isEffectType(effect.asTerm.tpe))
+      //       Unsupported.Error.withTree(tree, Messages.RunRemainingAfterTransformer)
+      //     else
+      //       Unsupported.Error.withTree(tree, Messages.ForeignRunRemainingAfterTransformer)
+      //   case _ => None
+      // do as light-as-possible of a check here since it is on any term
       case tree @ AnyUtilityCall() =>
         Unsupported.Error.withTree(tree, Messages.UtilityRemainingAfterTransformer)
 
@@ -59,7 +69,9 @@ object Allowed {
     import qctx.reflect._
     Trees.traverse(expr, Symbol.spliceOwner) {
       // Cannot have nested runs:
-      case tree @ AnyRunCall(_) =>
+      case SelectOrIdent(tree @ DirectRunCallAnnotated.TermPlain()) =>
+        // TODO Also check the effect on the type?
+        // case tree @ AnyRunCall(_) =>
         Unsupported.Error.withTree(tree, Messages.RunInRunError)
       // TODO also check if the run call has wrong syntax
 
