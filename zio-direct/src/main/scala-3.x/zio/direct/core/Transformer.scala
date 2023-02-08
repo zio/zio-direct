@@ -49,7 +49,7 @@ class Transformer[F[_, _, _]: Type, F_out: Type, S: Type, W: Type, MM <: MonadMo
 
     // Do a top-level transform to check that there are no invalid constructs
     // if (instructions.verify != Verify.None)
-    //   Allowed.validateBlocksIn(instructions, effectType.isEffectOf)(value.asExpr)
+    Allowed.validateBlocksIn(instructions, effectType.isEffectOf)(value.asExpr)
 
     // // Do the main transformation
     val transformedRaw = Decompose[F, S, W](directMonad, effectType, instructions).apply(value)
@@ -102,7 +102,7 @@ class Transformer[F[_, _, _]: Type, F_out: Type, S: Type, W: Type, MM <: MonadMo
 
     // If there are any remaining run-calls in the tree then fail
     // TODO need to figure out a way to test this
-    // Allowed.finalValidityCheck(instructions, effectType.isEffectOf)(output.asExpr)
+    Allowed.finalValidityCheck(instructions, effectType.isEffectOf)(output.asExpr)
 
     computedType.asTypeTuple match {
       case ('[r], '[e], '[a]) =>

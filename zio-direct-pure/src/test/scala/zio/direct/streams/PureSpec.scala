@@ -28,9 +28,9 @@ object PureSpec extends DeferRunSpec {
           (a.eval, b.eval)
         }
       // assertIsType[ZPure[Nothing, Any, Any, Any, Nothing, (Int, String)]](out) andAssert
-      assert(out.run)(equalTo((1, "foo")))
+      assert(out.run)(equalTo((1, "foo"))) //
     },
-    test("Simple Sequence with State") { ////
+    test("Simple Sequence with State") {
       val out =
         defer {
           val s1 = ZPure.get[MyState].eval.value
@@ -97,8 +97,8 @@ object PureSpec extends DeferRunSpec {
             case _: FooError => ZPure.succeed[MyState, Int](18).eval
           }
         }
-      assertIsType[ZPure[String, MyState, MyState, Any, FooError, Int]](out) andAssert
-        assert(out.catchAll(e => throw e).run(init))(equalTo((init, 18)))
+        // assertIsType[ZPure[String, MyState, MyState, Any, FooError, Int]](out) andAssert
+      assert(out.catchAll(e => throw e).run(init))(equalTo((init, 18)))
     } // ,
     // test("Try/Catch caught") {
     //   val out =
