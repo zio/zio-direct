@@ -133,13 +133,14 @@ object PureSpec extends DeferRunSpec {
     test("List Impure, body Impure") {
       var v = 1
       val out =
-        defer.info(Use.withLenientCheck) {
+        defer(Use.withLenientCheck) {
           for (i <- Wrap.succeed(List(1, 2, 3)).eval) {
-            Wrap.succeed({ v += i; println("----------- BLAH ----------------") }).eval
+            Wrap.succeed(v += i).eval
           }
         }
-      assert(out.provideState(init).run)(equalTo(())) andAssert
-        assert(v)(equalTo(7))
+      // assert(out.provideState(init).run) doesn't run anything, possibly because the after the .run it's a Unit-type
+      out.provideState(init).run
+      assert(v)(equalTo(7))
     }
   )
 }
