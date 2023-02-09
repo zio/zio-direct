@@ -48,8 +48,8 @@ class Transformer[F[_, _, _]: Type, F_out: Type, S: Type, W: Type, MM <: MonadMo
     val directMonad = DirectMonad.of[F, S, W](directMonadInput, monadModelData)
 
     // Do a top-level transform to check that there are no invalid constructs
-    // if (instructions.verify != Verify.None)
-    Allowed.validateBlocksIn(instructions, effectType.isEffectOf)(value.asExpr)
+    if (instructions.verify != Verify.None)
+      Allowed.validateBlocksIn(instructions, effectType.isEffectOf)(value.asExpr)
 
     // // Do the main transformation
     val transformedRaw = Decompose[F, S, W](directMonad, effectType, instructions).apply(value)
