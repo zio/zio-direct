@@ -7,6 +7,7 @@ import zio.ZIO
 
 import MonadShape.Variance._
 import MonadShape.Letter._
+import zio.CanFail
 
 type PureMonadModel = MonadModel {
   type Variances = MonadShape.Variances6[Unused, Unused, Unused, Contravariant, Covariant, Covariant]
@@ -21,22 +22,30 @@ implicit def zpureMonadSuccess[W, S]: MonadSuccess[[R, E, A] =>> ZPure[W, S, S, 
   def flatten[R, E, A, R1 <: R, E1 >: E](first: ZPure[W, S, S, R, E, ZPure[W, S, S, R1, E1, A]]): ZPure[W, S, S, R1, E1, A] = first.flatten
 }
 
+/**
+ * MonadFalliable implementation for ZPure.
+ * NOTE: Be sure to always 'plug' the CanFail slots manually. Otherwise when the macro synthesizes
+ * calls using catchSome, ensuring, etc... the additional time it will take to "typecheck" the CanFail
+ * will horribly slow-down compile-times. Especially if there are various other macros in the
+ * same file that are also doing type-checks.
+ */
 implicit def zpureMonadFallible[W, S]: MonadFallible[[R, E, A] =>> ZPure[W, S, S, R, E, A]] = new MonadFallible[[R, E, A] =>> ZPure[W, S, S, R, E, A]] {
   def fail[E](e: => E): ZPure[Nothing, Any, Nothing, Any, E, Nothing] = ZPure.fail(e)
   def attempt[A](a: => A): ZPure[W, S, S, Any, Throwable, A] = ZPure.attempt[S, A](a)
-  def catchSome[R, E, A](first: ZPure[W, S, S, R, E, A])(andThen: PartialFunction[E, ZPure[W, S, S, R, E, A]]): ZPure[W, S, S, R, E, A] = first.catchSome[W, S, S, R, E, A](andThen)
+  def catchSome[R, E, A](first: ZPure[W, S, S, R, E, A])(andThen: PartialFunction[E, ZPure[W, S, S, R, E, A]]): ZPure[W, S, S, R, E, A] =
+    first.catchSome[W, S, S, R, E, A](andThen)(CanFail)
   def ensuring[R, E, A](f: ZPure[W, S, S, R, E, A])(finalizer: ZPure[W, S, S, R, Nothing, Any]): ZPure[W, S, S, R, E, A] =
     f.foldCauseM(
       (cause: fx.Cause[E]) => finalizer.flatMap(_ => ZPure.failCause(cause)),
       success => finalizer.flatMap(_ => ZPure.succeed(success))
-    )
+    )(CanFail)
 
-  def mapError[R, E, A, E2](first: ZPure[W, S, S, R, E, A])(f: E => E2): ZPure[W, S, S, R, E2, A] = first.mapError(f)
+  def mapError[R, E, A, E2](first: ZPure[W, S, S, R, E, A])(f: E => E2): ZPure[W, S, S, R, E2, A] = first.mapError(f)(CanFail)
   def orDie[R, E <: Throwable, A](first: ZPure[W, S, S, R, E, A]): ZPure[W, S, S, R, Nothing, A] =
     first.foldCauseM(
       (cause: fx.Cause[E]) => throw cause.first,
       success => ZPure.succeed(success)
-    )
+    )(CanFail)
 }
 
 implicit def zpureMonadSequence[W, S]: MonadSequence[[R, E, A] =>> ZPure[W, S, S, R, E, A]] = new MonadSequence[[R, E, A] =>> ZPure[W, S, S, R, E, A]] {

@@ -27,8 +27,8 @@ object PureSpec extends DeferRunSpec {
           val b = ZPure.succeed("foo")
           (a.eval, b.eval)
         }
-      // assertIsType[ZPure[Nothing, Any, Any, Any, Nothing, (Int, String)]](out) andAssert
-      assert(out.run)(equalTo((1, "foo"))) //
+      assertIsType[ZPure[Nothing, Any, Any, Any, Nothing, (Int, String)]](out) andAssert
+        assert(out.run)(equalTo((1, "foo"))) //
     },
     test("Simple Sequence with State") {
       val out =
@@ -41,8 +41,8 @@ object PureSpec extends DeferRunSpec {
           (s1, a, b, s2)
         }
 
-      // assertIsType[ZPure[String, MyState, MyState, Any, Nothing, (String, String, String, String)]](out) andAssert
-      assert(out.provideState(MyState("init")).run)(equalTo(("init", "init", "bar", "foo")))
+      assertIsType[ZPure[String, MyState, MyState, Any, Nothing, (String, String, String, String)]](out) andAssert
+        assert(out.provideState(MyState("init")).run)(equalTo(("init", "init", "bar", "foo")))
     },
     test("Simple Sequence with State - using primitives and logging") {
       val out = // ddd
@@ -97,101 +97,49 @@ object PureSpec extends DeferRunSpec {
             case _: FooError => ZPure.succeed[MyState, Int](18).eval
           }
         }
-        // assertIsType[ZPure[String, MyState, MyState, Any, FooError, Int]](out) andAssert
-      assert(out.catchAll(e => throw e).run(init))(equalTo((init, 18)))
-    } // ,
-    // test("Try/Catch caught") {
-    //   val out =
-    //     defer {
-    //       try {
-    //         val num = ZStream(1, 2, 3, 4).each
-    //         if (num == 3) {
-    //           throw new FooError
-    //         } else {
-    //           num
-    //         }
-    //       } catch {
-    //         case _: FooError => ZStream(33, 44, 55).each
-    //       }
-    //     }
-    //   assertIsType[ZStream[Any, FooError, Int]](out) andAssert
-    //     assertZIO(out.runCollect)(equalTo(Chunk(1, 2, 33, 44, 55)))
-    // },
-    // test("Try/Catch NOT caught") {
-    //   val out =
-    //     defer {
-    //       try {
-    //         val num = ZStream(1, 2, 3, 4).each
-    //         if (num == 3) {
-    //           throw new FooError
-    //         } else {
-    //           num
-    //         }
-    //       } catch {
-    //         case _: BarError => ZStream(33, 44, 55).each
-    //       }
-    //     }
-    //   assertIsType[ZStream[Any, FooError, Int]](out) andAssert
-    //     assertZIO(out.runCollect.exit)(fails(isSubtype[FooError](anything)))
-    // },
-    // test("Throw-fail") {
-    //   val out =
-    //     defer(Use.withNoCheck) {
-    //       throw new FooError
-    //     }
-    //   assertZIO(out.runCollect.exit)(fails(isSubtype[FooError](anything)))
-    // },
-    // test("Throw-die") {
-    //   val out =
-    //     defer(Use.withNoCheck) {
-    //       throwFoo()
-    //     }
-    //   assertZIO(out.runCollect.exit)(dies(isSubtype[FooError](anything)))
-    // },
-    // test("List Impure, body Impure") {
-    //   var v = 1
-    //   val out =
-    //     defer(Use.withLenientCheck) {
-    //       for (i <- ZStream(List(1, 2, 3), List(4, 5, 6)).each) {
-    //         ZStream(v += i).each
-    //       }
-    //     }
-    //   assertZIO(out.runCollect)(equalTo(Chunk((), ()))) andAssert
-    //     assert(v)(equalTo(22))
-    // },
-    // test("Complex Example Case") {
-    //   val x = ZStream(1, -2, -3)
-    //   val y = ZStream("ab", "cde")
-    //   val out =
-    //     defer {
-    //       val xx = x.each
-    //       xx + (
-    //         if xx > 0 then y.each.length() * x.each
-    //         else y.each.length()
-    //       )
-    //     }
-    //   // the above statement does not actually expand to this but they should be equivalent
-    //   val compare =
-    //     x.flatMap { xx =>
-    //       if (xx > 0) {
-    //         y.flatMap { yEach =>
-    //           x.map { xEach =>
-    //             xx + yEach.length * xEach
-    //           }
-    //         }
-    //       } else {
-    //         y.map { yEach =>
-    //           xx + yEach.length
-    //         }
-    //       }
-    //     }
-    //   val expectedOutput = Chunk(3, -3, -5, 4, -5, -8, 0, 1, -1, 0)
-    //   for {
-    //     a <- out.runCollect
-    //     b <- compare.runCollect
-    //   } yield {
-    //     assert(a)(equalTo(b)) && assert(a)(equalTo(expectedOutput))
-    //   }
-    // }
+      assertIsType[ZPure[String, MyState, MyState, Any, FooError, Int]](out) andAssert
+        assert(out.catchAll(e => throw e).run(init))(equalTo((init, 18)))
+    },
+    test("Try/Catch NOT caught") {
+      val fooError = new FooError
+      val out =
+        defer {
+          try {
+            val num = Wrap.succeed(3).eval
+            if (num == 3) {
+              throw fooError
+            } else {
+              num
+            }
+          } catch {
+            case _: BarError => Wrap.succeed(33).eval
+          }
+        }
+      assert(out.runAll(init))(equalTo(
+        // NOTE that the Chunk() is the logging, not the init
+        (Chunk(), Left(zio.prelude.fx.Cause(fooError)))
+      ))
+    },
+    test("Throw-fail") {
+      val fooError = new FooError
+      val out =
+        defer(Use.withNoCheck) {
+          throw fooError
+        }
+      assert(out.runAll(init))(equalTo(
+        (Chunk(), Left(zio.prelude.fx.Cause(fooError)))
+      ))
+    },
+    test("List Impure, body Impure") {
+      var v = 1
+      val out =
+        defer.info(Use.withLenientCheck) {
+          for (i <- Wrap.succeed(List(1, 2, 3)).eval) {
+            Wrap.succeed({ v += i; println("----------- BLAH ----------------") }).eval
+          }
+        }
+      assert(out.provideState(init).run)(equalTo(())) andAssert
+        assert(v)(equalTo(7))
+    }
   )
 }

@@ -4,6 +4,8 @@ import zio.ZIO
 
 import MonadShape.Variance._
 import MonadShape.Letter._
+import zio.CanFail
+import zio.IsSubtypeOfError
 
 type ZioMonadModel = MonadModel {
   type Variances = MonadShape.Variances3[Contravariant, Covariant, Covariant]
@@ -11,6 +13,7 @@ type ZioMonadModel = MonadModel {
   type IsFallible = true
 }
 
+// TODO summon better traces i.e. from the non-deferred code?
 implicit val zioMonadSuccess: MonadSuccess[ZIO] = new MonadSuccess[ZIO] {
   def unit[A](a: => A): ZIO[Any, Nothing, A] = ZIO.succeed[A](a)
   def map[R, E, A, B](first: ZIO[R, E, A])(andThen: A => B): ZIO[R, E, B] = first.map[B](andThen)
@@ -21,9 +24,9 @@ implicit val zioMonadSuccess: MonadSuccess[ZIO] = new MonadSuccess[ZIO] {
 implicit val zioMonadFallible: MonadFallible[ZIO] = new MonadFallible[ZIO] {
   def fail[E](e: => E): ZIO[Any, E, Nothing] = ZIO.fail(e)
   def attempt[A](a: => A): ZIO[Any, Throwable, A] = ZIO.attempt[A](a)
-  def catchSome[R, E, A](first: ZIO[R, E, A])(andThen: PartialFunction[E, ZIO[R, E, A]]): ZIO[R, E, A] = first.catchSome[R, E, A](andThen)
-  def ensuring[R, E, A](f: ZIO[R, E, A])(finalizer: ZIO[R, Nothing, Any]): ZIO[R, E, A] = f.ensuring(finalizer)
-  def mapError[R, E, A, E2](first: ZIO[R, E, A])(f: E => E2): ZIO[R, E2, A] = first.mapError(f)
+  def catchSome[R, E, A](first: ZIO[R, E, A])(andThen: PartialFunction[E, ZIO[R, E, A]]): ZIO[R, E, A] = first.catchSome[R, E, A](andThen)(CanFail, summon[zio.Trace])
+  def ensuring[R, E, A](f: ZIO[R, E, A])(finalizer: ZIO[R, Nothing, Any]): ZIO[R, E, A] = f.ensuring(finalizer)(summon[zio.Trace])
+  def mapError[R, E, A, E2](first: ZIO[R, E, A])(f: E => E2): ZIO[R, E2, A] = first.mapError(f)(CanFail, summon[zio.Trace])
   def orDie[R, E <: Throwable, A](first: ZIO[R, E, A]): ZIO[R, Nothing, A] = first.orDie
 }
 

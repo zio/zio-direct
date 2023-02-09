@@ -17,7 +17,7 @@ import zio.direct.core.NotDeferredException
 class deferWith[W, S] {
   object defer extends deferCall[[R, E, A] =>> ZPure[W, S, S, R, E, A], ZPure[?, ?, ?, ?, ?, ?], S, W, PureMonadModel](
         zpureMonadSuccess[W, S],
-        Some(zpureMonadFallible[W, S]),
+        Some(zpureMonadFallible[W, S]), // MUCH better perf when this is removed
         zpureMonadSequence[W, S],
         zpureMonadSequencePar[W, S],
         Some(zpureMonadState[W, S]),
@@ -41,6 +41,11 @@ class deferWith[W, S] {
   /** Helper method to do logging */
   @directLogCall
   def log(w: W): Unit = ZPure.log(w).eval
+
+  object Wrap {
+    def succeed[T](value: T) = ZPure.succeed[S, T](value)
+    def attempt[T](value: T) = ZPure.attempt[S, T](value)
+  }
 }
 
 type ZPureProxy[R, E, A] = ZPure[_, _, _, R, E, A]
