@@ -11,6 +11,7 @@ import zio.stream.ZStream
 import zio.Chunk
 import zio.prelude.fx.ZPure
 
+
 object PureSpec extends DeferRunSpec {
   val dc = deferWith[String, MyState]
   import dc._

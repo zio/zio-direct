@@ -34,6 +34,7 @@ implicit def zpureMonadFallible[W, S]: MonadFallible[[R, E, A] =>> ZPure[W, S, S
   def attempt[A](a: => A): ZPure[W, S, S, Any, Throwable, A] = ZPure.attempt[S, A](a)
   def catchSome[R, E, A](first: ZPure[W, S, S, R, E, A])(andThen: PartialFunction[E, ZPure[W, S, S, R, E, A]]): ZPure[W, S, S, R, E, A] =
     first.catchSome[W, S, S, R, E, A](andThen)(CanFail)
+
   def ensuring[R, E, A](f: ZPure[W, S, S, R, E, A])(finalizer: ZPure[W, S, S, R, Nothing, Any]): ZPure[W, S, S, R, E, A] =
     f.foldCauseM(
       (cause: fx.Cause[E]) => finalizer.flatMap(_ => ZPure.failCause(cause)),
