@@ -41,39 +41,9 @@ trait WithDecomposeTree extends MacroBase {
             DecomposeBlock.unapply(block)
 
           case PureTree(tree) =>
-            // println(s"============= Tree is pure: ${Format(Format.Tree(tree))}")
             None
 
           case DecomposeSingleTermConstruct(monad) => Some(monad)
-
-          case If(cond, ifTrue, ifFalse) =>
-            val (ifTrueIR, ifFalseIR) = DecomposeTree.orPure2(ifTrue, ifFalse)
-            val condIR = DecomposeTree.orPure(cond)
-            Some(IR.If(condIR, ifTrueIR, ifFalseIR))
-
-          // Not supporting do-while because Scala 3 does not support it
-          case q"while($cond) $body" =>
-            Some(IR.While(DecomposeTree.orPure(cond), DecomposeTree.orPure(body)))
-
-          case q"$list.foreach[$u](($alias) => $expr)" if isA[Iterable[Any]](list) =>
-            val monad = DecomposeTree.orPure(list)
-            val body = DecomposeTree.orPure(expr)
-            Some(IR.Foreach(monad, list.tpe, alias.name, body))
-
-          case q"$a && $b" if (isA[Boolean](a) && isA[Boolean](b)) =>
-            val (aTerm, bTerm) = DecomposeTree.orPure2(a, b)
-            Some(IR.And(aTerm, bTerm))
-
-          case q"$a || $b" if (isA[Boolean](a) && isA[Boolean](b)) =>
-            val (aTerm, bTerm) = DecomposeTree.orPure2(a, b)
-            Some(IR.Or(aTerm, bTerm))
-
-          // TODO For the Scala3 version check if this is all that we need to do
-          case Match(m @ DecomposeTree(monad), caseDefs) =>
-            Some(IR.Match(monad, DecomposeCases(caseDefs)))
-
-          case m @ Match(value, DecomposeCases(cases)) =>
-            Some(IR.Match(IR.Pure(value), cases))
 
           case RunCall(task) =>
             Some(IR.Monad(task))
@@ -235,6 +205,35 @@ trait WithDecomposeTree extends MacroBase {
 
           case Throw(e) =>
             Some(IR.Fail(DecomposeTree.orPure(e)))
+
+          case If(cond, ifTrue, ifFalse) =>
+            val (ifTrueIR, ifFalseIR) = DecomposeTree.orPure2(ifTrue, ifFalse)
+            val condIR = DecomposeTree.orPure(cond)
+            Some(IR.If(condIR, ifTrueIR, ifFalseIR))
+
+          // Not supporting do-while because Scala 3 does not support it
+          case q"while($cond) $body" =>
+            Some(IR.While(DecomposeTree.orPure(cond), DecomposeTree.orPure(body)))
+
+          case q"$list.foreach[$u](($alias) => $expr)" if isA[Iterable[Any]](list) =>
+            val monad = DecomposeTree.orPure(list)
+            val body = DecomposeTree.orPure(expr)
+            Some(IR.Foreach(monad, list.tpe, alias.name, body))
+
+          case q"$a && $b" if (isA[Boolean](a) && isA[Boolean](b)) =>
+            val (aTerm, bTerm) = DecomposeTree.orPure2(a, b)
+            Some(IR.And(aTerm, bTerm))
+
+          case q"$a || $b" if (isA[Boolean](a) && isA[Boolean](b)) =>
+            val (aTerm, bTerm) = DecomposeTree.orPure2(a, b)
+            Some(IR.Or(aTerm, bTerm))
+
+          // TODO For the Scala3 version check if this is all that we need to do
+          case Match(m @ DecomposeTree(monad), caseDefs) =>
+            Some(IR.Match(monad, DecomposeCases(caseDefs)))
+
+          case m @ Match(value, DecomposeCases(cases)) =>
+            Some(IR.Match(IR.Pure(value), cases))
 
           case _ => None
         }
