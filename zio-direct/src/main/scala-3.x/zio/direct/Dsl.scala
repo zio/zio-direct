@@ -22,14 +22,14 @@ class directLogCall extends scala.annotation.StaticAnnotation
 
 def unsafe[T](value: T): T = NotDeferredException.fromNamed("unsafe")
 
-trait deferCall[F[_, _, _], F_out, S, W, MM <: MonadModel](
-    success: MonadSuccess[F],
-    fallible: Option[MonadFallible[F]],
-    sequence: MonadSequence[F],
-    sequencePar: MonadSequenceParallel[F],
-    state: Option[MonadState[F, S]],
-    log: Option[MonadLog[F, W]]
-) {
+trait deferCall[F[_, _, _], F_out, S, W, MM <: MonadModel] {
+  transparent inline def success: MonadSuccess[F]
+  transparent inline def fallible: Option[MonadFallible[F]]
+  transparent inline def sequence: MonadSequence[F]
+  transparent inline def sequencePar: MonadSequenceParallel[F]
+  transparent inline def state: Option[MonadState[F, S]]
+  transparent inline def log: Option[MonadLog[F, W]]
+
   transparent inline def impl[T](
       inline value: T,
       inline info: InfoBehavior,

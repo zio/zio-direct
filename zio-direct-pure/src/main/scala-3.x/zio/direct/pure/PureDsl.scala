@@ -14,15 +14,17 @@ import zio.direct.core.NotDeferredException
 //   def apply[W, S] = new deferWithParams[W, S]
 // }
 
+class deferWithParams[W, S] extends deferCall[[R, E, A] =>> ZPure[W, S, S, R, E, A], ZPure[?, ?, ?, ?, ?, ?], S, W, PureMonad.PureMonadModel] {
+  transparent inline def success = PureMonad.zpureMonadSuccess[W, S]
+  transparent inline def fallible = Some(PureMonad.zpureMonadFallible[W, S]) // Performance issues with try-rewrites
+  transparent inline def sequence = PureMonad.zpureMonadSequence[W, S]
+  transparent inline def sequencePar = PureMonad.zpureMonadSequencePar[W, S]
+  transparent inline def state = Some(PureMonad.zpureMonadState[W, S])
+  transparent inline def log = Some(PureMonad.zpureMonadLog[W, S])
+}
+
 class deferWith[W, S] {
-  object defer extends deferCall[[R, E, A] =>> ZPure[W, S, S, R, E, A], ZPure[?, ?, ?, ?, ?, ?], S, W, PureMonad.PureMonadModel](
-        PureMonad.zpureMonadSuccess[W, S],
-        Some(PureMonad.zpureMonadFallible[W, S]), // MUCH better perf when this is removed
-        PureMonad.zpureMonadSequence[W, S],
-        PureMonad.zpureMonadSequencePar[W, S],
-        Some(PureMonad.zpureMonadState[W, S]),
-        Some(PureMonad.zpureMonadLog[W, S])
-      )
+  val defer = new deferWithParams[W, S]
 
   // Note that initially it was attempted to implement setState and getState using `transparent inline def`
   // (just `inline def` does not work) the approach was much simpler as it looked like:
