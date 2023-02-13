@@ -155,7 +155,7 @@ trait WithReconstructTree extends MacroBase {
             case (a: IR.Monadic, b: IR.Monadic) =>
               q"${apply(a)}.flatMap { case true => ${apply(b)}; case false => ${ZioApply.False} }"
             case (a: IR.Monadic, IR.Pure(b)) =>
-              q"${apply(a)}.map { case true => $b; case false => ${ZioApply.False} }"
+              q"${apply(a)}.map { case true => $b; case false => false }"
             case (IR.Pure(a), b: IR.Monadic) =>
               /*inside the condition a.asExprOf[Boolean]*/
               q"""
@@ -174,7 +174,7 @@ trait WithReconstructTree extends MacroBase {
             case (a: IR.Monadic, b: IR.Monadic) =>
               q"${apply(a)}.flatMap { case true => ${ZioApply.True}; case false => ${apply(b)} }"
             case (a: IR.Monadic, IR.Pure(b)) =>
-              q"${apply(a)}.map { case true => ${ZioApply.True}; case false => ${b} }"
+              q"${apply(a)}.map { case true => true; case false => ${b} }"
             case (IR.Pure(a), b: IR.Monadic) =>
               q"""
                 if ($a) ${ZioApply.True}

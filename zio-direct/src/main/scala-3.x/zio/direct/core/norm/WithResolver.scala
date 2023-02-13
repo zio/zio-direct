@@ -35,59 +35,82 @@ trait WithResolver {
     val inf = Inferred(anyToNothing)
   }
 
+  extension (expr: Expr[_])
+    def asExprOfOrFail[T: Type]: Expr[T] =
+      Type.of[T] match
+        case '[t] =>
+          if (!(expr.asTerm.tpe <:< TypeRepr.of[t]))
+            report.errorAndAbort(
+              s"The type of the expression `${Format.Expr(expr)}`\n===== Was: ==================\n${Format.TypeRepr(expr.asTerm.tpe)}\n===== But Expected: =========\n${Format.TypeRepr(TypeRepr.of[t])}\n-----------------------------"
+            )
+          else
+            expr.asExprOf[T]
+  extension (term: Term)
+    def asExprOfOrFail[T: Type]: Expr[T] =
+      Type.of[T] match
+        case '[t] =>
+          if (!(term.tpe <:< TypeRepr.of[t]))
+            report.errorAndAbort(
+              s"The type of the expression `${Format.Term(term)}`\n===== Was: ==================\n${Format.TypeRepr(term.tpe)}\n===== But Expected: =========\n${Format.TypeRepr(TypeRepr.of[t])}\n-----------------------------"
+            )
+          else
+            term.asExprOf[T]
+
   // Right now typing this at WithReconstructTree but really will need to get it from input signatures
-  class Resolver[F[_, _, _]: Type](zpe: ZioType, directMonad: DirectMonad[F]) {
+  class Invoker[F[_, _, _]: Type, S: Type, W: Type](zpe: ZioType, directMonad: DirectMonad[F, S, W]) {
     private def notPossible() =
       report.errorAndAbort("Invalid match case, this shuold not be possible")
 
-    def applyFlatMap(monad: ZioValue, applyLambda: ZioValue): ZioValue =
+    def FlatMap(monad: ZioValue, applyLambda: ZioValue): ZioValue =
       val MonadSuccess = directMonad.Success
       (monad.zpe.asTypeTuple, zpe.valueType) match
         case (('[r], '[e], '[a]), '[b]) =>
           '{
-            $MonadSuccess.flatMap[r, e, a, b](${ monad.term.asExprOf[F[r, e, a]] })( // .asInstanceOf[F[r, e, a]]
+            $MonadSuccess.flatMap[r, e, a, b](${ monad.term.asExprOfOrFail[F[r, e, a]] })( // .asInstanceOf[F[r, e, a]]
               ${ applyLambda.term.asExpr }.asInstanceOf[a => F[r, e, b]])
           }.toZioValue(zpe)
 
-    def applyFlatMapWithBody(monad: ZioValue, valSymbol: Option[Symbol], body: ZioValue): ZioValue = {
+    def FlatMap(monad: ZioValue, valSymbol: Option[Symbol], body: ZioValue): ZioValue = {
       val applyLambdaTerm = {
         body.zpe.asTypeTuple match
           case ('[r], '[e], '[a]) =>
             makeLambda(TypeRepr.of[F[r, e, a]])(body.term, valSymbol)
       }
-      applyFlatMap(monad, ZioValue(applyLambdaTerm, body.zpe))
+      FlatMap(monad, ZioValue(applyLambdaTerm, body.zpe))
     }
 
-    def applyMap(monad: ZioValue, applyLambdaTerm: Term): ZioValue =
+    def Map(monad: ZioValue, applyLambdaTerm: Term): ZioValue =
       val MonadSuccess = directMonad.Success
       (monad.zpe.asTypeTuple, zpe.asTypeTuple) match
         case (('[r], '[e], '[a]), ('[or], '[oe], '[b])) =>
           val out = '{
-            $MonadSuccess.map[r, e, a, b](${ monad.term.asExprOf[F[r, e, a]] })( // .asInstanceOf[F[r, e, a]]
+            $MonadSuccess.map[r, e, a, b](${ monad.term.asExprOfOrFail[F[r, e, a]] })( // .asInstanceOf[F[r, e, a]]
               ${ applyLambdaTerm.asExpr }.asInstanceOf[a => b])
           }
           out.toZioValue(zpe)
         case _ =>
           notPossible()
 
-    def applyMapWithBody(monad: ZioValue, valSymbol: Option[Symbol], bodyTerm: Term): ZioValue = {
+    def Map(monad: ZioValue, valSymbol: Option[Symbol], bodyTerm: Term): ZioValue = {
       val applyLambdaTerm = makeLambda(TypeRepr.of[Any])(bodyTerm, valSymbol)
-      applyMap(monad, applyLambdaTerm)
+      Map(monad, applyLambdaTerm)
     }
 
-    def applyCatchSome(monadFailure: Expr[MonadFallible[F]])(tryClause: ZioValue, body: ZioValue): ZioValue = {
+    def CatchSome(monadFailure: Expr[MonadFallible[F]])(tryClause: ZioValue, body: ZioValue): ZioValue = {
       val MonadFailure = directMonad.Failure
       (zpe.asTypeTuple) match
         case ('[or], '[oe], '[oa]) =>
           '{
-            $monadFailure.catchSome[or, oe, oa](${ tryClause.term.asExprOf[F[or, oe, oa]] })( // .asInstanceOf[F[or, oe, oa]]
-              ${ body.term.asExpr }.asInstanceOf[PartialFunction[oe, F[or, oe, oa]]])
+            {
+              $monadFailure.catchSome[or, oe, oa](${ tryClause.term.asExprOf[F[or, oe, oa]] })( // .asInstanceOf[F[or, oe, oa]]
+                ${ body.term.asExpr }.asInstanceOf[PartialFunction[oe, F[or, oe, oa]]])
+            }
           }.toZioValue(zpe)
         case _ =>
           notPossible()
     }
 
-    def applyEnsuring(monadFailure: Expr[MonadFallible[F]])(monad: ZioValue, finalizer: ZioValue): ZioValue =
+    def Ensuring(monadFailure: Expr[MonadFallible[F]])(monad: ZioValue, finalizer: ZioValue): ZioValue =
       monad.zpe.asTypeTuple match
         case ('[r], '[e], '[a]) =>
           // when generalizing to non-zio check there result-type and change ZIO[?, ?, ?] representation to the appropriate one for the given type
@@ -100,7 +123,7 @@ trait WithResolver {
             ) // .asInstanceOf[F[r, e, a]]
           }.asExprOf[F[r, e, a]].toZioValue(zpe)
 
-    def applyForeach(monadExpr: ZioValue, elementSymbol: Symbol, bodyMonad: ZioValue)(implicit collectStrategy: Collect) =
+    def Foreach(monadExpr: ZioValue, elementSymbol: Symbol, bodyMonad: ZioValue)(implicit collectStrategy: Collect) =
       val elementType = elementSymbol.termRef.widenTermRefByName.asType
       val MonadSuccess = directMonad.Success
       (zpe.asTypeTuple, elementType, bodyMonad.zpe.asTypeTuple) match
@@ -133,7 +156,7 @@ trait WithResolver {
         case _ =>
           notPossible()
 
-    def applyFlatten(block: ZioValue): ZioValue =
+    def Flatten(block: ZioValue): ZioValue =
       /*
       This is for situations where you have a block that returns a ZIO value but does not necessarily have all of it's
       terms wrapped. For example:
@@ -158,7 +181,7 @@ trait WithResolver {
             )
           }.toZioValue(zpe)
 
-    def applyExtractedUnlifts(aliasedTree: IRT.Leaf, unlifts: List[ParallelBlockExtract], collectStrategy: Collect)(implicit tu: TypeUnion) = {
+    def MultipleRunCalls(aliasedTree: IRT.Leaf, unlifts: List[ParallelBlockExtract], collectStrategy: Collect)(implicit tu: TypeUnion) = {
       val unliftTriples = unlifts.map(Tuple.fromProductTyped(_))
       val (terms, names, types) = unliftTriples.unzip3
       val termsTotalType =

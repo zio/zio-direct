@@ -26,7 +26,7 @@ object ShowDetails {
   object Verbose extends ShowDetails {
     def showImplicitFunctionParams: Boolean = true
     def showImplicitClauses: Boolean = true
-    def showBoundsTypes: Boolean = true
+    def showBoundsTypes: Boolean = false
     def showTypeParams: Boolean = true
     def showAsInstanceOf: Boolean = true
   }

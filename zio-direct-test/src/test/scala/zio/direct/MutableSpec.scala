@@ -6,6 +6,18 @@ import scala.collection.mutable.ArrayBuffer
 import zio.direct.core.util.Messages
 import zio.ZIO
 
+object MySpec extends DeferRunSpec {
+  val spec = suite("MySpec")(
+    suite("mySuite")(
+      List(1, 2, 3).map(no =>
+        test(s"Test no: $no")(
+          assertTrue(true)
+        )
+      )
+    )
+  )
+}
+
 @nowarn
 object MutableSpec extends DeferRunSpec {
   val spec = suite("MutableSpec")(

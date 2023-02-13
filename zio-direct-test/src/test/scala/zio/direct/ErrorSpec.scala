@@ -15,6 +15,13 @@ object ErrorSpec extends DeferRunSpec {
           }
         assertZIO(out.exit)(fails(isSubtype[FooError](anything)))
       },
+      test("Throw from a monad") {
+        val out =
+          defer(Use.withNoCheck) {
+            throw (ZIO.succeed(new FooError).run)
+          }
+        assertZIO(out.exit)(fails(isSubtype[FooError](anything)))
+      },
       test("Indirect error function WITH 'unsafe' should be a failure") {
         val out =
           defer(Use.withNoCheck) {

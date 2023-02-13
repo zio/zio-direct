@@ -4,6 +4,7 @@ import scala.quoted._
 import zio.direct.core.metaprog.Extractors._
 import zio.direct.core.metaprog._
 import zio.direct._
+import zio.direct.Dsl.DirectMonadInput
 import zio.direct.core.util.Format
 import scala.collection.mutable
 import zio.Chunk
@@ -21,7 +22,7 @@ import zio.direct.Internal.deferred
 import zio.direct.core.util.Announce
 import zio.direct.Internal.Marker
 
-class Transformer[F[_, _, _]: Type, F_out: Type](inputQuotes: Quotes)
+class Transformer[F[_, _, _]: Type, F_out: Type, S: Type, W: Type, MM <: MonadModel: Type](inputQuotes: Quotes)
     extends WithF
     with WithIR
     with WithComputeType
@@ -39,18 +40,19 @@ class Transformer[F[_, _, _]: Type, F_out: Type](inputQuotes: Quotes)
     val path = pos.sourceFile.path
     s"$path:${pos.startLine + 1}:${pos.startColumn}"
 
-  def apply[T: Type](valueRaw: Expr[T], instructions: Instructions): Expr[F_out] = {
+  def apply[T: Type](valueRaw: Expr[T], instructions: Instructions, directMonadInput: DirectMonadInput[F, S, W]): Expr[F_out] = {
     val value = valueRaw.asTerm.underlyingArgument
 
-    val effectType = ZioEffectType.of[F]
-    val directMonad = DirectMonad.of[F]
+    val monadModelData = computeMonadModelData[MM]
+    val effectType = ZioEffectType.of[F, S, W](monadModelData)
+    val directMonad = DirectMonad.of[F, S, W](directMonadInput, monadModelData)
 
     // Do a top-level transform to check that there are no invalid constructs
     if (instructions.verify != Verify.None)
       Allowed.validateBlocksIn(instructions, effectType.isEffectOf)(value.asExpr)
 
     // // Do the main transformation
-    val transformedRaw = Decompose[F](directMonad, effectType, instructions).apply(value)
+    val transformedRaw = Decompose[F, S, W](directMonad, effectType, instructions).apply(value)
 
     def fileShow = Announce.FileShow.FullPath(posFileStr(valueRaw.asTerm.pos))
 
@@ -60,7 +62,7 @@ class Transformer[F[_, _, _]: Type, F_out: Type](inputQuotes: Quotes)
     if (instructions.info.showDeconstructed)
       Announce.section("Deconstructed Instructions", PrintIR(transformedRaw), fileShow)
 
-    val transformed = WrapUnsafes[F](directMonad).apply(transformedRaw)
+    val transformed = WrapUnsafes[F, S, W](directMonad).apply(transformedRaw)
     val transformedSameAsRaw = transformed != transformedRaw
     if (instructions.info.showDeconstructed) {
       if (transformedSameAsRaw)
@@ -70,7 +72,7 @@ class Transformer[F[_, _, _]: Type, F_out: Type](inputQuotes: Quotes)
     }
 
     val irt = ComputeIRT(effectType, instructions.typeUnion)(transformed)
-    val output = ReconstructTree[F](directMonad, effectType, instructions).fromIR(irt)
+    val output = ReconstructTree[F, S, W](directMonad, effectType, instructions).fromIR(irt)
     if (instructions.info.showReconstructed)
       val showDetailsMode =
         instructions.info match {
