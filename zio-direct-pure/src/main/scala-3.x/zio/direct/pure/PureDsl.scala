@@ -15,28 +15,29 @@ import zio.direct.core.NotDeferredException
 // }
 
 class deferWith[W, S] {
-  object defer extends deferCall[[R, E, A] =>> ZPure[W, S, S, R, E, A], ZPure[?, ?, ?, ?, ?, ?], S, W, PureMonadModel](
-        zpureMonadSuccess[W, S],
-        Some(zpureMonadFallible[W, S]), // MUCH better perf when this is removed
-        zpureMonadSequence[W, S],
-        zpureMonadSequencePar[W, S],
-        Some(zpureMonadState[W, S]),
-        Some(zpureMonadLog[W, S])
+  object defer extends deferCall[[R, E, A] =>> ZPure[W, S, S, R, E, A], ZPure[?, ?, ?, ?, ?, ?], S, W, PureMonad.PureMonadModel](
+        PureMonad.zpureMonadSuccess[W, S],
+        Some(PureMonad.zpureMonadFallible[W, S]), // MUCH better perf when this is removed
+        PureMonad.zpureMonadSequence[W, S],
+        PureMonad.zpureMonadSequencePar[W, S],
+        Some(PureMonad.zpureMonadState[W, S]),
+        Some(PureMonad.zpureMonadLog[W, S])
       )
-  object State {
-    // Note that initially it was attempted to implement these things using `transparent inline def`
-    // (just `inline def` does not work) however that implementation significantly slowed down
-    // auto-completion speed or Metals dialog so instead the annotation method was introduced.
-    // Also this method should have a similar annotation in Scala-2.
 
-    /** Helper method to set the state */
-    @directSetCall
-    def set(s: S): Unit = ZPure.set(s).eval
+  // Note that initially it was attempted to implement setState and getState using `transparent inline def`
+  // (just `inline def` does not work) the approach was much simpler as it looked like:
+  //   transparent inline def setState(inline s: State) = summon[MonadState[F]].set(s)
+  // however that implementation significantly slowed down
+  // auto-completion speed or Metals dialog so instead the annotation method was introduced.
+  // Also this method should have a similar annotation in Scala-2.
 
-    /** Helper method to get the state */
-    @directGetCall
-    def get(): S = ZPure.get[S].eval
-  }
+  /** Helper method to set the state */
+  @directSetCall
+  def setState(s: S): Unit = ZPure.set(s).eval
+
+  /** Helper method to get the state */
+  @directGetCall
+  def getState(): S = ZPure.get[S].eval
 
   /** Helper method to do logging */
   @directLogCall

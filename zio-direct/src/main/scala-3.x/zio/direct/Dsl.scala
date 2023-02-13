@@ -78,8 +78,6 @@ trait deferCall[F[_, _, _], F_out, S, W, MM <: MonadModel](
   }
 }
 
-object defer extends deferCall[ZIO, ZIO[?, ?, ?], Nothing, Nothing, ZioMonadModel](zioMonadSuccess, Some(zioMonadFallible), zioMonadSequence, zioMonadSequenceParallel, None, None)
-
 extension [R, E, A](value: ZIO[R, E, A]) {
   @directRunCall
   def run: A = NotDeferredException.fromNamed("run")
@@ -87,9 +85,6 @@ extension [R, E, A](value: ZIO[R, E, A]) {
 
 object Dsl {
   import InfoBehavior._
-
-  // def implZIO[T: Type](value: Expr[T], infoExpr: Expr[InfoBehavior], useTree: Expr[Use])(using q: Quotes) =
-  //   impl[T, ZIO, ZIO[?, ?, ?]](value, infoExpr, useTree)
 
   case class DirectMonadInput[F[_, _, _]: Type, S: Type, W: Type](
       success: Expr[MonadSuccess[F]],

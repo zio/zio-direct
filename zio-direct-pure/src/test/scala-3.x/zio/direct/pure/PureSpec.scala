@@ -11,7 +11,6 @@ import zio.stream.ZStream
 import zio.Chunk
 import zio.prelude.fx.ZPure
 
-
 object PureSpec extends DeferRunSpec {
   val dc = deferWith[String, MyState]
   import dc._
@@ -46,15 +45,15 @@ object PureSpec extends DeferRunSpec {
         assert(out.provideState(MyState("init")).run)(equalTo(("init", "init", "bar", "foo")))
     },
     test("Simple Sequence with State - using primitives and logging") {
-      val out = // ddd
+      val out =
         defer {
-          val s1 = State.get().value
+          val s1 = getState().value
           val a = ZPure.succeed[MyState, String](s1).eval
           log(a)
-          State.set(MyState("foo"))
+          setState(MyState("foo"))
           val b = ZPure.succeed[MyState, String]("bar").eval
           log(b)
-          val s2 = State.get().value
+          val s2 = getState().value
           (s1, a, b, s2)
         }
       assert(out.runAll(MyState("init")))(equalTo(
@@ -65,11 +64,11 @@ object PureSpec extends DeferRunSpec {
       val out = defer {
         if (ZPure.succeed[MyState, Int](2).eval == 2)
           val v = ZPure.succeed[MyState, String]("foo").eval
-          State.set(MyState(v))
+          setState(MyState(v))
           v
         else
           val v = ZPure.succeed[MyState, String]("bar").eval
-          State.set(MyState(v))
+          setState(MyState(v))
           v
       }
       assert(out.run(MyState("init")))(equalTo((MyState("foo"), "foo")))

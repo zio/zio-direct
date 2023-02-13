@@ -5,7 +5,14 @@ import zio.direct.directRunCall
 import zio.stream.ZStream
 import zio.direct.core.NotDeferredException
 
-object defer extends deferCall[ZStream, ZStream[?, ?, ?], Nothing, Nothing, StreamMonadModel](zstreamMonadSuccess, Some(zstreamMonadFallible), zstreamMonadSequence, zstreamMonadSequencePar, None, None)
+object defer extends deferCall[ZStream, ZStream[?, ?, ?], Nothing, Nothing, StreamMonad.StreamMonadModel](
+      StreamMonad.zstreamMonadSuccess,
+      Some(StreamMonad.zstreamMonadFallible),
+      StreamMonad.zstreamMonadSequence,
+      StreamMonad.zstreamMonadSequencePar,
+      None,
+      None
+    )
 
 extension [R, E, A](value: ZStream[R, E, A]) {
   @directRunCall
