@@ -16,14 +16,14 @@ object StreamMonad {
     type IsFallible = true
   }
 
-  val zstreamMonadSuccess: MonadSuccess[ZStream] = new MonadSuccess[ZStream] {
+  val Success: MonadSuccess[ZStream] = new MonadSuccess[ZStream] {
     def unit[A](a: => A): ZStream[Any, Nothing, A] = ZStream.succeed[A](a)
     def map[R, E, A, B](first: ZStream[R, E, A])(andThen: A => B): ZStream[R, E, B] = first.map[B](andThen)
     def flatMap[R, E, A, B](first: ZStream[R, E, A])(andThen: A => ZStream[R, E, B]): ZStream[R, E, B] = first.flatMap[R, E, B](andThen)
     def flatten[R, E, A, R1 <: R, E1 >: E](first: ZStream[R, E, ZStream[R1, E1, A]]): ZStream[R1, E1, A] = first.flatten
   }
 
-  val zstreamMonadFallible: MonadFallible[ZStream] = new MonadFallible[ZStream] {
+  val Fallible: MonadFallible[ZStream] = new MonadFallible[ZStream] {
     def fail[E](e: => E): ZStream[Any, E, Nothing] = ZStream.fail(e)
     def attempt[A](a: => A): ZStream[Any, Throwable, A] = ZStream.fromZIO(ZIO.attempt[A](a))
     def catchSome[R, E, A](first: ZStream[R, E, A])(andThen: PartialFunction[E, ZStream[R, E, A]]): ZStream[R, E, A] = first.catchSome[R, E, A](andThen)
@@ -33,7 +33,7 @@ object StreamMonad {
     def orDie[R, E <: Throwable, A](first: ZStream[R, E, A]): ZStream[R, Nothing, A] = first.orDie
   }
 
-  val zstreamMonadSequence: MonadSequence[ZStream] = new MonadSequence[ZStream] {
+  val Sequence: MonadSequence[ZStream] = new MonadSequence[ZStream] {
     // basically the equivalent of `gens.foldRight[Gen[R, List[A]]](Gen.const(List.empty))(_.zipWith(_)(_ :: _))`
     private def crossN[R, E, A, B, C](streams: Chunk[ZStream[R, E, A]]): ZStream[R, E, Chunk[A]] =
       streams.foldLeft[ZStream[R, E, Chunk[A]]](ZStream.succeed(Chunk.empty)) { (left, right) => left.cross(right).map { case (l, r) => l :+ r } }
@@ -47,11 +47,11 @@ object StreamMonad {
       ZStream(output).flatten
   }
 
-  val zstreamMonadSequencePar: MonadSequenceParallel[ZStream] = new MonadSequenceParallel[ZStream] {
+  val SequencePar: MonadSequenceParallel[ZStream] = new MonadSequenceParallel[ZStream] {
     def foreachPar[R, E, A, B, Collection[+Element] <: Iterable[Element]](
         in: Collection[A]
     )(f: A => ZStream[R, E, B])(implicit bf: scala.collection.BuildFrom[Collection[A], B, Collection[B]]): ZStream[R, E, Collection[B]] =
       // TODO Same problem again. Need a different type for the finalization
-      zstreamMonadSequence.foreach(in)(f)
+      Sequence.foreach(in)(f)
   }
 }

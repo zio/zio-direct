@@ -16,7 +16,7 @@ object PureMonad {
     type IsFallible = true
   }
 
-  def zpureMonadSuccess[W, S]: MonadSuccess[[R, E, A] =>> ZPure[W, S, S, R, E, A]] = new MonadSuccess[[R, E, A] =>> ZPure[W, S, S, R, E, A]] {
+  def Success[W, S]: MonadSuccess[[R, E, A] =>> ZPure[W, S, S, R, E, A]] = new MonadSuccess[[R, E, A] =>> ZPure[W, S, S, R, E, A]] {
     def unit[A](a: => A): ZPure[W, S, S, Any, Nothing, A] = ZPure.succeed[S, A](a)
     def map[R, E, A, B](first: ZPure[W, S, S, R, E, A])(andThen: A => B): ZPure[W, S, S, R, E, B] = first.map[B](andThen)
     def flatMap[R, E, A, B](first: ZPure[W, S, S, R, E, A])(andThen: A => ZPure[W, S, S, R, E, B]): ZPure[W, S, S, R, E, B] = first.flatMap[W, S, R, E, B](andThen)
@@ -30,7 +30,7 @@ object PureMonad {
    * will horribly slow-down compile-times. Especially if there are various other macros in the
    * same file that are also doing type-checks.
    */
-  def zpureMonadFallible[W, S]: MonadFallible[[R, E, A] =>> ZPure[W, S, S, R, E, A]] = new MonadFallible[[R, E, A] =>> ZPure[W, S, S, R, E, A]] {
+  def Fallible[W, S]: MonadFallible[[R, E, A] =>> ZPure[W, S, S, R, E, A]] = new MonadFallible[[R, E, A] =>> ZPure[W, S, S, R, E, A]] {
     def fail[E](e: => E): ZPure[Nothing, Any, Nothing, Any, E, Nothing] = ZPure.fail(e)
     def attempt[A](a: => A): ZPure[W, S, S, Any, Throwable, A] = ZPure.attempt[S, A](a)
     def catchSome[R, E, A](first: ZPure[W, S, S, R, E, A])(andThen: PartialFunction[E, ZPure[W, S, S, R, E, A]]): ZPure[W, S, S, R, E, A] =
@@ -50,26 +50,26 @@ object PureMonad {
       )(CanFail)
   }
 
-  def zpureMonadSequence[W, S]: MonadSequence[[R, E, A] =>> ZPure[W, S, S, R, E, A]] = new MonadSequence[[R, E, A] =>> ZPure[W, S, S, R, E, A]] {
+  def Sequence[W, S]: MonadSequence[[R, E, A] =>> ZPure[W, S, S, R, E, A]] = new MonadSequence[[R, E, A] =>> ZPure[W, S, S, R, E, A]] {
     def foreach[R, E, A, B, Collection[+Element] <: Iterable[Element]](
         in: Collection[A]
     )(f: A => ZPure[W, S, S, R, E, B])(implicit bf: scala.collection.BuildFrom[Collection[A], B, Collection[B]]): ZPure[W, S, S, R, E, Collection[B]] =
       ZPure.forEach((in: Iterable[A]))(f).map(col => bf.fromSpecific(in)(col))
   }
 
-  def zpureMonadSequencePar[W, S]: MonadSequenceParallel[[R, E, A] =>> ZPure[W, S, S, R, E, A]] = new MonadSequenceParallel[[R, E, A] =>> ZPure[W, S, S, R, E, A]] {
+  def SequencePar[W, S]: MonadSequenceParallel[[R, E, A] =>> ZPure[W, S, S, R, E, A]] = new MonadSequenceParallel[[R, E, A] =>> ZPure[W, S, S, R, E, A]] {
     def foreachPar[R, E, A, B, Collection[+Element] <: Iterable[Element]](
         in: Collection[A]
     )(f: A => ZPure[W, S, S, R, E, B])(implicit bf: scala.collection.BuildFrom[Collection[A], B, Collection[B]]): ZPure[W, S, S, R, E, Collection[B]] =
-      zpureMonadSequence.foreach(in)(f)
+      Sequence.foreach(in)(f)
   }
 
-  def zpureMonadState[W, S]: MonadState[[R, E, A] =>> ZPure[W, S, S, R, E, A], S] = new MonadState[[R, E, A] =>> ZPure[W, S, S, R, E, A], S] {
+  def State[W, S]: MonadState[[R, E, A] =>> ZPure[W, S, S, R, E, A], S] = new MonadState[[R, E, A] =>> ZPure[W, S, S, R, E, A], S] {
     override def set(s: S): ZPure[W, S, S, Any, Nothing, Unit] = ZPure.set(s)
     override def get: ZPure[W, S, S, Any, Nothing, S] = ZPure.get[S]
   }
 
-  def zpureMonadLog[W, S]: MonadLog[[R, E, A] =>> ZPure[W, S, S, R, E, A], W] = new MonadLog[[R, E, A] =>> ZPure[W, S, S, R, E, A], W] {
+  def Log[W, S]: MonadLog[[R, E, A] =>> ZPure[W, S, S, R, E, A], W] = new MonadLog[[R, E, A] =>> ZPure[W, S, S, R, E, A], W] {
     def log(w: W): ZPure[W, S, S, Any, Nothing, Unit] = ZPure.log[S, W](w)
   }
 }

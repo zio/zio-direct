@@ -75,11 +75,16 @@ trait WithF extends MacroBase {
       val monadSuccess: Expr[MonadSuccess[F]] = directMonadInput.success
       val monadFailure: Option[Expr[MonadFallible[F]]] =
         if (monadModelData.isFalliable)
-          Some('{
-            ${ directMonadInput.fallible }.getOrElse {
-              throw new IllegalArgumentException(ErrorForWithF.make($printEffect, "", "MonadFallible"))
-            }
-          })
+          directMonadInput.fallible match {
+            case '{ Some($value) }   => Some(value.asExprOf[MonadFallible[F]])
+            case '{ Option($value) } => Some(value.asExprOf[MonadFallible[F]])
+            case _ =>
+              Some('{
+                ${ directMonadInput.fallible }.getOrElse {
+                  throw new IllegalArgumentException(ErrorForWithF.make($printEffect, "", "MonadFallible"))
+                }
+              })
+          }
         else
           None
 
@@ -87,25 +92,34 @@ trait WithF extends MacroBase {
       val monadSequencePar: Expr[MonadSequenceParallel[F]] = directMonadInput.sequencePar
       val monadState: Option[Expr[MonadState[F, S]]] =
         if (!(TypeRepr.of[S] =:= TypeRepr.of[Nothing]))
-          Some(
-            '{
-              ${ directMonadInput.state }.getOrElse {
-                throw new IllegalArgumentException(ErrorForWithF.make($printEffect, $printState, "MonadState"))
-              }
-            }
-          )
+          directMonadInput.state match {
+            case '{ Some($value) }   => Some(value.asExprOf[MonadState[F, S]])
+            case '{ Option($value) } => Some(value.asExprOf[MonadState[F, S]])
+            case _ =>
+              Some(
+                '{
+                  ${ directMonadInput.state }.getOrElse {
+                    throw new IllegalArgumentException(ErrorForWithF.make($printEffect, $printState, "MonadState"))
+                  }
+                }
+              )
+          }
         else
           None
 
       val monadLog: Option[Expr[MonadLog[F, W]]] =
         if (!(TypeRepr.of[W] =:= TypeRepr.of[Nothing]))
-          Some(
-            '{
-              ${ directMonadInput.log }.getOrElse {
-                throw new IllegalArgumentException(ErrorForWithF.make($printEffect, $printLog, "MonadLog"))
-              }
-            }
-          )
+          directMonadInput.log match
+            case '{ Some($value) }   => Some(value.asExprOf[MonadLog[F, W]])
+            case '{ Option($value) } => Some(value.asExprOf[MonadLog[F, W]])
+            case _ =>
+              Some(
+                '{
+                  ${ directMonadInput.log }.getOrElse {
+                    throw new IllegalArgumentException(ErrorForWithF.make($printEffect, $printLog, "MonadLog"))
+                  }
+                }
+              )
         else
           None
 
