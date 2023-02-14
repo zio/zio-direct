@@ -319,13 +319,13 @@ trait WithReconstructTree {
           // Assemble the peices together into a closure
           val closure = Closure(Ref(methSym), Some(pfTree))
           val functionBlock = Block(List(method), closure)
-          val tryExpr = '{ ${ tryTerm.expr }.asInstanceOf[zioTry] }
+          // val tryExpr = '{ ${ tryTerm.expr }.asInstanceOf[zioTry] }
           // val monadExpr = '{ ${ tryTerm.asExpr }.asInstanceOf[zioRET].catchSome { ${ functionBlock } } }
           // val monadZioType = tryBlock.zpe.flatMappedWith(caseDefs.zpe).transformA(_ => tryBlock.)
 
           // Use the wholeTryZpe. The R, E should ahve been unified in the IRT type computation in WithComputeType
           // and the chosen A type should have been determined by scala and also used in WithComputeType (in the apply(ir: IR.Try) case there)
-          val monadZioValue = InvokeWith(wholeTryZpe).CatchSome(monadFailure)(tryExpr.asTerm.toZioValue(tryBlock.zpe), functionBlock.toZioValue(caseDefs.zpe))
+          val monadZioValue = InvokeWith(wholeTryZpe).CatchSome(monadFailure)(tryTerm, functionBlock.toZioValue(caseDefs.zpe))
           (wholeTryZpe, monadZioValue)
     }
 
