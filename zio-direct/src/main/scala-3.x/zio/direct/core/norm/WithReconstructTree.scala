@@ -318,7 +318,7 @@ trait WithReconstructTree {
 
           // Assemble the peices together into a closure
           val closure = Closure(Ref(methSym), Some(pfTree))
-          val functionBlock = '{ ${ Block(List(method), closure).asExpr }.asInstanceOf[PartialFunction[zioTry_E, zioOut]] }
+          val functionBlock = Block(List(method), closure)
           val tryExpr = '{ ${ tryTerm.expr }.asInstanceOf[zioTry] }
           // val monadExpr = '{ ${ tryTerm.asExpr }.asInstanceOf[zioRET].catchSome { ${ functionBlock } } }
           // val monadZioType = tryBlock.zpe.flatMappedWith(caseDefs.zpe).transformA(_ => tryBlock.)
