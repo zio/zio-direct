@@ -14,7 +14,7 @@ import zio.ZIO
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Await
 
-object PureSpec extends DeferRunSpec {
+object FutureSpec extends DeferRunSpec {
   val e = new Exception("blah")
   val e1 = new Exception("blahblah")
 
@@ -54,25 +54,25 @@ object PureSpec extends DeferRunSpec {
         }
       assertFuture(out)(equalTo(1))
     },
-    // test("Try/Catch caught") {
-    //   def out(implicit ec: ExecutionContext) =
-    //     defer.info {
-    //       try {
-    //         val num = Future(1).run
-    //         if (num == 1) {
-    //           throw new FooError
-    //         } else {
-    //           num
-    //         }
-    //       } catch {
-    //         case _: Throwable => Future(18).run
-    //       }
-    //     }
+    test("Try/Catch caught") {
+      def out(implicit ec: ExecutionContext) = //
+        defer.info {
+          try {
+            val num = Future(1).run
+            if (num == 1) {
+              throw new FooError
+            } else {
+              num
+            }
+          } catch {
+            case _: Throwable => Future(18).run
+          }
+        }
 
-    //   // assertFuture(out)(equalTo(18))
+      // assertFuture(out)(equalTo(18))
 
-    //   assert(Await.result(out(scala.concurrent.ExecutionContext.global), scala.concurrent.duration.Duration.Inf))(equalTo(18))
-    // },
+      assert(Await.result(out(scala.concurrent.ExecutionContext.global), scala.concurrent.duration.Duration.Inf))(equalTo(18))
+    },
     test("Try/Catch NOT caught") {
       val fooError = new FooError
       def out(implicit ec: ExecutionContext) =
