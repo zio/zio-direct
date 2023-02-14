@@ -13,7 +13,7 @@ object select extends deferCall[[R, E, A] =>> List[A], List[?], Nothing, Nothing
   transparent inline def log = None
 }
 
-extension [R, E, A](value: List[A]) {
+extension [A](value: List[A]) {
   @directRunCall
   def from: A = NotDeferredException.fromNamed("from")
 }

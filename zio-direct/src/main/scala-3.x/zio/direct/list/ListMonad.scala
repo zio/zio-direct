@@ -1,8 +1,6 @@
 package zio.direct.list
 
 import zio.direct._
-import zio.ZIO
-
 import MonadShape.Variance._
 import MonadShape.Letter._
 
@@ -57,9 +55,6 @@ object ListMonadSequence extends MonadSequence[ThreeList] {
   )(f: A => ThreeList[R, E, B])(implicit bf: scala.collection.BuildFrom[Collection[A], B, Collection[B]]): ThreeList[R, E, Collection[B]] =
     val traversed = traverseThreeList[R, E, A, B](in.toList, f)
     val out = traversed.map(list => bf.fromSpecific(in)(list))
-    // println(s"==== IN: ${in}")
-    // println(s"==== Traversed: ${traversed}")
-    // println(s"==== Out: ${out}")
     out
 }
 
