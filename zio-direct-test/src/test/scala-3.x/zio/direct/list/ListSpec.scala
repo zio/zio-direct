@@ -5,6 +5,8 @@ import zio.test._
 import zio.test.Assertion._
 import zio.direct.DeferRunSpec
 import zio.direct.Use
+import zio.direct.FooError
+import zio.direct.BarError
 
 object ListSpec extends DeferRunSpec {
 

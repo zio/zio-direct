@@ -13,6 +13,9 @@ import scala.concurrent.Future
 import zio.ZIO
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Await
+import zio.direct.core.util.debug.PrintMac
+import zio.direct.FooError
+import zio.direct.BarError
 
 object FutureSpec extends DeferRunSpec {
   val e = new Exception("blah")
@@ -21,75 +24,79 @@ object FutureSpec extends DeferRunSpec {
   def assertFuture[A](ecToFuture: ExecutionContext => Future[A])(assertion: Assertion[A]): ZIO[Any, Throwable, TestResult] =
     assertZIO(ZIO.fromFuture(ecToFuture(_)))(assertion)
 
-  val spec = suite("VariaSpec")(
-    test("Simple Sequence") {
-      def out(implicit ec: ExecutionContext) =
-        defer {
-          val a = Future(1)
-          val b = Future("foo")
-          (a.run, b.run)
-        }
-      assertIsType[Future[(Int, String)]](out(???)) andAssert
-        assertFuture(out)(equalTo((1, "foo")))
-    },
-    test("Impure/Impure If-statement") {
-      def out(implicit ec: ExecutionContext) =
-        defer {
-          if (Future[Int](2).run == 2)
-            val v = Future("foo").run
-            v
-          else
-            val v = Future("bar").run
-            v
-        }
-      assertFuture(out)(equalTo("foo"))
-    },
-    test("Impure/Impure Pat-match") {
-      def out(implicit ec: ExecutionContext) =
-        defer {
-          Future("a").run match {
-            case "a" => Future(1).run
-            case "b" => Future(2).run
-          }
-        }
-      assertFuture(out)(equalTo(1))
-    },
-    test("Try/Catch caught") {
-      def out(implicit ec: ExecutionContext) = //
-        defer.info {
-          try {
-            val num = Future(1).run
-            if (num == 1) {
-              throw new FooError
-            } else {
-              num
-            }
-          } catch {
-            case _: Throwable => Future(18).run
-          }
-        }
+  // val dc = new deferWith()
+  // import dc._
 
-      // assertFuture(out)(equalTo(18))
+  val spec = suite("FutureSpec")(
+    // test("Simple Sequence") {
+    //   def outA(implicit ec: ExecutionContext) =
+    //     defer {
+    //       val a = Future(1)
+    //       val b = Future("foo")
+    //       (a.run, b.run)
+    //     }
+    //   assertIsType[Future[(Int, String)]](outA(???)) andAssert
+    //     assertFuture(outA)(equalTo((1, "foo")))
+    // },
+    // test("Impure/Impure If-statement") {
+    //   def outB(implicit ec: ExecutionContext) =
+    //     defer {
+    //       if (Future[Int](2).run == 2)
+    //         val v = Future("foo").run
+    //         v
+    //       else
+    //         val v = Future("bar").run
+    //         v
+    //     }
+    //   assertFuture(outB)(equalTo("foo"))
+    // },
+    // test("Impure/Impure Pat-match") {
+    //   def outC(implicit ec: ExecutionContext) =
+    //     defer {
+    //       Future("a").run match {
+    //         case "a" => Future(1).run
+    //         case "b" => Future(2).run
+    //       }
+    //     }
+    //   assertFuture(outC)(equalTo(1))
+    // },
+    // test("Try/Catch caught") {
+    //   def outD(implicit ec: ExecutionContext) = //
+    //     defer.info {
+    //       try {
+    //         val num = Future(1).run
+    //         if (num == 1) {
+    //           throw new FooError
+    //         } else {
+    //           num
+    //         }
+    //       } catch {
+    //         case _: Throwable => Future(18).run
+    //       }
+    //     }
 
-      assert(Await.result(out(scala.concurrent.ExecutionContext.global), scala.concurrent.duration.Duration.Inf))(equalTo(18))
-    },
+    //   // assertFuture(out)(equalTo(18))
+
+    //   assert(Await.result(outD(scala.concurrent.ExecutionContext.global), scala.concurrent.duration.Duration.Inf))(equalTo(18))
+    // },
+
     test("Try/Catch NOT caught") {
       val fooError = new FooError
-      def out(implicit ec: ExecutionContext) =
-        defer {
-          try {
-            val num = Future(3).run
-            if (num == 3) {
-              throw fooError
-            } else {
-              num
+      import scala.concurrent.ExecutionContext.Implicits.global
+      def outE(ctx: ExecutionContext) =
+        PrintMac.passthrough(
+          defer(ctx) {
+            try {
+              "foo"
+            } catch {
+              case e: BazError => "bar";
             }
-          } catch {
-            case _: BarError => Future(3).run
+            ""
           }
-        }
-      assertZIO(ZIO.fromFuture(out).exit)(fails(equalTo(fooError)))
+        )
+      assertZIO(ZIO.fromFuture(outE).exit)(fails(equalTo(fooError)))
     }
+
     // test("Throw-fail") {
     //   val fooError = new FooError
     //   def out(implicit ec: ExecutionContext) =

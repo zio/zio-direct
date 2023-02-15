@@ -37,7 +37,12 @@ object DeferRunSpec {
       '{ false }
 }
 
+class FooError extends Exception("foo")
+class BarError extends Exception("foo")
+
 trait DeferRunSpec extends ZIOSpecDefault {
+  class BazError extends Exception("foo")
+
   // various config parameters to test zio dependency
   case class ConfigInt(value: Int)
   case class ConfigString(value: String)
@@ -45,13 +50,11 @@ trait DeferRunSpec extends ZIOSpecDefault {
   case class ConfigT[T](value: T)
   case class ConfigList(value: List[Int])
 
-  class FooError extends Exception("foo")
   def throwFoo() = throw new FooError
   def makeFooError = new FooError
 
   def wantStringThrowFoo(): String = throw new FooError
 
-  class BarError extends Exception("foo")
   def throwBar() = throw new BarError
   def makeBarError = new BarError
 

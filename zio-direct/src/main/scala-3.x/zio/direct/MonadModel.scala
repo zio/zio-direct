@@ -18,6 +18,8 @@ trait MonadModel {
   type Variances <: MonadShape.Variances
   type Letters <: MonadShape.Letters
   type IsFallible <: Boolean
+  type IsStateful <: Boolean
+  type IsLogging <: Boolean
 }
 
 trait MonadSuccess[F[_, _, _]] {

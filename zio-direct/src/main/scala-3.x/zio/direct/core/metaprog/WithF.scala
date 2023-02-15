@@ -11,8 +11,16 @@ trait MacroBase {
   case class MonadModelData(
       variancesListType: TypeRepr,
       lettersListType: TypeRepr,
-      isFalliable: Boolean
+      isFalliable: Boolean,
+      isStateful: Boolean,
+      isLogging: Boolean
   )
+
+  private def constBoolean[T: Type]: Option[Boolean] =
+    val flagType = TypeRepr.of[T]
+    if (flagType =:= TypeRepr.of[true]) Some(true)
+    else if (flagType =:= TypeRepr.of[false]) Some(false)
+    else None
 
   def computeMonadModelData[MM <: MonadModel: Type]: MonadModelData = {
     // dealias the type e.g. ZioMonadType to get the Variance/Letters variables underneath
@@ -29,12 +37,25 @@ trait MacroBase {
     val isFallible =
       Type.of[MM] match
         case '[MonadModel { type IsFallible = flag }] =>
-          val flagType = TypeRepr.of[flag]
-          if (flagType =:= TypeRepr.of[true]) true
-          else if (flagType =:= TypeRepr.of[false]) false
-          else report.errorAndAbort(s"The type IsFallible needs to be specified on the Monad-Model: ${monadModelType.show}. Currently: ${flagType.show}")
+          constBoolean[flag] match
+            case Some(value) => value
+            case None        => report.errorAndAbort(s"The type IsFallible needs to be specified on the Monad-Model: ${monadModelType.show}.")
 
-    MonadModelData(monadModelVariancesList, monadModelLettersList, isFallible)
+    val isStateful =
+      Type.of[MM] match
+        case '[MonadModel { type IsStateful = flag }] =>
+          constBoolean[flag] match
+            case Some(value) => value
+            case None        => report.errorAndAbort(s"The type IsStateful needs to be specified on the Monad-Model: ${monadModelType.show}.")
+
+    val isLogging =
+      Type.of[MM] match
+        case '[MonadModel { type IsLogging = flag }] =>
+          constBoolean[flag] match
+            case Some(value) => value
+            case None        => report.errorAndAbort(s"The type IsLogging needs to be specified on the Monad-Model: ${monadModelType.show}.")
+
+    MonadModelData(monadModelVariancesList, monadModelLettersList, isFallible, isStateful, isLogging)
   }
 }
 
@@ -75,51 +96,21 @@ trait WithF extends MacroBase {
       val monadSuccess: Expr[MonadSuccess[F]] = directMonadInput.success
       val monadFailure: Option[Expr[MonadFallible[F]]] =
         if (monadModelData.isFalliable)
-          directMonadInput.fallible match {
-            case '{ Some($value) }   => Some(value.asExprOf[MonadFallible[F]])
-            case '{ Option($value) } => Some(value.asExprOf[MonadFallible[F]])
-            case _ =>
-              Some('{
-                ${ directMonadInput.fallible }.getOrElse {
-                  throw new IllegalArgumentException(ErrorForWithF.make($printEffect, "", "MonadFallible"))
-                }
-              })
-          }
+          Some(directMonadInput.fallible.asExprOf[MonadFallible[F]])
         else
           None
 
       val monadSequence: Expr[MonadSequence[F]] = directMonadInput.sequence
       val monadSequencePar: Expr[MonadSequenceParallel[F]] = directMonadInput.sequencePar
       val monadState: Option[Expr[MonadState[F, S]]] =
-        if (!(TypeRepr.of[S] =:= TypeRepr.of[Nothing]))
-          directMonadInput.state match {
-            case '{ Some($value) }   => Some(value.asExprOf[MonadState[F, S]])
-            case '{ Option($value) } => Some(value.asExprOf[MonadState[F, S]])
-            case _ =>
-              Some(
-                '{
-                  ${ directMonadInput.state }.getOrElse {
-                    throw new IllegalArgumentException(ErrorForWithF.make($printEffect, $printState, "MonadState"))
-                  }
-                }
-              )
-          }
+        if (monadModelData.isStateful)
+          Some(directMonadInput.state.asExprOf[MonadState[F, S]])
         else
           None
 
       val monadLog: Option[Expr[MonadLog[F, W]]] =
-        if (!(TypeRepr.of[W] =:= TypeRepr.of[Nothing]))
-          directMonadInput.log match
-            case '{ Some($value) }   => Some(value.asExprOf[MonadLog[F, W]])
-            case '{ Option($value) } => Some(value.asExprOf[MonadLog[F, W]])
-            case _ =>
-              Some(
-                '{
-                  ${ directMonadInput.log }.getOrElse {
-                    throw new IllegalArgumentException(ErrorForWithF.make($printEffect, $printLog, "MonadLog"))
-                  }
-                }
-              )
+        if (monadModelData.isStateful)
+          Some(directMonadInput.log.asExprOf[MonadLog[F, W]])
         else
           None
 

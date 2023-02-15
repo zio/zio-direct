@@ -14,6 +14,8 @@ object StreamMonad {
     type Variances = MonadShape.Variances3[Contravariant, Covariant, Covariant]
     type Letters = MonadShape.Letters3[R, E, A]
     type IsFallible = true
+    type IsStateful = false
+    type IsLogging = false
   }
 
   val Success: MonadSuccess[ZStream] = new MonadSuccess[ZStream] {

@@ -22,13 +22,20 @@ class directLogCall extends scala.annotation.StaticAnnotation
 
 def unsafe[T](value: T): T = NotDeferredException.fromNamed("unsafe")
 
-trait deferCall[F[_, _, _], F_out, S, W, MM <: MonadModel] {
-  transparent inline def success: MonadSuccess[F]
-  transparent inline def fallible: Option[MonadFallible[F]]
-  transparent inline def sequence: MonadSequence[F]
-  transparent inline def sequencePar: MonadSequenceParallel[F]
-  transparent inline def state: Option[MonadState[F, S]]
-  transparent inline def log: Option[MonadLog[F, W]]
+private class InterfaceMissingError(msg: String) extends Exception(msg)
+private def failMissing(className: String, additional: String = ""): Nothing =
+  throw new InterfaceMissingError(s"Missing interface for $className." + (if (additional != "") " " + additional else ""))
+
+private def failUnused(): Nothing =
+  throw new IllegalArgumentException("Unused")
+
+trait deferCall[F[_, _, _], F_out, S, W, MM <: MonadModel, Ctx] {
+  def success: MonadSuccess[F]
+  def fallible: MonadFallible[F]
+  def sequence: MonadSequence[F]
+  def sequencePar: MonadSequenceParallel[F]
+  def state: MonadState[F, S]
+  def log: MonadLog[F, W]
 
   transparent inline def impl[T](
       inline value: T,
@@ -88,11 +95,11 @@ object Dsl {
 
   case class DirectMonadInput[F[_, _, _]: Type, S: Type, W: Type](
       success: Expr[MonadSuccess[F]],
-      fallible: Expr[Option[MonadFallible[F]]],
+      fallible: Expr[MonadFallible[F]],
       sequence: Expr[MonadSequence[F]],
       sequencePar: Expr[MonadSequenceParallel[F]],
-      state: Expr[Option[MonadState[F, S]]],
-      log: Expr[Option[MonadLog[F, W]]]
+      state: Expr[MonadState[F, S]],
+      log: Expr[MonadLog[F, W]]
   )
 
   def impl[T: Type, F[_, _, _]: Type, F_out: Type, S: Type, W: Type, MM <: MonadModel: Type](
@@ -101,11 +108,11 @@ object Dsl {
       useTree: Expr[Use],
       linearityExpr: Expr[Linearity],
       success: Expr[MonadSuccess[F]],
-      fallible: Expr[Option[MonadFallible[F]]],
+      fallible: Expr[MonadFallible[F]],
       sequence: Expr[MonadSequence[F]],
       sequencePar: Expr[MonadSequenceParallel[F]],
-      state: Expr[Option[MonadState[F, S]]],
-      log: Expr[Option[MonadLog[F, W]]]
+      state: Expr[MonadState[F, S]],
+      log: Expr[MonadLog[F, W]]
   )(using q: Quotes): Expr[F_out] =
     import quotes.reflect._
     val linearity = Unliftables.unliftLinearity(linearityExpr.asTerm.underlyingArgument.asExprOf[Linearity])

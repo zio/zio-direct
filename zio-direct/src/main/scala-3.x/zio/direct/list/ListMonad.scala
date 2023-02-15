@@ -10,6 +10,8 @@ type ListMonadModel = MonadModel {
   type Variances = MonadShape.Variances1[Covariant]
   type Letters = MonadShape.Letters1[A]
   type IsFallible = false
+  type IsStateful = false
+  type IsLogging = false
 }
 
 implicit inline def listMonadSuccess: MonadSuccess[ThreeList] = ListMonadSuccess
