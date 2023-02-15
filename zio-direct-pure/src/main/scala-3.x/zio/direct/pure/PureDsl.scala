@@ -14,13 +14,13 @@ import zio.direct.core.NotDeferredException
 //   def apply[W, S] = new deferWithParams[W, S]
 // }
 
-class deferWithParams[W, S] extends deferCall[[R, E, A] =>> ZPure[W, S, S, R, E, A], ZPure[?, ?, ?, ?, ?, ?], S, W, PureMonad.PureMonadModel, Nothing] {
-  def success = PureMonad.Success[W, S]
-  def fallible = PureMonad.Fallible[W, S]
-  def sequence = PureMonad.Sequence[W, S]
-  def sequencePar = PureMonad.SequencePar[W, S]
-  def state = PureMonad.State[W, S]
-  def log = PureMonad.Log[W, S]
+class deferWithParams[W, S] extends deferCall[[R, E, A] =>> ZPure[W, S, S, R, E, A], ZPure[?, ?, ?, ?, ?, ?], S, W, PureMonad.PureMonadModel] {
+  inline def success = PureMonad.Success[W, S]
+  inline def fallible = PureMonad.Fallible[W, S]
+  inline def sequence = PureMonad.Sequence[W, S]
+  inline def sequencePar = PureMonad.SequencePar[W, S]
+  inline def state = PureMonad.State[W, S]
+  inline def log = PureMonad.Log[W, S]
 }
 
 class deferWith[W, S] {

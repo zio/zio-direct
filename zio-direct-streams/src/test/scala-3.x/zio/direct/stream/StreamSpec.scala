@@ -10,8 +10,6 @@ import scala.annotation.nowarn
 import zio.direct.DeferRunSpec
 import zio.stream.ZStream
 import zio.Chunk
-import zio.direct.FooError
-import zio.direct.BarError
 
 object StreamSpec extends DeferRunSpec {
 
@@ -93,7 +91,7 @@ object StreamSpec extends DeferRunSpec {
               num
             }
           } catch {
-            case _: BazError => ZStream(33, 44, 55).each
+            case _: BarError => ZStream(33, 44, 55).each
           }
         }
       assertIsType[ZStream[Any, FooError, Int]](out) andAssert

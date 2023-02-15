@@ -37,11 +37,9 @@ object DeferRunSpec {
       '{ false }
 }
 
-class FooError extends Exception("foo")
-class BarError extends Exception("foo")
-
 trait DeferRunSpec extends ZIOSpecDefault {
-  class BazError extends Exception("foo")
+  class FooError extends Exception("foo")
+  class BarError extends Exception("bar")
 
   // various config parameters to test zio dependency
   case class ConfigInt(value: Int)

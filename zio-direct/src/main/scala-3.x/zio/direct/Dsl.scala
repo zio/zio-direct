@@ -22,20 +22,26 @@ class directLogCall extends scala.annotation.StaticAnnotation
 
 def unsafe[T](value: T): T = NotDeferredException.fromNamed("unsafe")
 
-private class InterfaceMissingError(msg: String) extends Exception(msg)
-private def failMissing(className: String, additional: String = ""): Nothing =
-  throw new InterfaceMissingError(s"Missing interface for $className." + (if (additional != "") " " + additional else ""))
+private[direct] object FailUnused {
+  private def failUnused(interfaceName: String, disabledFlag: String = ""): Nothing =
+    def addendum = if (disabledFlag != "") s" (are you sure that ${disabledFlag} is set to False in the MonadModel?)"
+    throw new IllegalArgumentException(s"The interface ${interfaceName} is unused for this monad${addendum}.")
 
-private def failUnused(): Nothing =
-  throw new IllegalArgumentException("Unused")
+  def forMonadSuccess() = failUnused("MonadSuccess")
+  def forMonadFallible() = failUnused("MonadFallible", "IsFallible")
+  def forMonadSequence() = failUnused("MonadSequence")
+  def forMonadSequenceParallel() = failUnused("MonadSequenceParallel")
+  def forMonadState() = failUnused("MonadState", "IsStateful")
+  def forMonadLog() = failUnused("MonadLog", "IsLogging")
+}
 
-trait deferCall[F[_, _, _], F_out, S, W, MM <: MonadModel, Ctx] {
-  def success: MonadSuccess[F]
-  def fallible: MonadFallible[F]
-  def sequence: MonadSequence[F]
-  def sequencePar: MonadSequenceParallel[F]
-  def state: MonadState[F, S]
-  def log: MonadLog[F, W]
+trait deferCall[F[_, _, _], F_out, S, W, MM <: MonadModel] {
+  inline def success: MonadSuccess[F]
+  inline def fallible: MonadFallible[F]
+  inline def sequence: MonadSequence[F]
+  inline def sequencePar: MonadSequenceParallel[F]
+  inline def state: MonadState[F, S]
+  inline def log: MonadLog[F, W]
 
   transparent inline def impl[T](
       inline value: T,

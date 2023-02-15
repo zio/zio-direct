@@ -10,8 +10,6 @@ import zio.direct.DeferRunSpec
 import zio.stream.ZStream
 import zio.Chunk
 import zio.prelude.fx.ZPure
-import zio.direct.FooError
-import zio.direct.BarError
 
 object PureSpec extends DeferRunSpec {
   val dc = deferWith[String, MyState]
@@ -114,7 +112,7 @@ object PureSpec extends DeferRunSpec {
               num
             }
           } catch {
-            case _: BazError => Wrap.succeed(33).eval
+            case _: BarError => Wrap.succeed(33).eval
           }
         }
       assert(out.runAll(init))(equalTo(

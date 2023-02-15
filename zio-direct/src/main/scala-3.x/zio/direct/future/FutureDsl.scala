@@ -12,13 +12,13 @@ import scala.util.Success
 
 //transparent inline def defer(implicit inline ctx: ExecutionContext) = new deferCallImpl(ctx)
 
-class defer(ctx: ExecutionContext) extends deferCall[[R, E, A] =>> Future[A], Future[?], Nothing, Nothing, FutureMonadModel, ExecutionContext] {
-  def success = futureSuccess(ctx)
-  def fallible = futureFallible(ctx)
-  def sequence = futureSequence(ctx)
-  def sequencePar = futureSequencePar(ctx)
-  def state = ???
-  def log = ???
+object defer extends deferCall[[R, E, A] =>> Future[A], Future[?], Nothing, Nothing, FutureMonadModel] {
+  inline def success = futureSuccess(summonInline[ExecutionContext])
+  inline def fallible = futureFallible(summonInline[ExecutionContext])
+  inline def sequence = futureSequence(summonInline[ExecutionContext])
+  inline def sequencePar = futureSequencePar(summonInline[ExecutionContext])
+  inline def state = FailUnused.forMonadState()
+  inline def log = FailUnused.forMonadLog()
 }
 
 extension [A](value: Future[A]) {

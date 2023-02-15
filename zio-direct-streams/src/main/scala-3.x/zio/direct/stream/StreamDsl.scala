@@ -5,13 +5,13 @@ import zio.direct.directRunCall
 import zio.stream.ZStream
 import zio.direct.core.NotDeferredException
 
-object defer extends deferCall[ZStream, ZStream[?, ?, ?], Nothing, Nothing, StreamMonad.StreamMonadModel, Nothing] {
-  def success = StreamMonad.Success
-  def fallible = StreamMonad.Fallible
-  def sequence = StreamMonad.Sequence
-  def sequencePar = StreamMonad.SequencePar
-  def state = ???
-  def log = ???
+object defer extends deferCall[ZStream, ZStream[?, ?, ?], Nothing, Nothing, StreamMonad.StreamMonadModel] {
+  inline def success = StreamMonad.Success
+  inline def fallible = StreamMonad.Fallible
+  inline def sequence = StreamMonad.Sequence
+  inline def sequencePar = StreamMonad.SequencePar
+  inline def state = zio.direct.FailUnused.forMonadState()
+  inline def log = zio.direct.FailUnused.forMonadLog()
 }
 
 extension [R, E, A](value: ZStream[R, E, A]) {
