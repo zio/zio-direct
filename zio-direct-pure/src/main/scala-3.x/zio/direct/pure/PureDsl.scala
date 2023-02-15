@@ -16,7 +16,7 @@ import zio.direct.core.NotDeferredException
 
 class deferWithParams[W, S] extends deferCall[[R, E, A] =>> ZPure[W, S, S, R, E, A], ZPure[?, ?, ?, ?, ?, ?], S, W, PureMonad.PureMonadModel] {
   transparent inline def success = PureMonad.Success[W, S]
-  transparent inline def fallible = Some(PureMonad.Fallible[W, S]) // Performance issues with try-rewrites
+  transparent inline def fallible = Some(PureMonad.Fallible[W, S])
   transparent inline def sequence = PureMonad.Sequence[W, S]
   transparent inline def sequencePar = PureMonad.SequencePar[W, S]
   transparent inline def state = Some(PureMonad.State[W, S])

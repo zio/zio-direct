@@ -334,9 +334,7 @@ trait WithDecomposeTree {
         Unsupported.Error.withTree(
           term,
           s"""|Cannot call a ${effectName}-effect on the effect-type ${Format.TypeRepr(et.tpe)}.
-              |There is no instance of a MonadState defined for it. Perhaps you need to import a context?
-              |For example, for zio-direct-pure:
-              |  import zio.direct.pure._
+              |There is no instance of a MonadState defined for it.
               |""".stripMargin
         )
 

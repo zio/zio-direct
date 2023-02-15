@@ -11,7 +11,6 @@ object ZioMonad {
   type ZioMonadModel = MonadModel {
     type Variances = MonadShape.Variances3[Contravariant, Covariant, Covariant]
     type Letters = MonadShape.Letters3[R, E, A]
-    type IsFallible = true
   }
 
   val Success: MonadSuccess[ZIO] = new MonadSuccess[ZIO] {

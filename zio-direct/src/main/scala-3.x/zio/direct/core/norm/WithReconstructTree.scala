@@ -306,7 +306,7 @@ trait WithReconstructTree {
           // Note:
           //   The `e` type can change because you can specify a ZIO in the response to the try
           //   e.g: (x:ZIO[Any, Throwable, A]).catchSome { case io: IOException => y:ZIO[Any, OtherExcpetion, A] }
-          val methodType = MethodType(List("tryLamParam"))(_ => List(TypeRepr.of[zioTry_E]), _ => TypeRepr.of[zioOut])
+          val methodType = MethodType(List("tryLamParam"))(_ => List(TypeRepr.of[Throwable]), _ => TypeRepr.of[zioOut])
           val methSym = Symbol.newMethod(Symbol.spliceOwner, "tryLam", methodType)
 
           // Now we actually make the method with the body:
@@ -314,18 +314,20 @@ trait WithReconstructTree {
           val method = DefDef(methSym, sm => Some(Match(sm(0)(0).asInstanceOf[Term], scalaCaseDefs.map(_.changeOwner(methSym)))))
           // NOTE: Be sure that error here is the same one as used to define tryLamParam. Otherwise, AbstractMethodError errors
           // saying that .isDefinedAt is abstract will happen.
-          val pfTree = TypeRepr.of[PartialFunction[zioTry_E, zioOut]]
+          // NOTE: Using Throwable here instead of zioTry_E fixes Mega-Phase issues
+          // that are happening here: https://github.com/zio/zio-direct/commit/5044bb354fddf24f638d54750e7310a2565d4c31
+          val pfTree = TypeRepr.of[PartialFunction[Throwable, zioOut]]
 
           // Assemble the peices together into a closure
           val closure = Closure(Ref(methSym), Some(pfTree))
-          val functionBlock = '{ ${ Block(List(method), closure).asExpr }.asInstanceOf[PartialFunction[zioTry_E, zioOut]] }
-          val tryExpr = '{ ${ tryTerm.expr }.asInstanceOf[zioTry] }
+          val functionBlock = Block(List(method), closure)
+          // val tryExpr = '{ ${ tryTerm.expr }.asInstanceOf[zioTry] }
           // val monadExpr = '{ ${ tryTerm.asExpr }.asInstanceOf[zioRET].catchSome { ${ functionBlock } } }
           // val monadZioType = tryBlock.zpe.flatMappedWith(caseDefs.zpe).transformA(_ => tryBlock.)
 
           // Use the wholeTryZpe. The R, E should ahve been unified in the IRT type computation in WithComputeType
           // and the chosen A type should have been determined by scala and also used in WithComputeType (in the apply(ir: IR.Try) case there)
-          val monadZioValue = InvokeWith(wholeTryZpe).CatchSome(monadFailure)(tryExpr.asTerm.toZioValue(tryBlock.zpe), functionBlock.toZioValue(caseDefs.zpe))
+          val monadZioValue = InvokeWith(wholeTryZpe).CatchSome(monadFailure)(tryTerm, functionBlock.toZioValue(caseDefs.zpe))
           (wholeTryZpe, monadZioValue)
     }
 
