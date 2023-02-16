@@ -6,6 +6,9 @@ import java.nio.file.FileSystem
 import java.nio.file.FileSystems
 import java.nio.file.Files
 import Dependencies._
+import scala.xml.{Node => XmlNode, NodeSeq => XmlNodeSeq, _}
+import scala.xml.transform.{RewriteRule, RuleTransformer}
+
 
 object BuildHelper {
   private val versions: Map[String, String] = {
@@ -269,7 +272,19 @@ object BuildHelper {
   def stdSettings(prjName: String) = Seq(
     name                                   := s"$prjName",
     ThisBuild / scalaVersion               := `zd.scala.version`,
-    scalacOptions                          := stdOptions ++ extraOptions(scalaVersion.value)
+    scalacOptions                          := stdOptions ++ extraOptions(scalaVersion.value),
+    // skip making a dependency on zio-direct-test in zio-direct-streams/pure
+    pomPostProcess := { (node: XmlNode) =>
+      new RuleTransformer(new RewriteRule {
+        override def transform(node: XmlNode): XmlNodeSeq = node match {
+          case e: Elem if e.label == "dependency"
+              && e.child.exists(child => child.label == "scope") =>
+            def txt(label: String): String = "\"" + e.child.filter(_.label == label).flatMap(_.text).mkString + "\""
+            Comment(s""" scoped dependency ${txt("groupId")} % ${txt("artifactId")} % ${txt("version")} % ${txt("scope")} has been omitted """)
+          case _ => node
+        }
+      }).transform(node).head
+    }
   )
 
   def projectModuleSettings =

@@ -101,7 +101,7 @@ lazy val `zio-direct-streams` = project
     )
   )
   .dependsOn(`zio-direct` % "compile->compile;test->test")
-  .dependsOn(`zio-direct-test` % "compile->compile;test->test")
+  .dependsOn(`zio-direct-test` % "test->test")
 
 lazy val `zio-direct-pure` = project
   .in(file("zio-direct-pure"))
@@ -116,7 +116,7 @@ lazy val `zio-direct-pure` = project
     )
   )
   .dependsOn(`zio-direct` % "compile->compile;test->test")
-  .dependsOn(`zio-direct-test` % "compile->compile;test->test")
+  .dependsOn(`zio-direct-test` % "test->test")
 
 lazy val docs = project
   .in(file("zio-direct-docs"))
