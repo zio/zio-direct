@@ -32,14 +32,13 @@ object Embedder {
       import quotes.reflect._
       typeUnion match {
         case TypeUnion.OrType =>
-          if (a =:= TypeRepr.of[Nothing] && b =:= TypeRepr.of[Nothing]) TypeRepr.of[Nothing]
+          if (a =:= b)
+            a
+          else if (a =:= TypeRepr.of[Nothing] && b =:= TypeRepr.of[Nothing]) TypeRepr.of[Nothing]
           else if (a =:= TypeRepr.of[Nothing]) b
           else if (b =:= TypeRepr.of[Nothing]) a
           else
-            // only widen if you absolutely need to
-            (a.widen.asType, b.widen.asType) match
-              case ('[at], '[bt]) =>
-                TypeRepr.of[at | bt]
+            OrType(a, b)
         case TypeUnion.LeastUpper =>
           Embedder.computeCommonBaseClass(a.widen, b.widen)
       }
@@ -49,7 +48,9 @@ object Embedder {
       // if either type is Any, specialize to the thing that is narrower
       import quotes.reflect._
       val out =
-        if (a =:= TypeRepr.of[Any] && b =:= TypeRepr.of[Any])
+        if (a =:= b)
+          a
+        else if (a =:= TypeRepr.of[Any] && b =:= TypeRepr.of[Any])
           TypeRepr.of[Any]
         else if (a =:= TypeRepr.of[Any])
           b
@@ -57,9 +58,9 @@ object Embedder {
           a
         else
           // only widen if you absolutely need to
-          (a.widen.asType, b.widen.asType) match
-            case ('[at], '[bt]) =>
-              TypeRepr.of[at with bt]
+          val aw = if (a.isSingleton) a.widen else a
+          val bw = if (b.isSingleton) b.widen else b
+          AndType(aw, bw)
       out
   }
 
