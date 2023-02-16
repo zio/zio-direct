@@ -16,6 +16,17 @@ To use zio-direct, add the following to your `build.sbt` file.
 libraryDependencies += "dev.zio" %% "zio-direct" % "@VERSION@"
 ```
 
+You can also use zio-direct with ZStream and ZPure by importing the following modules.
+> Currently this is only supported in Scala 3.
+
+```scala
+// ZStream
+libraryDependencies += "dev.zio" %% "zio-direct-streams" % "@VERSION@"
+// ZPure
+libraryDependencies += "dev.zio" %% "zio-direct-pure" % "@VERSION@"
+```
+See the [Other Supported Monads](other-supported-monads) section for more details.
+
 ## IDE Support
 
 The preferred IDE to use with ZIO-Direct is Visual Studio Code + Metals. This is because Metals correctly reads the returns from `defer` calls directly from the Scala compiler which is not the case of IntelliJ. To remedy this issue, a Library Extension is provided for ZIO-Direct. See the [IntelliJ Support](intellij-support) section for more details.
@@ -23,9 +34,10 @@ The preferred IDE to use with ZIO-Direct is Visual Studio Code + Metals. This is
 ## Introduction
 
 Talk at Functional Scala 2022:
-https://www.slideshare.net/deusaquilus/ziodirect-functional-scala-2022
+* Video - https://www.youtube.com/watch?v=DgqfLfzq5eo
+* Slides - https://www.slideshare.net/deusaquilus/ziodirect-functional-scala-2022
 
-ZIO-Direct allows direct style programming with ZIO. This library provides a *syntactic sugar* that is more powerful than for-comprehensions as well as more natural to use. Simply add the `.run` suffix to any ZIO effect in order to retrieve it's value.
+ZIO-Direct allows direct style programming with ZIO. This library provides a *syntactic sugar* that is more powerful than for-comprehensions as well as more natural to use. Simply add the `.run` suffix to any ZIO effect in order to retrieve its value.
 
 ZIO-Direct works by using macros to rewrite sequential code into flatMap-chains based on the [Monadless](https://github.com/monadless/monadless) paradigm. The values resulting in `.run` calls from the ZIO effects are not actually awaited. Instead, they are rolled-up into a chain of flatMaps.
 
