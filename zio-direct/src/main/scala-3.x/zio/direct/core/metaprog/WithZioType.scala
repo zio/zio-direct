@@ -248,7 +248,7 @@ trait WithZioType extends MacroBase {
         case effectType(r, e, a) =>
           ZioType(effectType)(r, e, a)
         case _ =>
-          report.errorAndAbort(s"The type of ${Format.Term(zio)} is not a ${effectType.tpe.show}. It is: ${Format.TypeRepr(zio.tpe)}")
+          report.errorAndAbort(s"The type of ${Format.Term(zio)} is not a ${effectType.tpe.show}. It is: ${Format.TypeRepr(zio.tpe.widen)}")
 
     // In this case the error is considered to be Nothing (since we are not wrapping error handling for pure values)
     // and the environment type is considered to be Any (it will be removed via later `ZioType.union` calls if it can be specialized).
@@ -285,7 +285,12 @@ trait WithZioType extends MacroBase {
     def composeN(zioTypes: List[ZioType])(implicit typeUnion: TypeUnion): ZioType =
       val et = validateSameEffect(zioTypes, "N-composition")
       val (rs, es, as) = zioTypes.map(zt => (zt.r, zt.e, zt.a)).unzip3
-      ZioType(validateSameEffect(zioTypes, "N-composition"))(et.composeRs(rs), et.composeEs(es), et.composeAs(as))
+      ZioType(et)(et.composeRs(rs), et.composeEs(es), et.composeAs(as))
+
+    def composeRsEsN(zioTypes: List[ZioType], a: TypeRepr)(implicit typeUnion: TypeUnion): ZioType =
+      val et = validateSameEffect(zioTypes, "N-composition")
+      val (rs, es) = zioTypes.map(zt => (zt.r, zt.e)).unzip
+      ZioType(et)(et.composeRs(rs), et.composeEs(es), a)
 
     private def validateSameEffect(types: List[ZioType], label: String): ZioEffectType = {
       types.map(_.effectType).reduce((a, b) => {

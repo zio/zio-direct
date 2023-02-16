@@ -17,7 +17,6 @@ import zio.direct.core.metaprog.RefineInstructions
 trait MonadModel {
   type Variances <: MonadShape.Variances
   type Letters <: MonadShape.Letters
-  type IsFallible <: Boolean
 }
 
 trait MonadSuccess[F[_, _, _]] {

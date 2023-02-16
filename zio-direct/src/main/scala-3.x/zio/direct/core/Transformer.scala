@@ -106,7 +106,8 @@ class Transformer[F[_, _, _]: Type, F_out: Type, S: Type, W: Type, MM <: MonadMo
 
     computedType.asTypeTuple match {
       case ('[r], '[e], '[a]) =>
-        val computedTypeMsg = s"Computed Type: ${Format.TypeOf[F[r, e, a]]}"
+        // make sure this is lazy, don't want to do formatting unless absolutely needed
+        lazy val computedTypeMsg = s"Computed Type: ${Format.TypeOf[F[r, e, a]]}"
 
         if (instructions.info.showComputedType)
           ownerPositionOpt match {

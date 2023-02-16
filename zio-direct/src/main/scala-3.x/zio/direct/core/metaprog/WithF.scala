@@ -10,9 +10,14 @@ trait MacroBase {
 
   case class MonadModelData(
       variancesListType: TypeRepr,
-      lettersListType: TypeRepr,
-      isFalliable: Boolean
+      lettersListType: TypeRepr
   )
+
+  private def constBoolean[T: Type]: Option[Boolean] =
+    val flagType = TypeRepr.of[T]
+    if (flagType =:= TypeRepr.of[true]) Some(true)
+    else if (flagType =:= TypeRepr.of[false]) Some(false)
+    else None
 
   def computeMonadModelData[MM <: MonadModel: Type]: MonadModelData = {
     // dealias the type e.g. ZioMonadType to get the Variance/Letters variables underneath
@@ -26,15 +31,7 @@ trait MacroBase {
       Type.of[MM] match
         case '[MonadModel { type Letters = list }] => TypeRepr.of[list]
 
-    val isFallible =
-      Type.of[MM] match
-        case '[MonadModel { type IsFallible = flag }] =>
-          val flagType = TypeRepr.of[flag]
-          if (flagType =:= TypeRepr.of[true]) true
-          else if (flagType =:= TypeRepr.of[false]) false
-          else report.errorAndAbort(s"The type IsFallible needs to be specified on the Monad-Model: ${monadModelType.show}. Currently: ${flagType.show}")
-
-    MonadModelData(monadModelVariancesList, monadModelLettersList, isFallible)
+    MonadModelData(monadModelVariancesList, monadModelLettersList)
   }
 }
 
@@ -74,45 +71,28 @@ trait WithF extends MacroBase {
 
       val monadSuccess: Expr[MonadSuccess[F]] = directMonadInput.success
       val monadFailure: Option[Expr[MonadFallible[F]]] =
-        if (monadModelData.isFalliable)
-          Some('{
-            ${ directMonadInput.fallible }.getOrElse {
-              throw new IllegalArgumentException(ErrorForWithF.make($printEffect, "", "MonadFallible"))
-            }
-          })
-        else
-          None
+        directMonadInput.fallible match
+          case '{ Some($value) }   => Some(value.asExprOf[MonadFallible[F]])
+          case '{ Option($value) } => Some(value.asExprOf[MonadFallible[F]])
+          case _                   => None
 
       val monadSequence: Expr[MonadSequence[F]] = directMonadInput.sequence
       val monadSequencePar: Expr[MonadSequenceParallel[F]] = directMonadInput.sequencePar
       val monadState: Option[Expr[MonadState[F, S]]] =
-        if (!(TypeRepr.of[S] =:= TypeRepr.of[Nothing]))
-          Some(
-            '{
-              ${ directMonadInput.state }.getOrElse {
-                throw new IllegalArgumentException(ErrorForWithF.make($printEffect, $printState, "MonadState"))
-              }
-            }
-          )
-        else
-          None
+        directMonadInput.state match
+          case '{ Some($value) }   => Some(value.asExprOf[MonadState[F, S]])
+          case '{ Option($value) } => Some(value.asExprOf[MonadState[F, S]])
+          case other               => None
 
       val monadLog: Option[Expr[MonadLog[F, W]]] =
-        if (!(TypeRepr.of[W] =:= TypeRepr.of[Nothing]))
-          Some(
-            '{
-              ${ directMonadInput.log }.getOrElse {
-                throw new IllegalArgumentException(ErrorForWithF.make($printEffect, $printLog, "MonadLog"))
-              }
-            }
-          )
-        else
-          None
+        directMonadInput.log match
+          case '{ Some($value) }   => Some(value.asExprOf[MonadLog[F, W]])
+          case '{ Option($value) } => Some(value.asExprOf[MonadLog[F, W]])
+          case _                   => None
 
       DirectMonad[F, S, W](monadSuccess, monadFailure, monadSequence, monadSequencePar, monadState, monadLog)
     }
   }
-
 }
 
 object ErrorForWithF {

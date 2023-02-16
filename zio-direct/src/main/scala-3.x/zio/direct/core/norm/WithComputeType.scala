@@ -28,9 +28,9 @@ trait WithComputeType {
       IRT.Match.CaseDef(ir.pattern, ir.guard, rhsIRT)(rhsIRT.zpe)
 
     // TODO add caseDefs-type to IRT.Match and get rid of this
-    def applyCaseDefs(caseDefs: IR.Match.CaseDefs): IRT.Match.CaseDefs =
+    def applyCaseDefs(caseDefs: IR.Match.CaseDefs, actualA: TypeRepr): IRT.Match.CaseDefs =
       val newCases = caseDefs.cases.map(applyCaseDef(_))
-      val zpe = ZioType.composeN(newCases.map(_.zpe)).transformA(_.widen)
+      val zpe = ZioType.composeRsEsN(newCases.map(_.zpe), actualA)
       IRT.Match.CaseDefs(newCases)(zpe)
 
     def apply(ir: IR.Monadic): IRT.Monadic =
@@ -117,14 +117,9 @@ trait WithComputeType {
         case IR.Try(tryBlock, caseDefsOpt, resultType, finallyBlock) =>
           val tryBlockIRT = apply(tryBlock)
 
-          // We get better results by doing into the case-defs and computing the union-type of them
-          // than we do by getting the information from outputType because outputType is limited
-          // by Scala's ability to understand the try-catch. For example, if we infer from outputType,
-          // the error-type will never be more concrete that `Throwable`.
-          // (Note, widen the error type because even if it's a concrete int type
-          // e.g. `catch { case e: Throwable => 111 }` we don't necessarily know
-          // that this error will actually happen therefore it's not sensical to make it a singleton type)
-          val caseDefsOptIRT = caseDefsOpt.map(applyCaseDefs(_))
+          // We need to compute the environment & error type of the case-defs (in case they have effect.run calls)
+          // but we actually know the full A-type that is going to come out of them so just pass that right in
+          val caseDefsOptIRT = caseDefsOpt.map(caseDef => applyCaseDefs(caseDef, resultType))
 
           // If there is a catch clause we need to consider it's environment/error types. Otherwise just the try-clause
           val tpe =
@@ -181,15 +176,15 @@ trait WithComputeType {
 
     def apply(ir: IR.Match): IRT.Match =
       ir match
-        case IR.Match(scrutinee, caseDefs) =>
+        case IR.Match(scrutinee, caseDefs, resultType) =>
           // Ultimately the scrutinee will be used if it is pure or lifted, either way we can
           // treat it as a value that will be flatMapped (or Mapped) against the caseDef values.
           val scrutineeIRT = apply(scrutinee)
-          // NOTE: We can possibly do the same thing as IR.Try and pass through the Match result tpe, then
-          // then use that to figure out what the type should be
-          val caseDefIRTs = applyCaseDefs(caseDefs)
+          // We need to accumulate environment & error params on the case-defs but we know
+          // what the full-type of them is going to be so pass that right in
+          val caseDefIRTs = applyCaseDefs(caseDefs, resultType)
           val zpe = scrutineeIRT.zpe.flatMappedWith(caseDefIRTs.zpe)
-          IRT.Match(scrutineeIRT, caseDefIRTs)(zpe)
+          IRT.Match(scrutineeIRT, caseDefIRTs, resultType)(zpe)
 
     def apply(ir: IR.Parallel): IRT.Parallel =
       ir match
