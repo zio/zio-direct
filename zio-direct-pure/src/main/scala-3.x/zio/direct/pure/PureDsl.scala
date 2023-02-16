@@ -7,6 +7,7 @@ import zio.direct.directSetCall
 import zio.direct.directLogCall
 import zio.prelude.fx.ZPure
 import zio.direct.core.NotDeferredException
+import zio.Tag
 
 // Using this plainly can possibly case a cyclical macro error? Not sure why
 // class deferWithParams[W, S] extends deferCall[[R, E, A] =>> ZPure[W, S, S, R, E, A], ZPure[?, ?, ?, ?, ?, ?], S, W]
@@ -48,6 +49,7 @@ class deferWith[W, S] {
   object Wrap {
     def succeed[T](value: T) = ZPure.succeed[S, T](value)
     def attempt[T](value: T) = ZPure.attempt[S, T](value)
+    def service[T: Tag] = ZPure.service[S, T]
   }
 }
 

@@ -28,23 +28,11 @@ trait WithZioType extends MacroBase {
     def toZioValue(zpe: ZioType) = ZioValue(expr, zpe)
   }
 
-  // TODO when we support non-zio values, will need to have one of these for each supported type
   object ZioValue {
     def apply(term: Term, zpe: ZioType) = new ZioValue(term, zpe)
     def apply(expr: Expr[_], zpe: ZioType) = new ZioValue(expr.asTerm, zpe)
   }
 
-  // case class ZioEffectTypeContext(zet: ZioEffectType)
-  // object List3Or6 {
-  //   def unapply[T](list: List[T]) =
-  //     list match {
-  //       case List(a, b, c)          => Some((a, b, c))
-  //       case List(_, _, _, a, b, c) => Some((a, b, c))
-  //       case _                      => None
-  //     }
-  // }
-
-  // TODO At least check that the A type exists, it has to since it's a value
   class ZioEffectType private (val tpe: TypeRepr, val typesWithMarkers: Array[TypeRepr], val variances: Array[(MonadShape.Letter, MonadShape.Variance)]) {
     if (!variances.exists(_._1 == MonadShape.Letter.A))
       report.errorAndAbort("List of MonadShape letters must at least include an A i.e. value-type.")

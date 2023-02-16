@@ -286,8 +286,8 @@ trait WithReconstructTree {
           CaseDef(caseDef.pattern, caseDef.guard, rhsRaw.term)
         }.toList
 
-      (tryBlockType.toZioType.asType, tryBlockType.e.asType, wholeTryZpe.toZioType.asType) match
-        case ('[zioTry], '[zioTry_E], '[zioOut]) =>
+      wholeTryZpe.toZioType.asType match
+        case '[zioOut] =>
           // A normal lambda looks something like:
           //   Block(List(
           //     DefDef(newMethodSymbol, terms:List[List[Tree]] => Option(body))
