@@ -7,7 +7,6 @@ import zio.direct.Use
 import zio.direct.core.util.Messages
 import scala.annotation.nowarn
 import zio.direct.DeferRunSpec
-import zio.stream.ZStream
 import zio.Chunk
 import zio.prelude.fx.ZPure
 
