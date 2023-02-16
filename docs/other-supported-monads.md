@@ -56,6 +56,10 @@ val outZio: ZIO[Any, Nothing, Chunk[(Int, String)]] =
 
 ## ZPure
 
+> Note that Metals auto-complete/type-info popups may be sluggish when using ZPure, especially when try/catch constructs are being used.
+> In some cases, you may need to wait for a "Loading..." popup message for 20-30 seconds although the actual (bloop) compile time
+> will just be a few seconds.
+
 To use zio-direct with ZPure, add the following to your `build.sbt` file.
 ```scala
 libraryDependencies += "dev.zio" %% "zio-direct-pure" % "@VERSION@"
