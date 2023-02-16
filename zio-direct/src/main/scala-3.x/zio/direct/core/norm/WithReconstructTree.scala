@@ -332,7 +332,7 @@ trait WithReconstructTree {
     }
 
     def reconstructMatch(irt: IRT.Match): ZioValue =
-      val IRT.Match(scrutinee, caseDefs) = irt
+      val IRT.Match(scrutinee, caseDefs, resultType) = irt
       scrutinee match
         case value: IRT.Monadic =>
           val monad = apply(value)

@@ -285,7 +285,12 @@ trait WithZioType extends MacroBase {
     def composeN(zioTypes: List[ZioType])(implicit typeUnion: TypeUnion): ZioType =
       val et = validateSameEffect(zioTypes, "N-composition")
       val (rs, es, as) = zioTypes.map(zt => (zt.r, zt.e, zt.a)).unzip3
-      ZioType(validateSameEffect(zioTypes, "N-composition"))(et.composeRs(rs), et.composeEs(es), et.composeAs(as))
+      ZioType(et)(et.composeRs(rs), et.composeEs(es), et.composeAs(as))
+
+    def composeRsEsN(zioTypes: List[ZioType], a: TypeRepr)(implicit typeUnion: TypeUnion): ZioType =
+      val et = validateSameEffect(zioTypes, "N-composition")
+      val (rs, es) = zioTypes.map(zt => (zt.r, zt.e)).unzip
+      ZioType(et)(et.composeRs(rs), et.composeEs(es), a)
 
     private def validateSameEffect(types: List[ZioType], label: String): ZioEffectType = {
       types.map(_.effectType).reduce((a, b) => {

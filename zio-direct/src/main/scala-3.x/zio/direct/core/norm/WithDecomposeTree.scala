@@ -305,7 +305,7 @@ trait WithDecomposeTree {
               } else {
                 report.errorAndAbort(s"Invalid match statement with no cases:\n${Format.Term(m)}")
               }
-            Some(IR.Match(IR.Pure(value), caseDefs))
+            Some(IR.Match(IR.Pure(value), caseDefs, m.tpe))
 
           case _ => None
         }

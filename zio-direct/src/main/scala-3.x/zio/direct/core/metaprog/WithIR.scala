@@ -64,7 +64,7 @@ trait WithIR {
       private case class Id(code: Term)
     }
     case class Block(head: Statement, tail: Monadic) extends Monadic
-    case class Match(scrutinee: IR, caseDefs: IR.Match.CaseDefs) extends Monadic
+    case class Match(scrutinee: IR, caseDefs: IR.Match.CaseDefs, resultType: TypeRepr) extends Monadic
     object Match {
       case class CaseDefs(cases: List[IR.Match.CaseDef])
       case class CaseDef(pattern: Tree, guard: Option[Term], rhs: Monadic)
@@ -101,7 +101,7 @@ trait WithIR {
     }
 
     case class Block(head: Statement, tail: Monadic)(val zpe: ZioType) extends Monadic
-    case class Match(scrutinee: IRT, caseDefs: IRT.Match.CaseDefs)(val zpe: ZioType) extends Monadic
+    case class Match(scrutinee: IRT, caseDefs: IRT.Match.CaseDefs, resultType: TypeRepr)(val zpe: ZioType) extends Monadic
     case class If(cond: IRT, ifTrue: IRT, ifFalse: IRT)(val zpe: ZioType) extends Monadic
     case class Pure(code: Term)(val zpe: ZioType) extends IRT with Leaf
     object Pure {
@@ -230,8 +230,8 @@ trait WithIR {
         case v: IR.Monad    => apply(v)
         case IR.Block(head, tail) =>
           IR.Block(head, apply(tail))
-        case IR.Match(scrutinee, caseDefs) =>
-          IR.Match(scrutinee, apply(caseDefs))
+        case IR.Match(scrutinee, caseDefs, rs) =>
+          IR.Match(scrutinee, apply(caseDefs), rs)
         case IR.If(cond, ifTrue, ifFalse) => IR.If(cond, apply(ifTrue), apply(ifFalse))
         case IR.And(left, right)          => IR.And(apply(left), apply(right))
         case IR.Or(left, right)           => IR.Or(apply(left), apply(right))
