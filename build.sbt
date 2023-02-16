@@ -53,17 +53,27 @@ lazy val `zio-direct` = project
   .settings(projectModuleSettings)
   .enablePlugins(BuildInfoPlugin)
   .settings(
-    crossScalaVersions := Seq(Scala212, Scala213, ScalaDotty)//,
-    // TODO can resourceGenerators be added to Package phase? Double check this.
-    // Compile / resourceGenerators += Def.task {
-    //   val rootFolder = (Compile / resourceManaged).value / "META-INF"
-    //   rootFolder.mkdirs()
-    //   val compatFile = rootFolder / "intellij-compat.json"
-    //   val compatFileContent = s"""{ "artifact": "${(ThisBuild / organization).value} % zio-direct-intellij_2.13 % ${version.value}" }"""
-    //   println(s"--- Writing compat file: ${compatFile} - ${compatFileContent} ---")
-    //   IO.write(compatFile, compatFileContent)
-    //   Seq(compatFile)
-    // }
+    crossScalaVersions := Seq(Scala212, Scala213, ScalaDotty),
+    Compile / resourceGenerators += Def.task {
+      val rootFolder = (Compile / resourceManaged).value / "META-INF"
+      rootFolder.mkdirs()
+      val compatFile = rootFolder / "intellij-compat.json"
+      val compatFileContent = s"""{ "artifact": "${(ThisBuild / organization).value} % zio-direct-intellij_2.13 % ${version.value}" }"""
+
+      val doWrite =
+        if (compatFile.exists()) {
+          val currentContent = IO.read(compatFile)
+          currentContent != compatFileContent
+        } else
+          true
+
+      if (doWrite) {
+        println(s"--- Writing compat file: ${compatFile} - ${compatFileContent} ---")
+        IO.write(compatFile, compatFileContent)
+      }
+
+      Seq(compatFile)
+    }
   )
 
 lazy val `zio-direct-test` = project
