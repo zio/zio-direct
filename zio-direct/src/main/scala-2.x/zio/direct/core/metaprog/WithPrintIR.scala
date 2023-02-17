@@ -77,7 +77,7 @@ trait WithPrintIR extends MacroBase {
       }
 
     def apply(x: Any): fansi.Str = {
-      fansi.Str.join(this.tokenize(x).toSeq)
+      fansi.Str.join(this.tokenize(x).toSeq: _*)
     }
 
     def tokenize(x: Any): Iterator[fansi.Str] = {
