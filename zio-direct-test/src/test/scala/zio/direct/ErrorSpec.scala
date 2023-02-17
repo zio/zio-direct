@@ -98,14 +98,15 @@ object ErrorSpec extends DeferRunSpec {
       },
       test("Need to have correct typing on successful `unsafe` block (issue zio-direct#49)") {
         // To think about. Should we have type widening behavior here?
+        def bar() = "bar"
         val out =
           defer {
-            val bar = ZIO.succeed("foo").run
+            val foo = ZIO.succeed("foo").run
             unsafe {
-              "bar"
+              bar()
             }
           }
-        assertIsType[ZIO[Any, Throwable, "bar"]](out) andAssert
+        assertIsType[ZIO[Any, Throwable, String]](out) andAssert
           assertZIO(out)(equalTo("bar"))
       }
     )
