@@ -58,7 +58,10 @@ lazy val `zio-direct` = project
       val rootFolder = (Compile / resourceManaged).value / "META-INF"
       rootFolder.mkdirs()
       val compatFile = rootFolder / "intellij-compat.json"
-      val compatFileContent = s"""{ "artifact": "${(ThisBuild / organization).value} % zio-direct-intellij_2.13 % ${version.value}" }"""
+      // intellij plugin version (fixed at rc6 for now)
+      // version.value
+      val intellijPluginVersion = "1.0.0-RC6"
+      val compatFileContent = s"""{ "artifact": "${(ThisBuild / organization).value} % zio-direct-intellij_2.13 % ${intellijPluginVersion}" }"""
 
       val doWrite =
         if (compatFile.exists()) {
