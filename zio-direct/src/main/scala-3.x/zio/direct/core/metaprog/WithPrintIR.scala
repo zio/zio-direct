@@ -86,7 +86,7 @@ trait WithPrintIR {
       }
 
     def apply(x: Any): fansi.Str = {
-      fansi.Str.apply(this.tokenize(x).toSeq: _*)
+      fansi.Str.join(this.tokenize(x).toSeq: _*)
     }
 
     def tokenize(x: Any): Iterator[fansi.Str] = {

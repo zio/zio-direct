@@ -1,8 +1,6 @@
 package zio.direct.core.metaprog
 
 import scala.quoted._
-import pprint._
-import fansi.Str
 import zio.direct.core.util.Format
 import zio.direct.Internal.Marker
 import zio.direct.core.metaprog.Extractors.Dealiased
