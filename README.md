@@ -13,7 +13,7 @@ ZIO Direct Style is a library that allows using directly-style i.e. imperative p
 To use zio-direct, add the following to your `build.sbt` file.
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-direct" % "1.0.0-RC5"
+libraryDependencies += "dev.zio" %% "zio-direct" % "1.0.0-RC6"
 ```
 
 You can also use zio-direct with ZStream and ZPure by importing the following modules.
@@ -21,9 +21,9 @@ You can also use zio-direct with ZStream and ZPure by importing the following mo
 
 ```scala
 // ZStream
-libraryDependencies += "dev.zio" %% "zio-direct-streams" % "1.0.0-RC5"
+libraryDependencies += "dev.zio" %% "zio-direct-streams" % "1.0.0-RC6"
 // ZPure
-libraryDependencies += "dev.zio" %% "zio-direct-pure" % "1.0.0-RC5"
+libraryDependencies += "dev.zio" %% "zio-direct-pure" % "1.0.0-RC6"
 ```
 See the [Other Supported Monads](other-supported-monads) section for more details.
 
