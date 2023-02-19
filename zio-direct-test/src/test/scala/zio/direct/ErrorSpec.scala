@@ -95,6 +95,19 @@ object ErrorSpec extends DeferRunSpec {
           }
         assertZIO(out.provide(ZLayer.succeed(ConfigInt(1))).exit)(dies(isSubtype[FooError](anything))) andAssert
           assertTrue(extern == 2)
+      },
+      test("Need to have correct typing on successful `unsafe` block (issue zio-direct#49)") {
+        // To think about. Should we have type widening behavior here?
+        def bar() = "bar"
+        val out =
+          defer {
+            val foo = ZIO.succeed("foo").run
+            unsafe {
+              bar()
+            }
+          }
+        assertIsType[ZIO[Any, Throwable, String]](out) andAssert
+          assertZIO(out)(equalTo("bar"))
       }
     )
   )
