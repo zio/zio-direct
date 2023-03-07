@@ -25,11 +25,11 @@ libraryDependencies += "dev.zio" %% "zio-direct-streams" % "@VERSION@"
 // ZPure
 libraryDependencies += "dev.zio" %% "zio-direct-pure" % "@VERSION@"
 ```
-See the [Other Supported Monads](other-supported-monads) section for more details.
+See the [Other Supported Monads](other-supported-monads.md) section for more details.
 
 ## IDE Support
 
-The preferred IDE to use with ZIO-Direct is Visual Studio Code + Metals. This is because Metals correctly reads the returns from `defer` calls directly from the Scala compiler which is not the case of IntelliJ. To remedy this issue, a Library Extension is provided for ZIO-Direct. See the [IntelliJ Support](intellij-support) section for more details.
+The preferred IDE to use with ZIO-Direct is Visual Studio Code + Metals. This is because Metals correctly reads the returns from `defer` calls directly from the Scala compiler which is not the case of IntelliJ. To remedy this issue, a Library Extension is provided for ZIO-Direct. See the [IntelliJ Support](intellij-support.md) section for more details.
 
 ## Introduction
 
