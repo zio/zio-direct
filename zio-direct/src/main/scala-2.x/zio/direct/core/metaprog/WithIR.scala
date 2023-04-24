@@ -215,7 +215,7 @@ trait MacroBase {
 }
 
 trait WithIR extends MacroBase {
-  self: WithUnsupported =>
+  self: WithUnsupported with WithZioType =>
 
   import c.universe._
 
@@ -286,6 +286,90 @@ trait WithIR extends MacroBase {
     case class Or(left: IR, right: IR) extends Monadic
 
     case class Parallel(originalExpr: c.universe.Tree, monads: List[(IR.Monadic, TermName, Type)], body: IR.Leaf) extends Monadic
+  }
+
+  // Typed version of IR AST
+  sealed trait IRT
+  object IRT {
+    sealed trait Monadic extends IRT
+
+    sealed trait Leaf extends IRT {
+      def code: c.universe.Tree
+    }
+
+    case class Fail(error: IRT)(val zpe: ZioType) extends Monadic
+
+    case class While(cond: IRT, body: IRT)(val zpe: ZioType) extends Monadic
+
+    case class ValDef(originalStmt: Tree /*should be a block*/, symbol: TermName, assignment: IRT, bodyUsingVal: IRT)(val zpe: ZioType) extends Monadic
+
+    case class Unsafe(body: IRT)(val zpe: ZioType) extends Monadic
+
+    case class Try(tryBlock: IRT, cases: List[IR.Match.CaseDef], resultType: c.universe.Type, finallyBlock: Option[IRT])(val zpe: ZioType) extends Monadic
+
+    case class Foreach(list: IRT, listType: c.universe.Type, elementSymbol: TermName, body: IRT)(val zpe: ZioType) extends Monadic
+
+    case class FlatMap(monad: Monadic, valSymbol: Option[TermName], body: IRT.Monadic)(val zpe: ZioType) extends Monadic
+
+    object FlatMap {
+      def apply(monad: IRT.Monadic, valSymbol: TermName, body: IRT.Monadic)(zpe: ZioType) =
+        new FlatMap(monad, Some(valSymbol), body)(zpe)
+    }
+
+    case class Map(monad: Monadic, valSymbol: Option[TermName], body: IRT.Pure)(val zpe: ZioType) extends Monadic
+
+    object Map {
+      def apply(monad: Monadic, valSymbol: TermName, body: IRT.Pure)(zpe: ZioType) =
+        new Map(monad, Some(valSymbol), body)(zpe)
+    }
+
+    class Monad private (val code: c.universe.Tree, val source: Monad.Source)(val zpe: ZioType) extends Monadic with Leaf {
+      private val id = Monad.Id(code)
+
+      override def equals(other: Any): Boolean =
+        other match {
+          case v: Monad => id == v.id
+          case _        => false
+        }
+    }
+
+    object Monad {
+      def apply(code: c.universe.Tree, source: Monad.Source = Monad.Source.Pipeline)(zpe: ZioType) =
+        new Monad(code, source)(zpe)
+
+      def unapply(value: Monad) =
+        Some(value.code)
+
+      sealed trait Source
+
+      case object Source {
+        case object Pipeline extends Source
+
+        case object PrevDefer extends Source
+
+        case object IgnoreCall extends Source
+      }
+
+      private case class Id(code: c.universe.Tree)
+    }
+
+    case class Block(head: c.universe.Tree, tail: Monadic)(val zpe: ZioType) extends Monadic
+
+    case class Match(scrutinee: IRT, caseDefs: List[IRT.Match.CaseDef])(val zpe: ZioType) extends Monadic
+
+    object Match {
+      case class CaseDef(pattern: Tree, guard: Option[c.universe.Tree], rhs: Monadic)
+    }
+
+    case class If(cond: IRT, ifTrue: IRT, ifFalse: IRT)(val zpe: ZioType) extends Monadic
+
+    case class Pure(code: c.universe.Tree)(val zpe: ZioType) extends IRT with Leaf
+
+    case class And(left: IRT, right: IRT)(val zpe: ZioType) extends Monadic
+
+    case class Or(left: IRT, right: IRT)(val zpe: ZioType) extends Monadic
+
+    case class Parallel(originalExpr: c.universe.Tree, monads: List[(IRT.Monadic, TermName, Type)], body: IRT.Leaf)(val zpe: ZioType) extends Monadic
   }
 
   object WrapUnsafes extends StatelessTransformer {
