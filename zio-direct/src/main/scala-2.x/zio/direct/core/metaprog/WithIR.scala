@@ -289,7 +289,9 @@ trait WithIR extends MacroBase {
   }
 
   // Typed version of IR AST
-  sealed trait IRT
+  sealed trait IRT {
+    def zpe: ZioType
+  }
   object IRT {
     sealed trait Monadic extends IRT
 
@@ -305,7 +307,7 @@ trait WithIR extends MacroBase {
 
     case class Unsafe(body: IRT)(val zpe: ZioType) extends Monadic
 
-    case class Try(tryBlock: IRT, cases: List[IR.Match.CaseDef], resultType: c.universe.Type, finallyBlock: Option[IRT])(val zpe: ZioType) extends Monadic
+    case class Try(tryBlock: IRT, cases: List[IRT.Match.CaseDef], resultType: c.universe.Type, finallyBlock: Option[IRT])(val zpe: ZioType) extends Monadic
 
     case class Foreach(list: IRT, listType: c.universe.Type, elementSymbol: TermName, body: IRT)(val zpe: ZioType) extends Monadic
 
@@ -358,7 +360,7 @@ trait WithIR extends MacroBase {
     case class Match(scrutinee: IRT, caseDefs: List[IRT.Match.CaseDef])(val zpe: ZioType) extends Monadic
 
     object Match {
-      case class CaseDef(pattern: Tree, guard: Option[c.universe.Tree], rhs: Monadic)
+      case class CaseDef(pattern: Tree, guard: Option[c.universe.Tree], rhs: Monadic)(val zpe: ZioType)
     }
 
     case class If(cond: IRT, ifTrue: IRT, ifFalse: IRT)(val zpe: ZioType) extends Monadic
