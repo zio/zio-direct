@@ -6,7 +6,7 @@ import zio.direct.core.util.Messages
 import zio.Chunk
 
 trait WithAllowed extends MacroBase {
-  self: WithUnsupported with WithAllowedCompat =>
+  self: WithUnsupported with WithAllowedCompat with WithPrintIR =>
 
   import c.universe._
 
@@ -158,7 +158,10 @@ trait WithAllowed extends MacroBase {
             Unsupported.Error.withTree(asi, Messages.AssignmentNotAllowed)
 
           case _ if (FromMutablePackage.check(expr.tpe)) =>
-            Unsupported.Error.withTree(expr, Messages.MutableCollectionDetected(expr.tpe.typeSymbol.name.toString))
+            Unsupported.Error.withTree(expr, Messages.MutableCollectionDetected(
+              expr.tpe.typeSymbol.name.toString,
+              Format(Format.Tree(expr))
+            ))
 
           // All the kinds of valid things a Term can be in defer blocks
           // Originally taken from TreeMap.transformTerm in Quotes.scala

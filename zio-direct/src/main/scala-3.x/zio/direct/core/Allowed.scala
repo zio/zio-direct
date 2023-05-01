@@ -190,7 +190,7 @@ object Allowed {
 
         // check if the statement is a mutable collect (if it is not a block)
         case NotBlock.Term(_) if (FromMutablePackage.check(expr.tpe)) =>
-          Unsupported.Error.withTree(expr, Messages.MutableCollectionDetected(expr.tpe.typeSymbol.name))
+          Unsupported.Error.withTree(expr, Messages.MutableCollectionDetected(expr.tpe.typeSymbol.name, expr.show))
 
         // All the kinds of valid things a Term can be in defer blocks
         // Originally taken from TreeMap.transformTerm in Quotes.scala
