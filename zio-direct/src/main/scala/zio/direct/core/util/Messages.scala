@@ -14,11 +14,16 @@ val ImplicitsNotAllowed =
 Implicits are not allowed inside defer clauses (they are allowed inside of `run(...)` blocks.
 """.trimLeft
 
-def MutableCollectionDetected(name: String) =
+def MutableCollectionDetected(name: String, expr: String) =
 s"""
 Detected the use of a mutable collection inside a defer clause (called: ${name}).
+They must be wrapped in a ZIO effect and called with `run` in order to be safe.
+Example:
+
+   ZIO.attempt($expr).run
+
 Mutable collections can cause many potential issues as a result of defer-clause
-rewrites so they are not allowed (Unless it is inside of a run-call).
+rewrites if not wrapped.
 """.trimLeft
 
 val DeclarationNotAllowedWithRuns =
