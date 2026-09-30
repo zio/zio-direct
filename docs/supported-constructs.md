@@ -30,7 +30,7 @@ Blocks can also have nested blocks.
 ```scala
 defer {
   val a = ZIO.succeed("Hello").run
-  val b = {
+  val b = defer {
     val x = ZIO.succeed("to").run
     val y = ZIO.succeed("World").run
     x + " " + y
@@ -61,7 +61,7 @@ If statements with one or multiple ZIO.run values in the condition(s) and action
 
 ```scala
 defer {
-  if (ZIO.succeed(123).run < 456 && ZIO.succeed("foo") == "foo")
+  if (ZIO.succeed(123).run < 456 && ZIO.succeed("foo").run == "foo")
     ZIO.succeed("a").run
   else
     ZIO.succeed("b").run
