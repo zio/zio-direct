@@ -13,8 +13,8 @@ addSbtPlugin("org.scoverage" % "sbt-scoverage" % "1.6.1")
 addSbtPlugin("org.scalameta" % "sbt-scalafmt" % "2.4.6")
 addSbtPlugin("com.github.sbt" % "sbt-ci-release" % "1.5.11")
 addSbtPlugin("org.scalameta" % "sbt-mdoc" % "2.3.6")
-addSbtPlugin("dev.zio" % "zio-sbt-website" % "0.3.2")
+addSbtPlugin("dev.zio" % "zio-sbt-website" % "0.8.0")
+addSbtPlugin("dev.zio" % "zio-sbt-ci" % "0.8.0")
 
-libraryDependencies += "org.snakeyaml" % "snakeyaml-engine" % "2.5"
-
+resolvers ++= Resolver.sonatypeOssRepos("public")
 resolvers ++= Resolver.sonatypeOssRepos("snapshots")

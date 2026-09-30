@@ -1,5 +1,7 @@
 import BuildHelper._
 import Dependencies._
+import _root_.zio.sbt.ZioSbtCiPlugin._
+import _root_.zio.sbt.githubactions.{Job, Step, Strategy}
 
 inThisBuild(
   List(
@@ -16,10 +18,36 @@ inThisBuild(
     ),
     pgpPassphrase := sys.env.get("PGP_PASSWORD").map(_.toArray),
     pgpPublicRing := file("/tmp/public.asc"),
-    pgpSecretRing := file("/tmp/secret.asc")
+    pgpSecretRing := file("/tmp/secret.asc"),
+    allowUnsafeScalaLibUpgrade := true,
+    ciEnabledBranches := Seq("main"),
+    ciTestJobs := Seq(
+      Job(
+        id = "test",
+        name = "Test",
+        jobTimeout = Some(30),
+        strategy = Some(
+          Strategy(
+            matrix = Map("java" -> List("8"), "scala" -> List(Scala212, Scala213, ScalaDotty)),
+            failFast = false
+          )
+        ),
+        steps = Seq(
+          Checkout.value,
+          SetupJava("${{ matrix.java }}"),
+          SetupSBT,
+          CacheDependencies,
+          Step.SingleStep(
+            name = "Test",
+            run = Some("sbt ++${{ matrix.scala }}! -Dzd.scala.version=${{ matrix.scala }} test")
+          )
+        )
+      )
+    )
   )
 )
 
+addCommandAlias("lint", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("fmt", "all scalafmtSbt scalafmt test:scalafmt")
 addCommandAlias("fix", "; all compile:scalafix test:scalafix; all scalafmtSbt scalafmtAll")
 addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll; compile:scalafix --check; test:scalafix --check")
@@ -29,14 +57,14 @@ addCommandAlias(
   ";zio-direct/test"
 )
 
-lazy val modules =
+lazy val modules: Seq[sbt.ClasspathDep[sbt.ProjectReference]] =
   Seq[sbt.ClasspathDep[sbt.ProjectReference]](
     `zio-direct`,
-    `zio-direct-test`,
-    `zio-direct-streams`,
-    `zio-direct-pure`
+    `zio-direct-test`
   ) ++ {
-    if (isScala3) Seq[sbt.ClasspathDep[sbt.ProjectReference]](docs) else Seq[sbt.ClasspathDep[sbt.ProjectReference]]()
+    if (isScala3)
+      Seq[sbt.ClasspathDep[sbt.ProjectReference]](`zio-direct-streams`, `zio-direct-pure`, docs)
+    else Seq[sbt.ClasspathDep[sbt.ProjectReference]]()
   }
 
 lazy val root = (project in file("."))
@@ -45,7 +73,6 @@ lazy val root = (project in file("."))
     publish / skip := true,
     scalaVersion := `zd.scala.version`
   )
-  .aggregate(`zio-direct`, `zio-direct-test`, docs)
 
 lazy val `zio-direct` = project
   .in(file("zio-direct"))
@@ -135,16 +162,15 @@ lazy val docs = project
       ("com.geirsson" % "metaconfig-typesafe-config_2.13"),
       ("org.typelevel" % "paiges-core_2.13")
     ),
-    crossScalaVersions := Seq(Scala212, Scala213, ScalaDotty),
-    scalaVersion := ScalaDotty,
+    crossScalaVersions := Seq(ScalaDocs),
+    scalaVersion := ScalaDocs,
     moduleName := "zio-direct-docs",
     scalacOptions -= "-Yno-imports",
     scalacOptions -= "-Xfatal-warnings",
     projectName := "ZIO Direct Style",
     mainModuleName := (`zio-direct` / moduleName).value,
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(`zio-direct`),
-    projectStage := ProjectStage.Development,
-    docsPublishBranch := "main"
+    projectStage := ProjectStage.Development
   )
   .dependsOn(`zio-direct`)
   .enablePlugins(WebsitePlugin)
