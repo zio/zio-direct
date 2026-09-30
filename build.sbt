@@ -162,8 +162,8 @@ lazy val docs = project
       ("com.geirsson" % "metaconfig-typesafe-config_2.13"),
       ("org.typelevel" % "paiges-core_2.13")
     ),
-    crossScalaVersions := Seq(ScalaDotty),
-    scalaVersion := ScalaDotty,
+    crossScalaVersions := Seq(ScalaDocs),
+    scalaVersion := ScalaDocs,
     moduleName := "zio-direct-docs",
     scalacOptions -= "-Yno-imports",
     scalacOptions -= "-Xfatal-warnings",

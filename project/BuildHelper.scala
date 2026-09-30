@@ -14,6 +14,8 @@ object BuildHelper {
   val Scala212: String                      = "2.12.16"
   val Scala213: String                      = "2.13.8"
   val ScalaDotty: String                    = "3.2.0"
+  // mdoc (via zio-sbt-website) needs a scala3-library newer than ScalaDotty
+  val ScalaDocs: String                     = "3.3.8"
 
   val `zd.scala.version` = {
     readVersionFromSysProps().orElse(readVersionFromFile()) match {
@@ -301,7 +303,7 @@ object BuildHelper {
   def macroDefinitionSettings = Seq(
     scalacOptions += "-language:experimental.macros",
     libraryDependencies ++= {
-      if (scalaVersion.value == ScalaDotty) Seq()
+      if (CrossVersion.partialVersion(scalaVersion.value).exists(_._1 == 3)) Seq()
       else
         Seq(
           "org.scala-lang" % "scala-reflect"  % scalaVersion.value % "provided",
