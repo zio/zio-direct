@@ -19,6 +19,7 @@ inThisBuild(
     pgpPassphrase := sys.env.get("PGP_PASSWORD").map(_.toArray),
     pgpPublicRing := file("/tmp/public.asc"),
     pgpSecretRing := file("/tmp/secret.asc"),
+    allowUnsafeScalaLibUpgrade := true,
     ciEnabledBranches := Seq("main"),
     ciTestJobs := Seq(
       Job(
@@ -56,14 +57,14 @@ addCommandAlias(
   ";zio-direct/test"
 )
 
-lazy val modules =
+lazy val modules: Seq[sbt.ClasspathDep[sbt.ProjectReference]] =
   Seq[sbt.ClasspathDep[sbt.ProjectReference]](
     `zio-direct`,
-    `zio-direct-test`,
-    `zio-direct-streams`,
-    `zio-direct-pure`
+    `zio-direct-test`
   ) ++ {
-    if (isScala3) Seq[sbt.ClasspathDep[sbt.ProjectReference]](docs) else Seq[sbt.ClasspathDep[sbt.ProjectReference]]()
+    if (isScala3)
+      Seq[sbt.ClasspathDep[sbt.ProjectReference]](`zio-direct-streams`, `zio-direct-pure`, docs)
+    else Seq[sbt.ClasspathDep[sbt.ProjectReference]]()
   }
 
 lazy val root = (project in file("."))
@@ -72,7 +73,6 @@ lazy val root = (project in file("."))
     publish / skip := true,
     scalaVersion := `zd.scala.version`
   )
-  .aggregate(`zio-direct`, `zio-direct-test`, docs)
 
 lazy val `zio-direct` = project
   .in(file("zio-direct"))
@@ -162,7 +162,7 @@ lazy val docs = project
       ("com.geirsson" % "metaconfig-typesafe-config_2.13"),
       ("org.typelevel" % "paiges-core_2.13")
     ),
-    crossScalaVersions := Seq(Scala212, Scala213, ScalaDotty),
+    crossScalaVersions := Seq(ScalaDotty),
     scalaVersion := ScalaDotty,
     moduleName := "zio-direct-docs",
     scalacOptions -= "-Yno-imports",
