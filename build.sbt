@@ -1,5 +1,7 @@
 import BuildHelper._
 import Dependencies._
+import _root_.zio.sbt.ZioSbtCiPlugin._
+import _root_.zio.sbt.githubactions.{Job, Step, Strategy}
 
 inThisBuild(
   List(
@@ -16,10 +18,35 @@ inThisBuild(
     ),
     pgpPassphrase := sys.env.get("PGP_PASSWORD").map(_.toArray),
     pgpPublicRing := file("/tmp/public.asc"),
-    pgpSecretRing := file("/tmp/secret.asc")
+    pgpSecretRing := file("/tmp/secret.asc"),
+    ciEnabledBranches := Seq("main"),
+    ciTestJobs := Seq(
+      Job(
+        id = "test",
+        name = "Test",
+        jobTimeout = Some(30),
+        strategy = Some(
+          Strategy(
+            matrix = Map("java" -> List("8"), "scala" -> List(Scala212, Scala213, ScalaDotty)),
+            failFast = false
+          )
+        ),
+        steps = Seq(
+          Checkout.value,
+          SetupJava("${{ matrix.java }}"),
+          SetupSBT,
+          CacheDependencies,
+          Step.SingleStep(
+            name = "Test",
+            run = Some("sbt ++${{ matrix.scala }}! -Dzd.scala.version=${{ matrix.scala }} test")
+          )
+        )
+      )
+    )
   )
 )
 
+addCommandAlias("lint", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("fmt", "all scalafmtSbt scalafmt test:scalafmt")
 addCommandAlias("fix", "; all compile:scalafix test:scalafix; all scalafmtSbt scalafmtAll")
 addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll; compile:scalafix --check; test:scalafix --check")
@@ -143,8 +170,7 @@ lazy val docs = project
     projectName := "ZIO Direct Style",
     mainModuleName := (`zio-direct` / moduleName).value,
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(`zio-direct`),
-    projectStage := ProjectStage.Development,
-    docsPublishBranch := "main"
+    projectStage := ProjectStage.Development
   )
   .dependsOn(`zio-direct`)
   .enablePlugins(WebsitePlugin)

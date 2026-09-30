@@ -11,22 +11,9 @@ import scala.xml.transform.{RewriteRule, RuleTransformer}
 
 
 object BuildHelper {
-  private val versions: Map[String, String] = {
-    import org.snakeyaml.engine.v2.api.{Load, LoadSettings}
-
-    import java.util.{List => JList, Map => JMap}
-    import scala.jdk.CollectionConverters._
-
-    val doc  = new Load(LoadSettings.builder().build())
-      .loadFromReader(scala.io.Source.fromFile(".github/workflows/ci.yaml").bufferedReader())
-    val yaml = doc.asInstanceOf[JMap[String, JMap[String, JMap[String, JMap[String, JMap[String, JList[String]]]]]]]
-    val list = yaml.get("jobs").get("test").get("strategy").get("matrix").get("scala").asScala
-    list.map(v => (v.split('.').take(2).mkString("."), v)).toMap
-  }
-
-  val Scala212: String                      = versions("2.12")
-  val Scala213: String                      = versions("2.13")
-  val ScalaDotty: String                    = versions("3.2")
+  val Scala212: String                      = "2.12.16"
+  val Scala213: String                      = "2.13.8"
+  val ScalaDotty: String                    = "3.2.0"
 
   val `zd.scala.version` = {
     readVersionFromSysProps().orElse(readVersionFromFile()) match {
