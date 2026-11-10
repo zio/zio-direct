@@ -99,7 +99,7 @@ The code above:
 - `defer { ... }` has the type `Task[String]`, the same as the for-comprehension
 
 :::note
-The `run` suffix is only valid inside a `defer` block. Outside of one, `run` does not compile.
+The `run` suffix is only valid inside a `defer` block. Outside of one, the call compiles but throws `NotDeferredException` when it runs.
 :::
 
 ## 3. Add a Conditional
