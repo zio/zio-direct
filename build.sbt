@@ -172,7 +172,7 @@ lazy val docs = project
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(`zio-direct`),
     projectStage := ProjectStage.Development
   )
-  .dependsOn(`zio-direct`)
+  .dependsOn(`zio-direct`, `zio-direct-streams`, `zio-direct-pure`)
   .enablePlugins(WebsitePlugin)
 
 addCommandAlias("fmt", "all scalafmt test:scalafmt")
