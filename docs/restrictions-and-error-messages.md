@@ -55,7 +55,7 @@ An `implicit` or `given` value defined inside a `defer` block is rejected with t
 
 ## Run Calls in Match Guards
 
-A `.run` call inside a `case` guard is not supported. A guard such as `case x if ZIO.succeed(x).run > 0 =>` is left in the code, so zio-direct reports that a `run` call remains after the rewrite. Bind the value before the `match` instead:
+A `.run` call inside a `case` guard is not supported. A guard such as `case x if ZIO.succeed(x).run > 0 =>` is rejected with the message ``Match conditionals are not allow to contain `run`. Move the `run` call out of the match-statement.`` Bind the value before the `match` instead:
 
 ```scala
 defer {
@@ -83,7 +83,7 @@ An assignment to a variable outside a `.run` call is rejected with the message `
 
 ## Mixing Run Calls With Other Expressions
 
-Inside an `unsafe { ... }` block, a line cannot mix a `.run` call with other expressions. The message is `Statements that mix run(...) calls with other expressions in the same line are not allowed`. Move the `.run` call into its own `val`:
+Inside an `unsafe { ... }` block, or in a `defer.linear` block, a line cannot mix a `.run` call with other expressions. Both cases report the message ``Statements that mix run(...) calls with other expressions in the same line are not allowed in `unsafe { ... }` blocks.`` Move the `.run` call into its own `val`:
 
 ```scala
 defer {
