@@ -58,6 +58,8 @@ val counted: Task[Int] =
   }
 ```
 
+Running the code below prints the result:
+
 ```scala mdoc
 println(Unsafe.unsafe { implicit u => Runtime.default.unsafe.run(counted).getOrThrowFiberFailure() })
 ```
@@ -94,6 +96,8 @@ val linearResult: Task[Int] =
     first + second
   }
 ```
+
+Running the code below prints the result:
 
 ```scala mdoc
 println(Unsafe.unsafe { implicit u => Runtime.default.unsafe.run(linearResult).getOrThrowFiberFailure() })

@@ -13,6 +13,8 @@ keywords:
 
 ZIO-direct supports using the following constructs inside of a `defer` block. Each example below compiles with the docs build, and each translation shows the approximate code that zio-direct generates. To see the exact translation of any block, use `defer.info`, as described in the [debugging guide](./how-to-debug-defer.md).
 
+The examples below share this setup, which defines the helper that runs each effect:
+
 ```scala mdoc:silent
 import zio._
 import zio.direct._

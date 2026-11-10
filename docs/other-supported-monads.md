@@ -67,6 +67,8 @@ val outZio: ZIO[Any, Nothing, Chunk[(Int, String)]] =
   }
 ```
 
+Running the code below prints the result:
+
 ```scala mdoc
 println(Unsafe.unsafe { implicit u => Runtime.default.unsafe.run(outZio).getOrThrowFiberFailure() })
 ```
@@ -116,6 +118,8 @@ val outHelpers =
     (s1, s2)
   }
 ```
+
+Running the code below prints the result:
 
 ```scala mdoc
 println(outHelpers.provideState(MyState("foo")).run)

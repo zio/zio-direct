@@ -69,6 +69,8 @@ val fromFailure: Task[Int] =
   }
 ```
 
+Running the code below prints the result:
+
 ```scala mdoc
 println(runNow(fromFailure))
 ```
@@ -101,6 +103,8 @@ val safeDivide: Task[Int] =
     }
   }
 ```
+
+Running the code below prints the result:
 
 ```scala mdoc
 println(runNow(safeDivide))
