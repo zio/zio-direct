@@ -52,7 +52,7 @@ Compare the printed code with the block: each `val` that contains a `.run` call 
 
 ## Show More Detail With defer.verbose
 
-`defer.verbose` prints the same translation as `defer.info`, along with the type that zio-direct computed for each step and the tree it deconstructed from your code. Use it when the translation looks right but the inferred type is not:
+`defer.verbose` prints the same translation and computed type as `defer.info`, along with the deconstructed form of your code and a comparison of the computed type with the type the compiler discovered. Use it when the translation looks right but the inferred type is not:
 
 ```scala
 val themedVerbose: Task[String] =
@@ -74,7 +74,7 @@ Do not use `Use.withNoCheck` to silence an error during debugging. That option s
 ## What You've Learned
 
 - `defer.info` prints the generated code during compilation
-- `defer.verbose` adds the computed types and the deconstructed tree
+- `defer.verbose` adds the deconstructed tree and the computed-type comparison
 - Restrictions are fixed by changing the block, not by disabling checks
 
 ## Where to Go Next
