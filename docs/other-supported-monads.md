@@ -25,7 +25,9 @@ libraryDependencies += "dev.zio" %% "zio-direct-streams" % "@VERSION@"
 
 Import `zio.direct.stream._`, and call `each` on each stream to get its elements. Inside a stream `defer` block, `each` plays the role that `run` plays in a ZIO block:
 
-```scala
+```scala mdoc:silent:reset
+import zio._
+import zio.stream._
 import zio.direct.stream._
 
 val out =
@@ -34,15 +36,20 @@ val out =
     val b = ZStream("foo", "bar").each
     (a, b)
   }
-
-out.runCollect
-// ZIO.succeed(Chunk((1,"foo"),(1,"bar"),(2,"foo"),(2,"bar"),(3,"foo"),(3,"bar")))
 ```
 
-If you also use zio-direct with ZIO, rename the stream `defer` to avoid a name clash:
+Running the stream collects every combination of the elements:
 
-```scala
-import zio.direct.stream.{ defer => deferStream, _ }
+```scala mdoc
+println(Unsafe.unsafe { implicit u => Runtime.default.unsafe.run(out.runCollect).getOrThrowFiberFailure() })
+```
+
+If you also use zio-direct with ZIO, rename the stream `defer` to avoid a name clash. The stream `defer` is renamed to `deferStream`, and the ZIO `defer` is imported from `zio.direct`:
+
+```scala mdoc:silent:reset
+import zio._
+import zio.stream._
+import zio.direct.stream.{ defer => deferStream, each }
 import zio.direct._
 
 val outStream: ZStream[Any, Nothing, (Int, String)] =
@@ -60,6 +67,10 @@ val outZio: ZIO[Any, Nothing, Chunk[(Int, String)]] =
   }
 ```
 
+```scala mdoc
+println(Unsafe.unsafe { implicit u => Runtime.default.unsafe.run(outZio).getOrThrowFiberFailure() })
+```
+
 ## ZPure
 
 To use zio-direct with ZPure, add the following to your `build.sbt` file:
@@ -70,7 +81,12 @@ libraryDependencies += "dev.zio" %% "zio-direct-pure" % "@VERSION@"
 
 Before writing a `defer` block, define a context with `deferWith[W, S]`, where `W` is the log type and `S` is the state type. Import the members of that context, and use `eval` to get the value of a ZPure computation:
 
-```scala
+```scala mdoc:silent:reset
+import zio.direct.pure._
+import zio.prelude.fx.ZPure
+
+case class MyState(value: String)
+
 val dc = deferWith[String, MyState]
 import dc._
 
@@ -81,27 +97,28 @@ val out =
     val s2 = ZPure.get[MyState].eval.value
     (s1, s2)
   }
-
-out.provideState(MyState("foo")).run
-// ("foo", "bar")
 ```
 
-The helpers `getState()`, `setState(...)`, and `log(...)` are members of the context, so they are available after `import dc._`:
+Providing the initial state and running the computation gives the two states in order:
 
-```scala
-val dc = deferWith[String, MyState]
-import dc._
+```scala mdoc
+println(out.provideState(MyState("foo")).run)
+```
 
-val out =
+The helpers `getState()`, `setState(...)`, and `log(...)` are members of the context, so they are available after `import dc._`. The same computation with the helpers:
+
+```scala mdoc:silent
+val outHelpers =
   defer {
     val s1 = getState().value
     setState(MyState("bar"))
     val s2 = getState().value
     (s1, s2)
   }
+```
 
-out.provideState(MyState("foo")).run
-// ("foo", "bar")
+```scala mdoc
+println(outHelpers.provideState(MyState("foo")).run)
 ```
 
 `provideState` is a method of the ZPure type from zio-prelude, not a zio-direct method. It supplies the initial state before the computation runs.
@@ -114,7 +131,7 @@ Metals auto-complete and type popups can be slow with ZPure, especially when `tr
 
 Support for Scala's `List` is provided by `zio.direct.list`. The entry point is `select` rather than `defer`, and each element of a list is taken with `from`:
 
-```scala mdoc
+```scala mdoc:reset
 import zio.direct.list._
 
 val pairs =
@@ -133,7 +150,7 @@ The result contains every combination of the elements, in the same order as the 
 
 Support for `scala.concurrent.Future` is provided by `zio.direct.future`. The `defer` block takes an implicit `ExecutionContext` in scope, and each future is taken with `.run`:
 
-```scala mdoc
+```scala mdoc:reset
 import zio.direct.future._
 import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.concurrent.duration._
