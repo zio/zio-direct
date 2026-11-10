@@ -2,20 +2,32 @@
 id: other-supported-monads
 title:  "Other Supported Monads"
 sidebar_label: "Other Supported Monads"
+description: "How to use zio-direct with ZStream, ZPure, scala.concurrent.Future, and scala.List, with the import and evaluation method each one needs."
+keywords:
+  - "ZIO Direct Style"
+  - "ZStream"
+  - "ZPure"
+  - "Future"
+  - "List"
 ---
 
-As of RC5, zio-direct now supports ZStream and ZPure as well as `scala.concurrent.Future` and `scala.List`. The latter two are largely fully functional but largely for demonstration purposes.
+Besides ZIO, zio-direct supports ZStream, ZPure, `scala.concurrent.Future`, and `scala.List`. Each one has its own `defer` and its own evaluation method, so you import the one you need. The ZStream and ZPure modules are separate artifacts, and the Future and List support is included in the core library.
+
 > Note that all of these are currently only supported in Scala 3.
 
 ## ZStream
 
-To use zio-direct with ZStream, add the following to your `build.sbt` file.
+To use zio-direct with ZStream, add the following to your `build.sbt` file:
+
 ```scala
 libraryDependencies += "dev.zio" %% "zio-direct-streams" % "@VERSION@"
 ```
 
-You can then use zio-direct with ZStream:
-```scala
+Import `zio.direct.stream._`, and call `each` on each stream to get its elements. Inside a stream `defer` block, `each` plays the role that `run` plays in a ZIO block:
+
+```scala mdoc:silent:reset
+import zio._
+import zio.stream._
 import zio.direct.stream._
 
 val out =
@@ -24,18 +36,22 @@ val out =
     val b = ZStream("foo", "bar").each
     (a, b)
   }
-
-out.runCollect
-// ZIO.succeed(Chunk((1,"foo"),(1,"bar"),(2,"foo"),(2,"bar"),(3,"foo"),(3,"bar")))
 ```
 
-Note that if you are also using zio-direct with ZIO, you should rename the `defer` function to avoid conflicts:
+Running the stream collects every combination of the elements:
 
-```scala
-import zio.direct.stream.{ defer => deferStream, _ }
+```scala mdoc
+println(Unsafe.unsafe { implicit u => Runtime.default.unsafe.run(out.runCollect).getOrThrowFiberFailure() })
+```
+
+If you also use zio-direct with ZIO, rename the stream `defer` to avoid a name clash. The stream `defer` is renamed to `deferStream`, and the ZIO `defer` is imported from `zio.direct`:
+
+```scala mdoc:silent:reset
+import zio._
+import zio.stream._
+import zio.direct.stream.{ defer => deferStream, each }
 import zio.direct._
 
-// The `run` function of ZStream is called `each`
 val outStream: ZStream[Any, Nothing, (Int, String)] =
   deferStream {
     val a = ZStream(1, 2, 3).each
@@ -49,30 +65,33 @@ val outZio: ZIO[Any, Nothing, Chunk[(Int, String)]] =
     val b = ZIO.succeed((123, "baz")).run
     a :+ b
   }
+```
 
-// Yields:
-// ZIO.succeed(Chunk((1,"foo"),(1,"bar"),(2,"foo"),(2,"bar"),(3,"foo"),(3,"bar"),(123, "baz")))
+Running the code below prints the result:
+
+```scala mdoc
+println(Unsafe.unsafe { implicit u => Runtime.default.unsafe.run(outZio).getOrThrowFiberFailure() })
 ```
 
 ## ZPure
 
-> Note that Metals auto-complete/type-info popups may be sluggish when using ZPure, especially when try/catch constructs are being used.
-> In some cases, you may need to wait for a "Loading..." popup message for 20-30 seconds although the actual (bloop) compile time
-> will just be a few seconds.
+To use zio-direct with ZPure, add the following to your `build.sbt` file:
 
-To use zio-direct with ZPure, add the following to your `build.sbt` file.
 ```scala
 libraryDependencies += "dev.zio" %% "zio-direct-pure" % "@VERSION@"
 ```
 
-In order to use zio-direct with ZPure, you first need to define a `deferWith[W, S]` context which will define the Logging (`W`) and State (`S`) types for your ZPure computation.
+Before writing a `defer` block, define a context with `deferWith[W, S]`, where `W` is the log type and `S` is the state type. Import the members of that context, and use `eval` to get the value of a ZPure computation:
 
-> Due to limitations of Scala 3, you may need to create the state object type in a separate file (or you may get cyclical-dependency compile-time errors).
-```scala
+```scala mdoc:silent:reset
+import zio.direct.pure._
+import zio.prelude.fx.ZPure
+
+case class MyState(value: String)
+
 val dc = deferWith[String, MyState]
 import dc._
 
-// The `run` function of ZStream is called `eval`
 val out =
   defer {
     val s1 = ZPure.get[MyState].eval.value
@@ -80,78 +99,88 @@ val out =
     val s2 = ZPure.get[MyState].eval.value
     (s1, s2)
   }
-
-out.provideState(MyState("foo")).run
-// ("foo", "bar")
 ```
 
-In order to avoid having to specify the state-type over and over again, several helpers are provided (they are imported from `dc._`).
-```scala
-val dc = deferWith[String, MyState]
-import dc._
+Providing the initial state and running the computation gives the two states in order:
 
-// The `run` function of ZStream is called `eval`
-val out =
+```scala mdoc
+println(out.provideState(MyState("foo")).run)
+```
+
+The helpers `getState()`, `setState(...)`, and `log(...)` are members of the context, so they are available after `import dc._`. The same computation with the helpers:
+
+```scala mdoc:silent
+val outHelpers =
   defer {
     val s1 = getState().value
     setState(MyState("bar"))
     val s2 = getState().value
     (s1, s2)
   }
-
-out.provideState(MyState("foo")).run
-// ("foo", "bar")
 ```
 
-## List and Future
+Running the code below prints the result:
 
-Support for Scala's `List` and `Future` objects is provided from zio-direct.
+```scala mdoc
+println(outHelpers.provideState(MyState("foo")).run)
+```
 
-To use zio-direct with `List` do the following:
-```scala
+`provideState` is a method of the ZPure type from zio-prelude, not a zio-direct method. It supplies the initial state before the computation runs.
+
+:::note
+Metals auto-complete and type popups can be slow with ZPure, especially when `try` and `catch` are used. The compile itself is quick.
+:::
+
+## List
+
+Support for Scala's `List` is provided by `zio.direct.list`. The entry point is `select` rather than `defer`, and each element of a list is taken with `from`:
+
+```scala mdoc:reset
 import zio.direct.list._
 
-val out =
-  defer {
-    val a = List(1, 2, 3)
-    val b = List("foo", "bar")
+val pairs =
+  select {
+    val a = from(List(1, 2, 3))
+    val b = from(List("foo", "bar"))
     (a, b)
   }
 
-// Yields:
-// List((1,"foo"),(1,"bar"),(2,"foo"),(2,"bar"),(3,"foo"),(3,"bar"))
+println(pairs)
 ```
 
-To use zio-direct with `Future` do the following:
-```scala
+The result contains every combination of the elements, in the same order as the equivalent for-comprehension.
+
+## Future
+
+Support for `scala.concurrent.Future` is provided by `zio.direct.future`. The `defer` block takes an implicit `ExecutionContext` in scope, and each future is taken with `.run`:
+
+```scala mdoc:reset
 import zio.direct.future._
+import scala.concurrent.{ Await, ExecutionContext, Future }
+import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 
-val out =
+val future =
   defer {
     Future("a").run match {
       case "a" => Future(1).run
-      case "b" => Future(2).run
+      case _   => Future(2).run
     }
   }
 
-// Yields: Future(1)
+println(Await.result(future, 1.second))
 ```
 
-Note that it is not necessary to implement ExecutionContext.Implicits.global. You can
-implicitly pass in any ExecutionContext you want. It just needs to be in-scope when you
-call the `defer` function (i.e. `zio.direct.future.defer`).
-```scala
-import zio.direct.future._
+Any `ExecutionContext` works, not only the global one. The context only needs to be in scope when `defer` is called:
 
-def out(implicit ctx: ExecutionContext) =
+```scala mdoc
+def withContext(implicit ec: ExecutionContext): Future[Int] =
   defer {
     Future("a").run match {
       case "a" => Future(1).run
-      case "b" => Future(2).run
+      case _   => Future(2).run
     }
   }
 
-out(scala.concurrent.ExecutionContext.global)
-// Yields: Future(1)
+println(Await.result(withContext(ExecutionContext.global), 1.second))
 ```

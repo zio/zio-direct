@@ -16,6 +16,8 @@ To use zio-direct, add the following to your `build.sbt` file.
 libraryDependencies += "dev.zio" %% "zio-direct" % "@VERSION@"
 ```
 
+The core `defer` block works on Scala 2.12, 2.13, and 3. The `defer.linear` variant, the `Future` and `List` support, and the ZStream and ZPure modules are only available in Scala 3.
+
 You can also use zio-direct with ZStream and ZPure by importing the following modules.
 > Currently this is only supported in Scala 3.
 
@@ -98,22 +100,48 @@ defer {
 ```
 
 
-# ZIO-Tailored
-ZIO-Direct is specifically tailored to ZIO capabilities as it supports Environment and Error composition in ZIO effects similar to the for-comprehension.
+## ZIO-Tailored
 
-```scala
-val out: ZIO[CustomerConfig & DistributorConfig, CustomerGetException | DistrubutorGetException, (Customer, Distributor)] =
+ZIO-Direct is specifically tailored to ZIO capabilities. It composes the environment and error types of ZIO effects, in the same way as a for-comprehension does. The setup block defines the services and functions used below:
+
+```scala mdoc:silent:reset
+import zio._
+import zio.direct._
+
+case class CustomerConfig(url: String)
+case class DistributorConfig(url: String)
+
+def httpGetCustomer(url: String): Task[String] = ZIO.succeed(s"customer at $url")
+def httpGetDistributor(url: String): Task[String] = ZIO.succeed(s"distributor at $url")
+def parseCustomer(text: String): Task[String] = ZIO.succeed(text.toUpperCase)
+def parseDistributor(text: String): Task[String] = ZIO.succeed(text.toUpperCase)
+```
+
+The `defer` block reads both configurations from the environment, and its type is inferred from the effects it runs:
+
+```scala mdoc:silent
+val out: ZIO[CustomerConfig & DistributorConfig, Throwable, (String, String)] =
   defer {
     // Get a customer-configuration object from the environment and extract its .url field
     val custUrl: String = ZIO.service[CustomerConfig].run.url
     // Get a distributor-configuration from the environment and extract its .url field
     val distUrl: String = ZIO.service[DistributorConfig].run.url
-    (
-      // Use the two configurations to make an HTTP-call
-      parseCustomer(httpGetCustomer(custUrl).run),
-      parseDistrubutor(httpGetDistributor(distUrl).run)
-    )
+    // Use the two configurations to make HTTP-calls
+    val custText = httpGetCustomer(custUrl).run
+    val distText = httpGetDistributor(distUrl).run
+    // Parse each response
+    (parseCustomer(custText).run, parseDistributor(distText).run)
   }
+```
+
+Providing the two configurations and running the effect prints the parsed results:
+
+```scala mdoc
+println(Unsafe.unsafe { implicit u =>
+  Runtime.default.unsafe
+    .run(out.provide(ZLayer.succeed(CustomerConfig("cust.example")), ZLayer.succeed(DistributorConfig("dist.example"))))
+    .getOrThrowFiberFailure()
+})
 ```
 
 ## Branching and Looping Support
@@ -168,53 +196,29 @@ Database.open.flatMap { db =>
 Note that normally this is the exact code that would have to be written to capture such functionality For-comprehensions do not provide a way to do looping and branching so in such cases
 a combination of flatMaps and recursion is necessary to avoid calling effects unnecessarily.
 
-## Great for Refs and FiberRefs!
+## Great for Refs and FiberRefs
 
-ZIO-direct makes it much easier to use ZIO mutable Ref and FiberRef variables. Since retrieveing and updating Ref and FiberRef variables requries a flatMap/for-comprehension call, it is typically very difficult to use them with branching/looping constructs. ZIO-direct makes these cases much easier.
+ZIO-direct makes it much easier to use ZIO `Ref` and `FiberRef` variables. Retrieving and updating a `Ref` requires a `flatMap` or for-comprehension call, so branching around it quickly becomes hard to read. In a `defer` block, the `.run` suffix retrieves and updates the reference in place:
 
-```scala
-class DatabaseApi {
-  val connRef = FiberRef.make[Option[Connection]](None)
-  def openConnection(): Connection = lowLevelDatabaseApi.openConnection()
-  def transaction(action: Action) =
-    defer {
-      val conn = connRef.get.run
-      if (conn == None) {
-        connRef.set(Some(openConnection())).run
-      }
-      val conn1 = connRef.get.run
-      conn.execute(action).run
-    }
-}
+```scala mdoc:silent
+val refDemo: Task[Int] =
+  defer {
+    val counter = Ref.make(0).run
+    if (counter.get.run == 0) counter.set(5).run
+    counter.get.run
+  }
+
 ```
 
-Instead of having to write the following code:
-```scala
-class DatabaseApi {
-  val connRef = FiberRef.make[Option[Connection]](None)
-  def openConnection(): Connection = lowLevelDatabaseApi.openConnection()
-  def transaction(action: Action) =
-    connRef.get.flatMap { conn =>
-      (if (conn == None) {
-        connRef.set(Some(openConnection()))
-      } else {
-        ZIO.unit
-      }).flatMap(_ => connRef.get.flatMap { conn1 =>
-        conn1.execute(action)
-      })
-    }
-
-  // Note that for-comprehensions do not help very much in this use-case
-  def transaction0(action: Action) =
-    for {
-      conn <- connRef.get
-      _ <- if (conn == None) {
-        connRef.set(Some(openConnection()))
-      } else {
-        ZIO.unit
-      }
-      conn1 <- connRef.get
-      _ <- conn1.execute(action)
-    }
-}
+```scala mdoc
+println(Unsafe.unsafe { implicit u => Runtime.default.unsafe.run(refDemo).getOrThrowFiberFailure() })
 ```
+
+The same logic without `defer` nests the `get` and `set` calls inside `flatMap` and `map`, which is the code the macro writes for you.
+
+## Next Steps
+
+- **New to ZIO Direct Style?** Follow the [tutorial](./tutorial-rewrite-for-comprehension.md), which rewrites a for-comprehension as a `defer` block.
+- **Handling failures?** Read [How to Handle Errors in a defer Block](./how-to-handle-errors.md).
+- **Running effects in parallel?** Read [How to Run Effects in Parallel in a defer Block](./how-to-run-in-parallel.md).
+- **Looking for a specific construct or message?** Read [Scala Constructs Supported by ZIO-Direct](./supported-constructs.md) or [Restrictions and Error Messages](./restrictions-and-error-messages.md).
