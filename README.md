@@ -16,6 +16,8 @@ To use zio-direct, add the following to your `build.sbt` file.
 libraryDependencies += "dev.zio" %% "zio-direct" % "1.0.0-RC7"
 ```
 
+The core `defer` block works on Scala 2.12, 2.13, and 3. The `defer.linear` variant, the `Future` and `List` support, and the ZStream and ZPure modules are only available in Scala 3.
+
 You can also use zio-direct with ZStream and ZPure by importing the following modules.
 > Currently this is only supported in Scala 3.
 
