@@ -133,6 +133,8 @@ object Extractors {
       tree match
         case DottyExtensionCall.OneArg(invocation @ DirectRunCallAnnotated.Term(), effect) =>
           Some(effect.asExpr)
+        case quotes.reflect.Apply(quotes.reflect.TypeApply(invocation @ DirectRunCallAnnotated.Term(), _), effect :: Nil) =>
+          Some(effect.asExpr)
         case _ =>
           None
     }
