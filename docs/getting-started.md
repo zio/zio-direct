@@ -1,7 +1,7 @@
 ---
-id: tutorial-rewrite-for-comprehension
-title:  "Tutorial: Your First defer Block"
-sidebar_label: "Tutorial"
+id: getting-started
+title:  "Getting Started: Your First defer Block"
+sidebar_label: "Getting Started"
 description: "Learn ZIO Direct Style by rewriting a ZIO for-comprehension as a defer block, then adding a conditional that for-comprehensions cannot express."
 keywords:
   - "ZIO Direct Style"

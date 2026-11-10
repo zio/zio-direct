@@ -1,14 +1,7 @@
 const sidebars = {
   sidebar: [
-    {
-      type: "category",
-      label: "Getting Started",
-      link: { type: "doc", id: "index" },
-      collapsed: false,
-      items: [
-        "tutorial-rewrite-for-comprehension"
-      ]
-    },
+    "index",
+    "getting-started",
     {
       type: "category",
       label: "Reference",
