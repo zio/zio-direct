@@ -82,7 +82,7 @@ The code above:
 - the block returns `recovered * 2`, which is `18` for the message `disk full`
 
 :::caution
-Do not write a `catch` clause for a typed error from `ZIO.fail`. A `catch` clause in a `defer` block expects a `Throwable`, so a `String` error reaches it as a `ClassCastException` at runtime, not as the value you wrote in the pattern. Use `ZIO#catchAll` or `ZIO#catchSome` on the effect for typed errors.
+Do not write a `catch` clause for a typed error from `ZIO.fail`. A `catch` clause in a `defer` block matches on `Throwable`. When a `String` error from `ZIO.fail` reaches such a clause, the run fails with a `ClassCastException`, as observed when this page was compiled. Use `ZIO#catchAll` or `ZIO#catchSome` on the effect for typed errors.
 :::
 
 ## Catch an Exception Thrown by Plain Scala Code
