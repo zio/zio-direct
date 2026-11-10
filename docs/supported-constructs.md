@@ -2,22 +2,44 @@
 id: supported-constructs
 title:  "Scala Constructs Supported by ZIO-Direct"
 sidebar_label: "Supported Constructs"
+description: "Reference for the Scala constructs that work inside a defer block, with a compiled example for each, the translation zio-direct generates, and the limits of try, while, and match."
+keywords:
+  - "ZIO Direct Style"
+  - "defer"
+  - "Scala constructs"
+  - "try catch"
+  - "while loop"
 ---
 
-# Supported Constructs
+ZIO-direct supports using the following constructs inside of a `defer` block. Each example below compiles with the docs build, and each translation shows the approximate code that zio-direct generates. To see the exact translation of any block, use `defer.info`, as described in the [debugging guide](./how-to-debug-defer.md).
 
-ZIO-direct supports using the following constructs inside of a `defer` block. Approximate translations of the what the Scala code looks like are available below. In order to see the exact translations for any code in a defer block, use `defer.info`.
+```scala mdoc:silent
+import zio._
+import zio.direct._
 
-### blocks
+def throwsException(): Int = throw new Exception("foo")
+def somethingUnsafe: Int = 42
 
-```scala
-defer {
+def runNow[A](effect: Task[A]): A =
+  Unsafe.unsafe { implicit u =>
+    Runtime.default.unsafe.run(effect).getOrThrowFiberFailure()
+  }
+```
+
+## Blocks
+
+A `defer` block can contain several `val` definitions. Each `.run` call gives a `val` the value of an effect, and the last expression is the value of the block:
+
+```scala mdoc
+println(runNow(defer {
   val a = ZIO.succeed("Hello").run
   val b = ZIO.succeed("World").run
   a + " " + b
-}
+}))
 ```
+
 Translation:
+
 ```scala
 ZIO.succeed("Hello").flatMap { a =>
   ZIO.succeed("World").map { b =>
@@ -26,104 +48,74 @@ ZIO.succeed("Hello").flatMap { a =>
 }
 ```
 
-Blocks can also have nested blocks.
-```scala
-defer {
+A block can also contain a nested `defer` block, whose result is then used like any other value:
+
+```scala mdoc
+println(runNow(defer {
   val a = ZIO.succeed("Hello").run
   val b = defer {
     val x = ZIO.succeed("to").run
     val y = ZIO.succeed("World").run
     x + " " + y
-  }
+  }.run
   a + " " + b
-}
-```
-Translation:
-```scala
-ZIO.succeed("Hello").flatMap { a =>
-  {
-    ZIO.succeed("to").flatMap { x =>
-      ZIO.succeed("World").map { y =>
-        x + " " + y
-      }
-    }
-  }.map { b =>
-    a + " " + b
-  }
-}
+}))
 ```
 
+## if/else
 
+An `if` statement can contain `.run` calls in its condition and in its branches:
 
-
-### if/else
-If statements with one or multiple ZIO.run values in the condition(s) and action(s).
-
-```scala
-defer {
+```scala mdoc
+println(runNow(defer {
   if (ZIO.succeed(123).run < 456 && ZIO.succeed("foo").run == "foo")
     ZIO.succeed("a").run
   else
     ZIO.succeed("b").run
-}
+}))
 ```
 
 Translation:
-> Note that each condition is separated into it's own nested flatMap chain step
-(from left-to-right) so if earlier conditions yield `false` ZIO computations of
-later ones will not be executed.
+
 ```scala
 ZIO.succeed(123).flatMap { a =>
   if (a < 456)
     ZIO.succeed("foo").flatMap { b =>
-      if (b == "foo")
-        ZIO.succeed("a")
-      else
-        ZIO.succeed("b")
+      if (b == "foo") ZIO.succeed("a") else ZIO.succeed("b")
     }
   else
     ZIO.succeed("b")
 }
 ```
 
+Each condition becomes its own step, from left to right. If an earlier condition is `false`, the effects in the later conditions do not run.
 
-### match
+## match
 
-Match statements with ZIO.run in the left-hand-side (before "match") and/or the right-hand-side (after the "=>").
-ZIO.run calls inside of match guards (i.e. if-statements after `case Clause`) are not supported yet.
+A `match` statement can contain `.run` calls before the `match` keyword and inside the case bodies:
 
-```scala
-defer {
+```scala mdoc
+println(runNow(defer {
   ZIO.succeed("Hello").run match {
     case hello @ "Hello" =>
       val world = ZIO.succeed(" World").run
-      hello + " " + world
+      hello + world
     case _ =>
       "Nothing"
   }
-}
+}))
 ```
 
-Translation:
-```scala
-ZIO.succeed("Hello").flatMap { x =>
-  x match {
-    case hello @ "Hello" =>
-      ZIO.succeed(" World").flatMap { world =>
-        hello + " " + world
-      }
-    case _ =>
-      ZIO.succeed("Nothing")
-  }
-}
-```
+:::caution
+`.run` calls inside a guard, which is the `if` after a `case` pattern, are not supported. The [restrictions reference](./restrictions-and-error-messages.md#run-calls-in-match-guards) describes the error and the rewrite.
+:::
 
-### try
+## try and catch
 
-Try statements with ZIO.run in the left-hand-side (before "try") and/or the right-hand-side (after the "=>").
+A `try` block can contain `.run` calls in its body, and the `catch` clause can contain `.run` calls too:
 
-```scala
-defer {
+```scala mdoc
+println(runNow(defer {
   try {
     val a = ZIO.succeed(123).run
     val b = ZIO.attempt(somethingUnsafe).run
@@ -132,94 +124,51 @@ defer {
     case e: Exception =>
       ZIO.succeed(789).run
   }
-}
+}))
 ```
 
 Translation:
+
 ```scala
 ZIO.succeed(123).flatMap { a =>
   ZIO.attempt(somethingUnsafe).map { b =>
     a + b
-  }.catchAll { e =>
-    ZIO.succeed(789)
   }
+}.catchAll { case e: Exception =>
+  ZIO.succeed(789)
 }
 ```
-Note that because try-statements are translated into ZIO.catchAll, errors that go into fail fail-channel
-will not be caught by the catch block. For example:
 
-```scala
-def throwsException() = throw new Exception("foo")
+The `catch` clause receives exceptions that an effect puts into its error channel, such as those from `ZIO.attempt`. An exception thrown by plain code inside `ZIO.succeed` becomes a defect, and the `catch` clause does not see it:
 
-defer {
+```scala mdoc
+println(runNow(defer {
   try {
-    // Will not be caught!!
     ZIO.succeed(throwsException()).run
   } catch {
     case e: Exception => 123
   }
-}
-
-defer {
-  try {
-    // WILL be caught!!
-    ZIO.attemt(throwsException()).run
-  } catch {
-    case e: Exception => 123
-  }
-}
+}.exit).isFailure)
 ```
 
-In cases where methods that throw exceptions not not wrapped into ZIO computations, they will also
-not be caught because the assumption is that they are pure-computations hence can be wrapped into `ZIO.succeed` blocks.
+The `unsafe` block tells `defer` that the code it wraps can throw, so the code is translated into `ZIO.attempt` and the exception is caught:
 
-```scala
-def throwsException() = throw new Exception("foo")
-
-defer {
-  try {
-    // Will not be caught!!
-    throwsException()
-  } catch {
-    case e: Exception => 123
-  }
-}
-
-// Translation:
-ZIO.succeed(throwsException()).catchAll { e =>
-  case e: Exception => 123
-}
-```
-
-In order to rectify this situation, a region-based operator `unsafe { ... }` can be used to wrap
-all blocks of code that could potentially throw exceptions. ZIO-Direct will the know to wrap
-them into `ZIO.attempt` clauses instead of `ZIO.succeed`.
-```scala
-def throwsException() = throw new Exception("foo")
-
-defer {
+```scala mdoc
+println(runNow(defer {
   try {
     unsafe {
-      // This WILL be caught!!
       throwsException()
     }
   } catch {
     case e: Exception => 123
   }
-}
-
-// Translation:
-ZIO.attempt(throwsException()).catchAll { e =>
-  case e: Exception => 123
-}
+}))
 ```
 
-Note that that ZIO computations with `.run` calls and other kinds of constructs supported by zio-direct
-can be used inside of `unsafe` blocks, and these computations will be used as-is (i.e. if they contain
-ZIO.succeed calls the will not be changed into something else).
+Effects with `.run` calls can also appear inside `unsafe`, and they are used as they are:
 
-```scala
-defer {
+```scala mdoc
+println(runNow(defer {
   try {
     unsafe {
       val a = ZIO.succeed(123).run
@@ -230,100 +179,60 @@ defer {
   } catch {
     case e: Exception => 123
   }
-}
-
-// Translation:
-ZIO.succeed(123).flatMap { a =>
-  ZIO.attempt(throwsException()).flatMap { _ =>
-    ZIO.succeed(456).map { b =>
-      a + b
-    }
-  }
-}.catchAll { e =>
-  case e: Exception => 123
-}
+}))
 ```
 
-### while
+A `finally` clause is also supported. It runs after the body, whether or not the body succeeds.
 
-While-clauses will be translated into recursive functions that conditionally recurse into a flatMap call based on the while-condition.
+## while
 
-> Generally due to the presence of functions like [`ZIO.iterate`](https://zio.dev/reference/control-flow/#iterate) and [`ZIO.repeat`](https://zio.dev/reference/test/aspects/repeat-and-retry/#repeat) the critical use-case for ZIO-direct's while-loop should be limited.
+A `while` loop is translated into a recursive function that calls the next iteration after the body finishes. A loop that changes a `var` needs Lenient mode, which the `Use.withLenientCheck` option enables:
 
-```scala
-// Note that because mutable variable usage is generally not allowed in zio-direct the below code can only be run in "Lenient Mode."
-var i = 0
-defer {
-  while (i < 10) {
+```scala mdoc
+println(runNow(defer(Use.withLenientCheck) {
+  var i = 0
+  while (i < 3) {
     ZIO.attempt(println("Hello")).run
     i += 1
   }
-}
-
-// Translation:
-val i = 0
-def loop(): ZIO[Any, Throwable, Unit] = {
-  if (i < 10) {
-    ZIO.attempt(println("Hello")).flatMap { _ =>
-      i += 1
-      loop()
-    }
-  } else {
-    ZIO.unit
-  }
-}
-loop()
+  i
+}))
 ```
 
+In the default Strict mode, use a ZIO `Ref` for mutable state, as the [restrictions reference](./restrictions-and-error-messages.md#mutable-variables) explains:
 
-Since mutable variables are generally not allowed in `defer { ... }` blocks, it is recommended to use mutable references from ZIO's
-[`Ref`](https://zio.dev/reference/concurrency/ref/) class instead.
-
-```scala
-defer {
+```scala mdoc
+println(runNow(defer {
   val ref = Ref.make(0).run
-  while (ref.get.run < 10) {
+  while (ref.get.run < 3) {
     ZIO.attempt(println("Hello")).run
     ref.update(_ + 1).run
   }
-}
-
-// Translation:
-Ref.make(0).flatMap { ref =>
-  def loop(): ZIO[Any, Throwable, Unit] = {
-    ref.get.flatMap { x =>
-      if (x < 10) {
-        ZIO.attempt(println("Hello")).flatMap { _ =>
-          ref.update(_ + 1).flatMap { _ =>
-            loop()
-          }
-        }
-      } else {
-        ZIO.unit
-      }
-    }
-  }
-  loop()
-}
+  ref.get.run
+}))
 ```
 
-### for-loop/foreach
+:::note
+ZIO provides `ZIO.iterate` and `ZIO.repeat` for many loops that do not need a `while` statement. Use `while` when the loop condition itself must run effects on each iteration, as in the `Ref` example above.
+:::
 
-Scala for-loops and collection.foreach are the same thing (the former dis desugars into the latter).
-ZIO-direct will translate them into ZIO.foreach calls.
+## for-loop and foreach
 
-> Similar to while-loops, this construct is
-largely overshawoed by ZIO's own [`foreach`](https://zio.dev/reference/control-flow/#iterate) and [`iterate`](https://zio.dev/reference/control-flow/#foreach) combinators.
+A `for` loop over a collection is translated into `ZIO.foreach`. The body contains `.run` calls, and the loop result is `Unit`:
 
-```scala
-defer {
-  for (i <- 1 to 10) {
+```scala mdoc
+println(runNow(defer {
+  for (i <- 1 to 3) {
     ZIO.attempt(println(i)).run
   }
-}
-
-// Translation:
-ZIO.foreach(1 to 10) { i =>
-  ZIO.attempt(println(i))
-}.map(_ => ()) // since the final result must have a type of Unit
+}))
 ```
+
+## Declarations
+
+A `val` can be declared anywhere in a `defer` block. Mutable `var` declarations, `def`, `class`, `lazy val`, and implicit definitions are rejected in the default Strict mode, as the [restrictions reference](./restrictions-and-error-messages.md) describes. The `while` section above shows the Lenient and Ref alternatives.
+
+## Next Steps
+
+- **Want to handle errors in a block?** Read [How to Handle Errors in a defer Block](./how-to-handle-errors.md).
+- **Want to change how the block is checked?** Read [Configuration Options for defer](./configuration.md).
