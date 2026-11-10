@@ -122,13 +122,13 @@ trait WithReconstructTree extends MacroBase {
         case IR.Fail(error) =>
           error match {
             case IR.Pure(value) =>
-              val tpe = ComputeType.fromIR(error).a.widen
+              val tpe = ComputeType.fromIR(error).zpe.a.widen
               q"zio.ZIO.fail[$tpe](${value})"
 
             // TODO test the case where error is constructed via an run
             case m: IR.Monadic =>
               val monad = apply(m)
-              val a = ComputeType.fromIR(error).a
+              val a = ComputeType.fromIR(error).zpe.a
               q"$monad.flatMap(err => zio.ZIO.fail[$a](err))"
           }
 
@@ -190,7 +190,7 @@ trait WithReconstructTree extends MacroBase {
         case irWhile @ IR.While(whileCond, whileBody) =>
           // Since the function needs to know the type for the definition (especially because it's recursive!) need to find that out here
           val methOutputComputed = ComputeType.fromIR(irWhile)
-          val methOutputTpe = methOutputComputed.toZioType
+          val methOutputTpe = methOutputComputed.zpe.toZioType
 
           // val methodType = MethodType(Nil)(_ => Nil, _ => methOutputTpe)
           // val methSym = Symbol.newMethod(Symbol.spliceOwner, "whileFunc", methodType)
@@ -226,7 +226,7 @@ trait WithReconstructTree extends MacroBase {
           ComputeType.fromIR(tryBlock)
           val newCaseDefs = reconstructCaseDefs(cases)
           val tryTerm = apply(tryBlock)
-          val (r, e, a) = ComputeType.fromIR(tryIR).asTypeTuple
+          val (r, e, a) = ComputeType.fromIR(tryIR).zpe.asTypeTuple
 
           // need to cast to .asInstanceOf[zio.ZIO[$r, _, $a]] erasing the type _ since it could be
           // `Nothing` and then ZIO returns the following error:

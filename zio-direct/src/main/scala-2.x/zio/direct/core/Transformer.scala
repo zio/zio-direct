@@ -113,7 +113,7 @@ abstract class Transformer
 
     val ownerPositionOpt = findEncosingOwner
     val wrappedIR = wrapUnsafes(ir, sourceFile, instructions)
-    val computedType = ComputeType.fromIR(wrappedIR)(instructions).toZioType
+    val computedType = ComputeType.fromIR(wrappedIR)(instructions).zpe.toZioType
     val output = reconstructTree(wrappedIR, sourceFile, instructions)
 
     Allowed.finalValidtyCheck(output, instructions)
