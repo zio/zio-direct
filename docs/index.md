@@ -1,7 +1,7 @@
 ---
 id: index
 title:  "Introduction to ZIO Direct Style"
-sidebar_label: "Introduction"
+sidebar_label: "Introduction to ZIO Direct Style"
 ---
 
 ZIO Direct Style is a library that allows using directly-style i.e. imperative programming with ZIO effects which is based on the Monadless paradigm.
@@ -218,7 +218,7 @@ The same logic without `defer` nests the `get` and `set` calls inside `flatMap` 
 
 ## Next Steps
 
-- **New to ZIO Direct Style?** Follow the [tutorial](./tutorial-rewrite-for-comprehension.md), which rewrites a for-comprehension as a `defer` block.
+- **New to ZIO Direct Style?** Follow the [Getting Started tutorial](./getting-started.md), which rewrites a for-comprehension as a `defer` block.
 - **Handling failures?** Read [How to Handle Errors in a defer Block](./how-to-handle-errors.md).
 - **Running effects in parallel?** Read [How to Run Effects in Parallel in a defer Block](./how-to-run-in-parallel.md).
 - **Looking for a specific construct or message?** Read [Scala Constructs Supported by ZIO-Direct](./supported-constructs.md) or [Restrictions and Error Messages](./restrictions-and-error-messages.md).
