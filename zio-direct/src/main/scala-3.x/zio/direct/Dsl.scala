@@ -82,8 +82,8 @@ trait deferCall[F[_, _, _], F_out, S, W, MM <: MonadModel] {
   transparent inline def sequence: MonadSequence[F]
 
   /**
-   * Hook for running a collection of effects in parallel (`foreachPar` and `collectAllPar`). It is used when
-   * `Use.withParallelEval` is set.
+   * Hook used in place of `sequence` (`foreachPar` and `collectAllPar`) when `Use.withParallelEval` is set. For
+   * ZIO it runs the effects in parallel. The streams, futures, pure and list DSLs run them one after another.
    */
   transparent inline def sequencePar: MonadSequenceParallel[F]
 

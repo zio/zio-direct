@@ -34,8 +34,10 @@ trait Use {
   def withNoCheck: Use = NotDeferredException.fromNamed("Use.withNoCheck")
 
   /**
-   * Runs the effects in a tuple, such as `(a.run, b.run)`, in parallel instead of one after another. Without
-   * this setting they run one after another.
+   * Runs the `run` calls that make up one expression, such as the tuple `(a.run, b.run)`, in parallel. In a
+   * `for` loop over a collection, the body runs in parallel for each element. Without this setting they run one
+   * after another. Only the ZIO `defer` runs them in parallel. The streams, futures, pure and list DSLs still run
+   * them one after another.
    */
   def withParallelEval: Use = NotDeferredException.fromNamed("Use.withParallelEval")
 
