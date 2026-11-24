@@ -307,12 +307,9 @@ trait WithIR extends MacroBase {
    * Instead we need it to become
    *  run(foo).flatMap(x => attempt(1/0)).catchSome { case e: ... }
    *
-   * Most interestingly, in a statement like this
-   *   try { unsafe { (run(foo), 4/0, run(bar)) } } catch { case: e...  }
-   * Normally it would turn into
-   *   { collect(Chunk(foo, bar)).map(iter => { val par1 = iter.next; var par2 = iter.next; (par1, 4/0, bar) }
-   * We need it to become
-   *   { collect(Chunk(foo, bar)).flatMap(iter => attempt { val par1 = iter.next; var par2 = iter.next; (par1, 4/0, bar) }
+   * A statement inside `unsafe` that mixes `run(...)` calls with other expressions, such as
+   *   unsafe { (run(foo), 4/0, run(bar)) }
+   * is rejected with `UnsafeNotAllowedParallel`.
    */
   object WrapUnsafes extends StatelessTransformer {
     override def apply(ir: IR.Monadic): IR.Monadic =

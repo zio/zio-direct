@@ -105,7 +105,7 @@ class deferWith[W, S] {
   def log(w: W): Unit = ZPure.log(w).eval
 
   /**
-   * Helpers that turn a plain value into a `ZPure` step. Inside a `defer { ... }` block, call `.eval` on the
+   * Helpers that build a `ZPure` step from a value or from the environment. Inside a `defer { ... }` block, call `.eval` on the
    * step to run it, as in `Wrap.succeed(3).eval`. The `eval` extension is in `zio.direct.pure`.
    */
   object Wrap {
