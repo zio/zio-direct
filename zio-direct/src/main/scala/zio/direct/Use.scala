@@ -3,9 +3,10 @@ package zio.direct
 import zio.direct.core.NotDeferredException
 
 /**
- * Settings for `defer`, passed as `defer(Use.withLenientCheck) { ... }` and similar. Each `with` method
- * returns a new `Use`, so settings chain: `Use.withLenientCheck.withParallelEval`. When two settings change
- * the same thing, the one written last wins.
+ * Settings for `defer`, passed as `defer(Use.withLenientCheck) { ... }` and similar. Each `with` method has
+ * type `Use`, so settings chain: `Use.withLenientCheck.withParallelEval`. When two settings change the same
+ * thing, the one written last wins. Write the chain directly in the `defer(...)` call. The macro reads it at
+ * compile time. Calling these methods anywhere else throws `NotDeferredException`.
  *
  * {{{
  * import zio._
@@ -22,8 +23,8 @@ import zio.direct.core.NotDeferredException
 trait Use {
 
   /**
-   * Allows local `var`s, and assigning to them, inside the block. A `var` cannot be set from a `run` call. Read
-   * the value into a `val` first.
+   * Allows local `var`s, `lazy val`s, `def`s and classes, and assignment to `var`s, as long as the statement
+   * contains no `run` call. A `var` cannot be set from a `run` call: read the value into a `val` first.
    */
   def withLenientCheck: Use = NotDeferredException.fromNamed("Use.withLenientCheck")
 

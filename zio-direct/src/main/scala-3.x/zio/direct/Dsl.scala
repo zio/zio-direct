@@ -117,8 +117,8 @@ trait deferCall[F[_, _, _], F_out, S, W, MM <: MonadModel] {
   transparent inline def apply[T](inline value: T): F_out = impl(value, InfoBehavior.Silent, Use, LinReg)
 
   /**
-   * Same as `apply`, and prints the computed type of the block at compile time. The output does not change
-   * the program.
+   * Same as `apply`, and at compile time prints the computed type of the block and the code generated for it.
+   * The output does not change the program.
    */
   @scala.reflect.macros.internal.macroImpl("nothing")
   transparent inline def info[T](inline value: T): F_out = impl(value, InfoBehavior.Info, Use, LinReg)
