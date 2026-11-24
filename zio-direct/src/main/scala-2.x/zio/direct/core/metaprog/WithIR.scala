@@ -288,6 +288,32 @@ trait WithIR extends MacroBase {
     case class Parallel(originalExpr: c.universe.Tree, monads: List[(IR.Monadic, TermName, Type)], body: IR.Leaf) extends Monadic
   }
 
+  /**
+   * Wrap the IR.Pures/IR.Maps in the body of IR.Unsafe elements with ZIO.attempt.
+   * This is largely for the sake of tries working as expected, for example.
+   * (assume all the above examples are wrapped in `defer { ... }`)
+   *   try { 1/0 } catch { case e: DivideByZeroException => ... }
+   * Normally with zio-run this will not be caught because 1/0 will not be wrapped into a ZIO.attempt.
+   * This statement will become
+   *   succeed(1/0).catchSome { case e: ... }
+   * Instead we need it to become
+   *   attempt(1/0).catchSome { case e: ... }
+   * This phase will do that.
+   *
+   * Also in a statement like this
+   *  try { val x = run(foo); 1/0 } catch { case e: ... }
+   * It will become
+   *  run(foo).map(x => 1/0).catchSome { case e: ... }
+   * Instead we need it to become
+   *  run(foo).flatMap(x => attempt(1/0)).catchSome { case e: ... }
+   *
+   * Most interestingly, in a statement like this
+   *   try { unsafe { (run(foo), 4/0, run(bar)) } } catch { case: e...  }
+   * Normally it would turn into
+   *   { collect(Chunk(foo, bar)).map(iter => { val par1 = iter.next; var par2 = iter.next; (par1, 4/0, bar) }
+   * We need it to become
+   *   { collect(Chunk(foo, bar)).flatMap(iter => attempt { val par1 = iter.next; var par2 = iter.next; (par1, 4/0, bar) }
+   */
   object WrapUnsafes extends StatelessTransformer {
     override def apply(ir: IR.Monadic): IR.Monadic =
       ir match {

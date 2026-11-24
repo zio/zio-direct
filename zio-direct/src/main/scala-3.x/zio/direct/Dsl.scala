@@ -20,16 +20,86 @@ class directSetCall extends scala.annotation.StaticAnnotation
 class directGetCall extends scala.annotation.StaticAnnotation
 class directLogCall extends scala.annotation.StaticAnnotation
 
+/**
+ * Runs a block as plain code inside a `defer { ... }` block, not as effects. Use it when the block calls
+ * code that throws. An exception thrown inside `unsafe` becomes a failure of the effect (the error channel,
+ * as a `Throwable`) instead of a defect. Calls to `run` inside `unsafe` still run as effects, in order.
+ * A line inside `unsafe` that mixes `run` with other expressions is rejected, as in `defer.linear`.
+ *
+ * Outside a `defer` block, `unsafe` throws `NotDeferredException`.
+ *
+ * {{{
+ * import zio._
+ * import zio.direct._
+ *
+ * def parse(s: String): Int = s.toInt
+ *
+ * val program: ZIO[Any, Throwable, Int] = defer {
+ *   unsafe {
+ *     val text = ZIO.succeed("42").run
+ *     parse(text)
+ *   }
+ * }
+ * }}}
+ */
 def unsafe[T](value: T): T = NotDeferredException.fromNamed("unsafe")
 
+/**
+ * The shared body of each `defer` object (ZIO, streams, futures, pure and lists). Each object extends
+ * this trait and fills in the monad hooks below. The hooks tell the macro how that monad wraps values,
+ * chains effects, fails, sequences, and handles state and logs.
+ *
+ * Callers use the methods of the object, such as `defer { ... }` or `defer.verbose { ... }`. Inside the
+ * block, a `run` call (or the monad's own equivalent, such as `each`) runs an effect and gives its value.
+ *
+ * {{{
+ * import zio._
+ * import zio.direct._
+ *
+ * val program: ZIO[Any, Nothing, Int] = defer {
+ *   val a = ZIO.succeed(1).run
+ *   val b = ZIO.succeed(2).run
+ *   a + b
+ * }
+ * }}}
+ */
 trait deferCall[F[_, _, _], F_out, S, W, MM <: MonadModel] {
+
+  /**
+   * Hook for the monad's basic operations: wrapping a plain value, `map` and `flatMap`. Each DSL object sets it.
+   */
   transparent inline def success: MonadSuccess[F]
+
+  /**
+   * Hook for the monad's error operations (`fail`, `attempt`, `catchSome`, `mapError`, `orDie`, `ensuring`).
+   * It is `None` when the monad has no error channel, as for lists.
+   */
   transparent inline def fallible: Option[MonadFallible[F]]
+
+  /**
+   * Hook for running a collection of effects one after another (`foreach` and `collectAll`).
+   */
   transparent inline def sequence: MonadSequence[F]
+
+  /**
+   * Hook for running a collection of effects in parallel (`foreachPar` and `collectAllPar`). It is used when
+   * `Use.withParallelEval` is set.
+   */
   transparent inline def sequencePar: MonadSequenceParallel[F]
+
+  /**
+   * Hook for reading and setting state. It is `None` unless the monad has state. Only `deferWith` sets it.
+   */
   transparent inline def state: Option[MonadState[F, S]]
+
+  /**
+   * Hook for writing log entries. It is `None` unless the monad has a log. Only `deferWith` sets it.
+   */
   transparent inline def log: Option[MonadLog[F, W]]
 
+  /**
+   * Internal. The macro behind the methods below. Call `apply`, `info`, `verbose` or `verboseTree` instead.
+   */
   transparent inline def impl[T](
       inline value: T,
       inline info: InfoBehavior,
@@ -39,46 +109,133 @@ trait deferCall[F[_, _, _], F_out, S, W, MM <: MonadModel] {
 
   import zio.direct.core.metaprog.Linearity.{Regular => LinReg, Linear => Lin}
 
+  /**
+   * Turns `value` into the monad's type. Each `run` call inside the block becomes a step of the result.
+   * Uses the default settings: strict checks (no `var`), one-after-another tuples, and a union of error types.
+   */
   @scala.reflect.macros.internal.macroImpl("nothing")
   transparent inline def apply[T](inline value: T): F_out = impl(value, InfoBehavior.Silent, Use, LinReg)
+
+  /**
+   * Same as `apply`, and prints the computed type of the block at compile time. The output does not change
+   * the program.
+   */
   @scala.reflect.macros.internal.macroImpl("nothing")
   transparent inline def info[T](inline value: T): F_out = impl(value, InfoBehavior.Info, Use, LinReg)
+
+  /**
+   * Same as `info`, with more compile-time output. It also prints the intermediate steps of the transformation.
+   */
   @scala.reflect.macros.internal.macroImpl("nothing")
   transparent inline def verbose[T](inline value: T): F_out = impl(value, InfoBehavior.Verbose, Use, LinReg)
+
+  /**
+   * Same as `verbose`, and also prints the generated code as a tree.
+   */
   @scala.reflect.macros.internal.macroImpl("nothing")
   transparent inline def verboseTree[T](inline value: T): F_out = impl(value, InfoBehavior.VerboseTree, Use, LinReg)
 
+  /**
+   * Same as `apply(value)`, with the settings in `params`, for example `defer(Use.withLenientCheck) { ... }`.
+   * See `Use`.
+   */
   @scala.reflect.macros.internal.macroImpl("nothing")
   transparent inline def apply[T](inline params: Use)(inline value: T): F_out = impl(value, InfoBehavior.Silent, params, LinReg)
+
+  /**
+   * Same as `info(value)`, with the settings in `params`. See `Use`.
+   */
   @scala.reflect.macros.internal.macroImpl("nothing")
   transparent inline def info[T](inline params: Use)(inline value: T): F_out = impl(value, InfoBehavior.Info, params, LinReg)
+
+  /**
+   * Same as `verbose(value)`, with the settings in `params`. See `Use`.
+   */
   @scala.reflect.macros.internal.macroImpl("nothing")
   transparent inline def verbose[T](inline params: Use)(inline value: T): F_out = impl(value, InfoBehavior.Verbose, params, LinReg)
+
+  /**
+   * Same as `verboseTree(value)`, with the settings in `params`. See `Use`.
+   */
   @scala.reflect.macros.internal.macroImpl("nothing")
   transparent inline def verboseTree[T](inline params: Use)(inline value: T): F_out = impl(value, InfoBehavior.VerboseTree, params, LinReg)
 
+  /**
+   * Linear mode. Local `var`s are allowed, because the checks are lenient. Each line must be one step: a line
+   * that mixes `run` with other expressions, such as the tuple `(a.run, b.run)`, is rejected. Split such a
+   * line into two `val`s, or use `defer` instead.
+   *
+   * {{{
+   * import zio._
+   * import zio.direct._
+   *
+   * val program: ZIO[Any, Nothing, Int] = defer.linear {
+   *   var total = 0
+   *   total = total + 3
+   *   total
+   * }
+   * }}}
+   *
+   * The methods are the same as on `defer`, run in linear mode.
+   */
   object linear {
+
+    /**
+     * Same as `defer.apply`, in linear mode.
+     */
     @scala.reflect.macros.internal.macroImpl("nothing")
     transparent inline def apply[T](inline value: T): F_out = impl(value, InfoBehavior.Silent, Use, Lin)
+
+    /**
+     * Same as `defer.info`, in linear mode.
+     */
     @scala.reflect.macros.internal.macroImpl("nothing")
     transparent inline def info[T](inline value: T): F_out = impl(value, InfoBehavior.Info, Use, Lin)
+
+    /**
+     * Same as `defer.verbose`, in linear mode.
+     */
     @scala.reflect.macros.internal.macroImpl("nothing")
     transparent inline def verbose[T](inline value: T): F_out = impl(value, InfoBehavior.Verbose, Use, Lin)
+
+    /**
+     * Same as `defer.verboseTree`, in linear mode.
+     */
     @scala.reflect.macros.internal.macroImpl("nothing")
     transparent inline def verboseTree[T](inline value: T): F_out = impl(value, InfoBehavior.VerboseTree, Use, Lin)
 
+    /**
+     * Same as `defer.apply(params)(value)`, in linear mode.
+     */
     @scala.reflect.macros.internal.macroImpl("nothing")
     transparent inline def apply[T](inline params: Use)(inline value: T): F_out = impl(value, InfoBehavior.Silent, params, Lin)
+
+    /**
+     * Same as `defer.info(params)(value)`, in linear mode.
+     */
     @scala.reflect.macros.internal.macroImpl("nothing")
     transparent inline def info[T](inline params: Use)(inline value: T): F_out = impl(value, InfoBehavior.Info, params, Lin)
+
+    /**
+     * Same as `defer.verbose(params)(value)`, in linear mode.
+     */
     @scala.reflect.macros.internal.macroImpl("nothing")
     transparent inline def verbose[T](inline params: Use)(inline value: T): F_out = impl(value, InfoBehavior.Verbose, params, Lin)
+
+    /**
+     * Same as `defer.verboseTree(params)(value)`, in linear mode.
+     */
     @scala.reflect.macros.internal.macroImpl("nothing")
     transparent inline def verboseTree[T](inline params: Use)(inline value: T): F_out = impl(value, InfoBehavior.VerboseTree, params, Lin)
   }
 }
 
 extension [R, E, A](value: ZIO[R, E, A]) {
+
+  /**
+   * Runs this effect inside a `defer { ... }` block and gives its value. Outside a `defer` block it throws
+   * `NotDeferredException`.
+   */
   @directRunCall
   def run: A = NotDeferredException.fromNamed("run")
 }
